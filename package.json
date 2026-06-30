@@ -1,0 +1,14 @@
+{
+  "name": "selflearning",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node backend/server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.196",
+    "better-sqlite3": "^12.11.1",
+    "zod": "^4.0.0"
+  }
+}

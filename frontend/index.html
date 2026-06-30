@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>小学AI做题助手</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">小学AI做题助手</div>
+    <div class="topbar-actions">
+      <button id="prev-problem">上一题</button>
+      <button id="next-problem">下一题</button>
+      <button id="delete-problem" title="删除当前题">🗑️ 删除</button>
+      <button id="settings-btn" title="设置API Key">⚙️</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- 题目展示区域 -->
+    <section class="panel panel-problem">
+      <div class="panel-title">📘 题目</div>
+      <div class="problem-meta">
+        <span id="problem-index">1 / 1</span>
+        <span class="tag" id="problem-topic">算术</span>
+      </div>
+      <div id="problem-content" class="problem-content"></div>
+      <div id="problem-figure" class="problem-figure"></div>
+    </section>
+
+    <!-- 做题区域 -->
+    <section class="panel panel-work">
+      <div class="panel-title">✏️ 做题区</div>
+      <div class="work-answer">
+        <label>最终答案：</label>
+        <input id="final-answer" type="text" placeholder="在这里输入你的答案" />
+        <button id="check-answer" class="submit-answer-btn">提交答案</button>
+      </div>
+      <div class="work-tools">
+        <button data-tool="pen" class="tool active">✒️ 画笔</button>
+        <button data-tool="eraser" class="tool">🧽 橡皮</button>
+        <button data-tool="clear" class="tool">🗑️ 清空</button>
+        <label class="tool upload-btn" title="上传你写在纸上的做题过程或答案，让 AI 检查">
+          📷 上传我的解答
+          <input id="upload-input" type="file" accept="image/*" capture="environment" data-mode="answer" hidden />
+        </label>
+        <label class="tool upload-btn" title="上传一张题目图片，让 AI 识别并替换当前题">
+          📖 上传题目
+          <input id="upload-input-problem" type="file" accept="image/*" capture="environment" data-mode="problem" hidden />
+        </label>
+        <button class="tool" id="manual-input-btn" title="手动输入题目文本，让 AI 处理">✏️ 输入题目</button>
+        <span class="hint">在下方草稿区写过程；或上传/输入题目</span>
+      </div>
+      <div id="upload-preview" class="upload-preview" hidden>
+        <img id="upload-thumb" alt="上传的图片" />
+        <div class="upload-actions">
+          <button id="upload-send" type="button">发给 AI 检查</button>
+          <button id="upload-cancel" type="button">取消</button>
+        </div>
+      </div>
+      <canvas id="scratch" width="800" height="600"></canvas>
+    </section>
+
+    <!-- AI 交互区域 -->
+    <section class="panel panel-ai">
+      <div class="panel-title">
+        🤖 AI 助教
+        <span class="mode-switch">
+          <button id="mode-student" class="mode-btn active" data-mode="student">学生版</button>
+          <button id="mode-parent" class="mode-btn" data-mode="parent">家长版</button>
+        </span>
+        <span id="ai-status" class="ai-status status-idle">
+          <span class="dot"></span>
+          <span class="status-text">待命</span>
+          <span class="status-timer" hidden></span>
+        </span>
+      </div>
+      <div id="chat-log" class="chat-log"></div>
+      <div class="chat-actions">
+        <button class="quick" data-prompt="给我一个提示，但不要直接告诉我答案">要提示</button>
+        <button class="quick" data-prompt="请检查我刚才写在草稿区的过程">检查过程</button>
+        <button class="quick" data-prompt="请评估我的解题水平，并指出我哪里需要加强">水平测评</button>
+      </div>
+      <div class="chat-input">
+        <textarea id="chat-input" rows="2" placeholder="问我任何问题..."></textarea>
+        <button id="chat-send">发送</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- 设置弹窗 -->
+  <dialog id="settings-dialog">
+    <form method="dialog">
+      <h3>关于</h3>
+      <p>AI 助教由本地 Claude Code (claude-agent-sdk) 驱动。每打开一次页面会创建一个 Claude Code session。</p>
+      <p>认证沿用你本地 <code>claude</code> 命令的登录态，或环境变量 <code>ANTHROPIC_API_KEY</code>。</p>
+      <p>有问题可直接在右侧聊天里告诉 AI 助教。</p>
+      <menu>
+        <button value="ok">好</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <!-- AI 出题确认弹窗 -->
+  <dialog id="proposal-dialog">
+    <h3>🎯 AI 助教出了一道新题</h3>
+    <p class="muted">是否替换当前题目并开始挑战？</p>
+    <div class="proposal-card">
+      <div><span class="tag" id="proposal-topic"></span></div>
+      <div id="proposal-text" class="proposal-text"></div>
+      <div id="proposal-figure" class="proposal-figure"></div>
+      <details>
+        <summary>查看提示（可选）</summary>
+        <ol id="proposal-hints"></ol>
+      </details>
+    </div>
+    <menu>
+      <button id="proposal-cancel" value="cancel">取消</button>
+      <button id="proposal-accept" value="accept">替换并开始做这题</button>
+    </menu>
+  </dialog>
+
+  <!-- 手动输入题目对话框 -->
+  <dialog id="manual-input-dialog">
+    <h3>✏️ 手动输入题目</h3>
+    <p class="muted">输入题目文本（公式可用 $...$ 包裹 LaTeX），或点击🎤语音输入（同时保存录音），AI 会自动判断题型、生成答案和提示。</p>
+    <div style="margin: 12px 0; position: relative;">
+      <textarea id="manual-input-text" rows="6" style="width: 100%; resize: vertical; padding-right: 60px;" placeholder="例如：笼子里有若干只鸡和兔，共有头 30 个，脚 84 只。鸡和兔各有多少只？"></textarea>
+      <button id="voice-input-btn" class="voice-btn" title="语音输入（同时录音）">🎤</button>
+    </div>
+    <div id="voice-status" class="voice-status" hidden></div>
+    <div id="voice-preview" class="voice-preview" hidden>
+      <span id="voice-duration">⏱️ 0:00</span>
+      <audio id="voice-audio" controls style="height: 32px; flex: 1;"></audio>
+      <button id="voice-discard" class="voice-discard-btn" title="丢弃录音">🗑️</button>
+    </div>
+    <menu>
+      <button id="manual-input-cancel" value="cancel">取消</button>
+      <button id="manual-input-submit" value="submit">提交给 AI 处理</button>
+    </menu>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

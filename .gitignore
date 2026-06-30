@@ -104,3 +104,7 @@ temp/
 .history/
 *.bak
 *.tmp
+
+*.db
+*.db-shm
+*.db-wal
