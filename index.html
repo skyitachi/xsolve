@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>小学AI做题助手</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">小学AI做题助手</div>
+    <div class="topbar-actions">
+      <button id="prev-problem">上一题</button>
+      <button id="next-problem">下一题</button>
+      <button id="check-answer">提交答案</button>
+      <button id="settings-btn" title="设置API Key">⚙️</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- 题目展示区域 -->
+    <section class="panel panel-problem">
+      <div class="panel-title">📘 题目</div>
+      <div class="problem-meta">
+        <span id="problem-index">1 / 1</span>
+        <span class="tag" id="problem-topic">算术</span>
+      </div>
+      <div id="problem-content" class="problem-content"></div>
+      <div id="problem-figure" class="problem-figure"></div>
+    </section>
+
+    <!-- 做题区域 -->
+    <section class="panel panel-work">
+      <div class="panel-title">✏️ 做题区</div>
+      <div class="work-answer">
+        <label>最终答案：</label>
+        <input id="final-answer" type="text" placeholder="在这里输入你的答案" />
+      </div>
+      <div class="work-tools">
+        <button data-tool="pen" class="tool active">✒️ 画笔</button>
+        <button data-tool="eraser" class="tool">🧽 橡皮</button>
+        <button data-tool="clear" class="tool">🗑️ 清空</button>
+        <span class="hint">在下方草稿区写过程</span>
+      </div>
+      <canvas id="scratch" width="800" height="600"></canvas>
+    </section>
+
+    <!-- AI 交互区域 -->
+    <section class="panel panel-ai">
+      <div class="panel-title">🤖 AI 助教</div>
+      <div id="chat-log" class="chat-log"></div>
+      <div class="chat-actions">
+        <button class="quick" data-prompt="给我一个提示，但不要直接告诉我答案">要提示</button>
+        <button class="quick" data-prompt="请检查我刚才写在草稿区的过程">检查过程</button>
+        <button class="quick" data-prompt="请评估我的解题水平，并指出我哪里需要加强">水平测评</button>
+      </div>
+      <div class="chat-input">
+        <textarea id="chat-input" rows="2" placeholder="问我任何问题..."></textarea>
+        <button id="chat-send">发送</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- 设置弹窗 -->
+  <dialog id="settings-dialog">
+    <form method="dialog">
+      <h3>设置 SiliconFlow API Key</h3>
+      <p>调用 SiliconFlow（OpenAI 风格）作为 AI 助教。Key 仅存在浏览器 localStorage。</p>
+      <input id="api-key-input" type="password" placeholder="sk-..." style="width:100%" />
+      <label style="display:block;margin-top:8px">
+        模型：
+        <select id="model-select">
+          <option value="Qwen/Qwen2.5-7B-Instruct">Qwen2.5-7B-Instruct (快, 免费)</option>
+          <option value="Qwen/Qwen2.5-32B-Instruct">Qwen2.5-32B-Instruct</option>
+          <option value="Qwen/Qwen2.5-72B-Instruct">Qwen2.5-72B-Instruct</option>
+          <option value="deepseek-ai/DeepSeek-V3">DeepSeek-V3 (推荐)</option>
+          <option value="deepseek-ai/DeepSeek-R1">DeepSeek-R1 (深度推理)</option>
+          <option value="THUDM/glm-4-9b-chat">GLM-4-9B-Chat</option>
+        </select>
+      </label>
+      <label style="display:block;margin-top:8px">
+        Base URL：
+        <input id="base-url-input" type="text" style="width:100%" value="https://api.siliconflow.cn/v1" />
+      </label>
+      <menu>
+        <button value="cancel">取消</button>
+        <button id="save-key" value="save">保存</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <script src="problems.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
