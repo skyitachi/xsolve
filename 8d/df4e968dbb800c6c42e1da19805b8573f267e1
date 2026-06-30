@@ -1,0 +1,26 @@
+styles.css
+  s_161993bf785f3c::t_aa345ff90e0664 125-129
+server.js
+  s_161993bf785f3c::t_18b71cfdf912ff 240
+app.js
+  s_161993bf785f3c::t_38d1c17be47b9d 458-459
+  s_161993bf785f3c::t_ade3d64378ae3b 387,389-392,394,396-397,412,418-432,434-440,442-457,460
+  s_161993bf785f3c::t_03f797b302742c 342-343,359,364,369
+  s_161993bf785f3c::t_a0ce5019c8a195 433,441
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.26-trip",
+  "base_commit_sha": "8ddf4e968dbb800c6c42e1da19805b8573f267e1",
+  "prompts": {},
+  "sessions": {
+    "s_161993bf785f3c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b368af76-44f0-49ab-bfe8-e9d15c27b3a1",
+        "model": "arn:aws:bedrock:us-west-2:133197901387:application-inference-profile/ypvzpmevzxdl"
+      },
+      "human_author": "yaosp <yaosp@trip.com>"
+    }
+  }
+}
