@@ -1,0 +1,20 @@
+problems.js
+  s_161993bf785f3c::t_67309db8eee252 163,166-168
+  s_161993bf785f3c::t_5ed1d9948c6b03 1-2,6-8,10-12,17-19,21-23,28-30,32-34,39-41,43-45,50-162,164-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.26-trip",
+  "base_commit_sha": "60e1566772434e974da830f1a6e1d43e53e43b63",
+  "prompts": {},
+  "sessions": {
+    "s_161993bf785f3c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b368af76-44f0-49ab-bfe8-e9d15c27b3a1",
+        "model": "arn:aws:bedrock:us-west-2:133197901387:application-inference-profile/ypvzpmevzxdl"
+      },
+      "human_author": "yaosp <yaosp@trip.com>"
+    }
+  }
+}
