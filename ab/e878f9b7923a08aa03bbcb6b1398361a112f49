@@ -1,0 +1,21 @@
+styles.css
+  s_161993bf785f3c::t_801ea6e824294f 123-139
+app.js
+  s_161993bf785f3c::t_5a39751545d426 258-302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.26-trip",
+  "base_commit_sha": "abe878f9b7923a08aa03bbcb6b1398361a112f49",
+  "prompts": {},
+  "sessions": {
+    "s_161993bf785f3c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b368af76-44f0-49ab-bfe8-e9d15c27b3a1",
+        "model": "arn:aws:bedrock:us-west-2:133197901387:application-inference-profile/ypvzpmevzxdl"
+      },
+      "human_author": "yaosp <yaosp@trip.com>"
+    }
+  }
+}
