@@ -1,0 +1,12 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ed7cec612be0367df8f0de097e46b496e3bccf2d",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
