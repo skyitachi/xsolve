@@ -1,0 +1,20 @@
+styles.css
+  s_91c53f092c0def::t_e3c85b9574ffbe 259,264-266
+  s_91c53f092c0def::t_2c604e5366028d 267-269
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "13cdb0c42bf6cf47388ff89a142a792f0527b41a",
+  "prompts": {},
+  "sessions": {
+    "s_91c53f092c0def": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c48fc4ca-b342-4b48-b3ef-504e3f9fce3b",
+        "model": "deepseek-ai/DeepSeek-V4-Pro"
+      },
+      "human_author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
