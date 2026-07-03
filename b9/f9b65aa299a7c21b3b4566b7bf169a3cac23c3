@@ -1,0 +1,33 @@
+app.js
+  s_161993bf785f3c::t_a555ce5e423cd6 474
+  s_161993bf785f3c::t_1efdd376ef5f36 738-740,748-760
+  s_161993bf785f3c::t_c7039a09670f8a 1130-1133,1135-1137,1147-1150
+  s_161993bf785f3c::t_2371eec02f7858 1134,1138-1146
+server.js
+  s_161993bf785f3c::t_a9fc4169352866 14
+  s_161993bf785f3c::t_c3bf74afaf6f6e 427
+  s_161993bf785f3c::t_b6ac60287e6676 56
+  s_161993bf785f3c::t_6184d3a275ae3e 215-237
+  s_161993bf785f3c::t_3be401a43083b2 525-531
+index.html
+  s_161993bf785f3c::t_94613edebfb63b 18
+db.js
+  s_161993bf785f3c::t_f7d5875f4c0903 140
+  s_161993bf785f3c::t_30e931051224ba 100-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.28-trip",
+  "base_commit_sha": "b9f9b65aa299a7c21b3b4566b7bf169a3cac23c3",
+  "prompts": {},
+  "sessions": {
+    "s_161993bf785f3c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b368af76-44f0-49ab-bfe8-e9d15c27b3a1",
+        "model": "arn:aws:bedrock:us-west-2:133197901387:application-inference-profile/ypvzpmevzxdl"
+      },
+      "human_author": "yaosp <yaosp@trip.com>"
+    }
+  }
+}
