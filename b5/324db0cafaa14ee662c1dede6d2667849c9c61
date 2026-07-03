@@ -1,0 +1,69 @@
+package.json
+  s_161993bf785f3c::t_41db18d37d5b8f 12
+  s_161993bf785f3c::t_b0fca3e533be58 1-6,8-10,13-14
+backend/problems.js
+  s_161993bf785f3c::t_67309db8eee252 163,166-168
+  s_161993bf785f3c::t_5ed1d9948c6b03 1-2,6-8,10-12,17-19,21-23,28-30,32-34,39-41,43-45,50-162,164-165
+frontend/index.html
+  s_161993bf785f3c::t_80d7ed8d6e1d54 51,58-64
+  s_161993bf785f3c::t_145d93f023499e 109-115,117-127
+  s_161993bf785f3c::t_60fb6c9b1ec29c 48-50,52-55
+  s_161993bf785f3c::t_bb4120cf57f71b 71-72,77-82
+  s_161993bf785f3c::t_0c09eda0957ffc 116
+  s_161993bf785f3c::t_94613edebfb63b 19
+  s_161993bf785f3c::t_6d89a877a6907d 73-76
+frontend/styles.css
+  s_161993bf785f3c::t_98f388e7a56c3e 54-60,71-96
+  s_161993bf785f3c::t_d79df64f38fc82 423-430
+  s_91c53f092c0def::t_e3c85b9574ffbe 318,323-325
+  s_91c53f092c0def::t_2c604e5366028d 326-328
+  s_161993bf785f3c::t_fd5105d95af6a4 61-70
+backend/server.js
+  s_161993bf785f3c::t_29bdceb632f92a 397-412
+  s_161993bf785f3c::t_7b0d4ee9a7fe98 549
+  s_161993bf785f3c::t_6ebf6ef561b9a2 65
+  s_161993bf785f3c::t_5385cf58c96800 159-160,162,165,215,222,226,257,258,279-280
+  s_161993bf785f3c::t_7f9d0fce77f5fd 21-24,26-34,36-46
+  s_161993bf785f3c::t_a89a1c8b0629d5 80-81,83
+  s_161993bf785f3c::t_a9fc4169352866 15
+  s_161993bf785f3c::t_c3bf74afaf6f6e 547
+  s_161993bf785f3c::t_b6ac60287e6676 58
+  s_161993bf785f3c::t_6184d3a275ae3e 333-355
+  s_161993bf785f3c::t_3be401a43083b2 657-659,661,670-671
+  s_161993bf785f3c::t_21852e97553270 52,71-72,82,85-111
+  s_161993bf785f3c::t_7f9b35621da276 508,511,519
+  s_161993bf785f3c::t_a24cf19a9d5488 540
+  s_161993bf785f3c::t_f359f0db573e8b 673-675
+backend/db.js
+  s_161993bf785f3c::t_f7d5875f4c0903 140
+  s_161993bf785f3c::t_30e931051224ba 100-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.26-trip",
+  "base_commit_sha": "b5324db0cafaa14ee662c1dede6d2667849c9c61",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_161993bf785f3c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b368af76-44f0-49ab-bfe8-e9d15c27b3a1",
+        "model": "arn:aws:bedrock:us-west-2:133197901387:application-inference-profile/ypvzpmevzxdl"
+      },
+      "human_author": "yaosp <yaosp@trip.com>"
+    },
+    "s_91c53f092c0def": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c48fc4ca-b342-4b48-b3ef-504e3f9fce3b",
+        "model": "deepseek-ai/DeepSeek-V4-Pro"
+      },
+      "human_author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
