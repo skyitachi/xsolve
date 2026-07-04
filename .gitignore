@@ -108,3 +108,4 @@ temp/
 *.db
 *.db-shm
 *.db-wal
+.trae-html-share-packages/
