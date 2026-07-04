@@ -45,6 +45,7 @@
         <button data-tool="pen" class="tool active">✒️ 画笔</button>
         <button data-tool="eraser" class="tool">🧽 橡皮</button>
         <button data-tool="clear" class="tool">🗑️ 清空</button>
+        <button class="tool" id="recognize-scratch" title="识别草稿板上的手写内容，让AI看到你的演算过程">👁️ 识别草稿</button>
         <label class="tool upload-btn" title="上传你写在纸上的做题过程或答案，让 AI 检查">
           📷 上传我的解答
           <input id="upload-input" type="file" accept="image/*" capture="environment" data-mode="answer" hidden />
@@ -125,6 +126,20 @@
     </menu>
   </dialog>
 
+  <!-- 删除确认弹窗（统一用于手动删除和AI请求删除） -->
+  <dialog id="delete-dialog">
+    <h3>🗑️ 确认删除题目？</h3>
+    <p class="muted" id="delete-msg">删除后无法恢复，确定要删除这道题吗？</p>
+    <div class="proposal-card">
+      <div><span class="tag" id="delete-topic" style="background:#fee2e2;color:#991b1b;"></span></div>
+      <div id="delete-text" class="proposal-text" style="color:#991b1b;"></div>
+    </div>
+    <menu>
+      <button id="delete-cancel" value="cancel">取消</button>
+      <button id="delete-accept" value="accept" class="danger">确认删除</button>
+    </menu>
+  </dialog>
+
   <!-- 手动输入题目对话框 -->
   <dialog id="manual-input-dialog">
     <h3>✏️ 手动输入题目</h3>
@@ -145,6 +160,15 @@
     </menu>
   </dialog>
 
+  <script src="js/state.js"></script>
+  <script src="js/dom-utils.js"></script>
+  <script src="js/markdown.js"></script>
+  <script src="js/scratch.js"></script>
+  <script src="js/problem.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/dialogs.js"></script>
+  <script src="js/upload.js"></script>
+  <script src="js/voice.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
