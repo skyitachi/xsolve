@@ -56,6 +56,11 @@ export function createSession(opts = {}) {
       permissionMode: 'bypassPermissions',
       persistSession: false,
       includePartialMessages: true,
+      // 捕获 Claude Code 子进程的 stderr，避免真实错误被 SDK 默认吞掉（默认为 "ignore"）
+      stderr: (data) => {
+        const text = (typeof data === 'string' ? data : data.toString()).trimEnd();
+        if (text) console.error('[claude-code]', text);
+      },
       ...(CLAUDE_MODEL ? { model: CLAUDE_MODEL } : {}),
       env: { ...process.env, CLAUDE_AGENT_SDK_CLIENT_APP: 'selflearning/0.1.0' }
     }

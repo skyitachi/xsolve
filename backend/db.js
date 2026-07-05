@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { PROBLEMS as BUILTIN_PROBLEMS } from './problems.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.resolve(__dirname, '..', 'xsolve.db');
+const DB_PATH = process.env.DB_PATH || path.resolve(__dirname, '..', 'xsolve.db');
 
 let db = null;
 

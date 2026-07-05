@@ -36,6 +36,17 @@ export async function handleRequest(req, res) {
   const u = new URL(req.url, 'http://x');
   const pathname = u.pathname;
 
+  // 健康检查（云端部署/负载均衡用）
+  if (req.method === 'GET' && (pathname === '/healthz' || pathname === '/api/health')) {
+    return send(res, 200, {
+      ok: true,
+      uptime: Math.round(process.uptime()),
+      sessions: sessions.size,
+      problems: getAllProblems().length,
+      version: '0.1.0'
+    });
+  }
+
   // ---------- 题目 API ----------
   if (req.method === 'GET' && pathname === '/api/problems') {
     return send(res, 200, getProblemsForClient());

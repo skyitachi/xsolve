@@ -7,10 +7,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const PORT = parseInt(process.env.PORT || '8765', 10);
 export const STATIC_ROOT = path.resolve(__dirname, '..', 'frontend');
 
-// 视觉模型配置
-export const VISION_MODEL = process.env.VISION_MODEL || 'Qwen/Qwen3-VL-8B-Instruct';
-export const VISION_MAX_TURNS = parseInt(process.env.VISION_MAX_TURNS || '2', 10);
+// 模型配置
+// CLAUDE_MODEL: 主对话模型。不设则使用 SDK 默认（claude-sonnet-4-6）
+//   使用自定义代理（ANTHROPIC_BASE_URL）时建议显式设置，因为代理上的模型名可能不同
 export const CLAUDE_MODEL = process.env.CLAUDE_MODEL || null;
+// VISION_MODEL: 视觉识别模型。不设则自动选择：
+//   - Anthropic 官方 API → claude-sonnet-4-20250514
+//   - 设置了 CLAUDE_MODEL → 复用主对话模型（Claude 原生支持视觉）
+//   - OpenAI 兼容格式 → 必须显式设置
+export const VISION_MODEL = process.env.VISION_MODEL || null;
+export const VISION_MAX_TURNS = parseInt(process.env.VISION_MAX_TURNS || '2', 10);
 
 // ---------- 系统提示词 ----------
 const SYSTEM_PROMPT_BASE = `你是一位耐心、鼓励的小学数学 AI 助教，借助 Claude Code 的工具能力辅导一位小学生（4-6 年级，学而思大白本风格）做数学题。

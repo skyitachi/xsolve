@@ -1,0 +1,15 @@
+node_modules
+.git
+.gitignore
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.trae
+.trae-cn
+.DS_Store
+handwriting-recognition-proposal
+.trae-html-share-packages
+npm-debug.log
+.env
+.env.local

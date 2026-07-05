@@ -4,8 +4,11 @@ import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { getAllProblems, getProblem, insertProblem, updateProblemFigure } from './db.js';
 import { runVisionHttp } from './vision.js';
-import { VISION_MODEL, SCRATCH_VISION_PROMPT } from './config.js';
+import { CLAUDE_MODEL, SCRATCH_VISION_PROMPT } from './config.js';
 import { compareAnswer, safeCalc, mcpOk, mcpErr } from './utils.js';
+
+// 视觉模型展示名（用于工具描述和响应）
+const VISION_MODEL_DISPLAY = process.env.VISION_MODEL || CLAUDE_MODEL || 'claude-sonnet-4 (自动选择)';
 
 /**
  * 构建 tutor MCP 工具服务器
@@ -123,17 +126,16 @@ export function buildTutorMcp(session) {
 
       // ========== 视觉识别 ==========
       tool('recognize_problem_image',
-        '识别学生刚上传的题目图片。**主代理看不到图片内容**，必须调用此工具：会启动一个使用视觉模型（' + VISION_MODEL + '）的子代理做 OCR，返回 TOPIC/TEXT/HAS_FIGURE/FIGURE_DESC 字段。拿到结果后据此 propose_problem；若 HAS_FIGURE=true，propose_problem 时设 figure.type=image 保留原图。',
+        '识别学生刚上传的题目图片。**主代理看不到图片内容**，必须调用此工具：会启动一个视觉模型子代理做 OCR，返回 TOPIC/TEXT/HAS_FIGURE/FIGURE_DESC 字段。拿到结果后据此 propose_problem；若 HAS_FIGURE=true，propose_problem 时设 figure.type=image 保留原图。',
         {},
         async () => {
           if (!session.lastImage) return mcpErr('没有可识别的图片：请让学生先上传一张题目图片');
           const t0 = Date.now();
           try {
             const text = await runVisionHttp(session.lastImage, session.emit.bind(session));
-            return mcpOk({ recognized: text, elapsed_ms: Date.now() - t0, model: VISION_MODEL });
+            return mcpOk({ recognized: text, elapsed_ms: Date.now() - t0, model: VISION_MODEL_DISPLAY });
           } catch (e) {
-            return mcpErr('视觉子代理失败: ' + (e.message || String(e))
-              + '（检查 VISION_MODEL=' + VISION_MODEL + ' 是否是支持视觉的模型）');
+            return mcpErr('视觉子代理失败: ' + (e.message || String(e)));
           }
         }
       ),
@@ -198,7 +200,7 @@ export function buildTutorMcp(session) {
           if (!session.scratchImage) return mcpErr('草稿板是空的：请让学生先在草稿区写字，或点击"识别草稿"按钮');
           const t0 = Date.now();
           try {
-            session.emit('ui_event', { type: 'scratch_recognition_started', model: VISION_MODEL });
+            session.emit('ui_event', { type: 'scratch_recognition_started', model: VISION_MODEL_DISPLAY });
             const rawText = await runVisionHttp(session.scratchImage, session.emit.bind(session), SCRATCH_VISION_PROMPT);
             // 尝试解析JSON
             let parsed;
@@ -219,11 +221,10 @@ export function buildTutorMcp(session) {
             return mcpOk({
               ...parsed,
               elapsed_ms: Date.now() - t0,
-              model: VISION_MODEL
+              model: VISION_MODEL_DISPLAY
             });
           } catch (e) {
-            return mcpErr('草稿识别失败: ' + (e.message || String(e))
-              + '（检查 VISION_MODEL=' + VISION_MODEL + ' 是否是支持视觉的模型）');
+            return mcpErr('草稿识别失败: ' + (e.message || String(e)));
           }
         }
       ),
