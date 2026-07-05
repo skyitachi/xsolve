@@ -1,0 +1,14 @@
+Dockerfile
+  h_5a1c62fd74efa2 1-5,13-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "ef7e9174d814a3a4ec3f617c323c681db4b6688b",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
