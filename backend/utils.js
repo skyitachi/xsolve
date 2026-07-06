@@ -2,10 +2,16 @@
 
 // 答案容错比较
 export function compareAnswer(u, c) {
-  const norm = (s) => String(s || '').trim().replace(/\s+/g, '').replace(/，/g, ',');
-  const U = norm(u), C = norm(c);
+  const norm = (s) =>
+    String(s || "")
+      .trim()
+      .replace(/\s+/g, "")
+      .replace(/，/g, ",");
+  const U = norm(u),
+    C = norm(c);
   if (U === C) return true;
-  const un = parseFloat(U), cn = parseFloat(C);
+  const un = parseFloat(U),
+    cn = parseFloat(C);
   if (!isNaN(un) && !isNaN(cn) && Math.abs(un - cn) < 1e-6) return true;
   if (U.includes(C) || C.includes(U)) return true;
   return false;
@@ -13,17 +19,22 @@ export function compareAnswer(u, c) {
 
 // 安全计算（只允许数字和基本运算符）
 export function safeCalc(expr) {
-  if (!/^[\d+\-*/().\s]+$/.test(expr)) throw new Error('only digits, + - * / ( ) allowed');
+  if (!/^[\d+\-*/().\s]+$/.test(expr))
+    throw new Error("only digits, + - * / ( ) allowed");
   // eslint-disable-next-line no-new-func
-  const v = Function('"use strict";return (' + expr + ')')();
-  if (typeof v !== 'number' || !isFinite(v)) throw new Error('not a finite number');
+  const v = Function('"use strict";return (' + expr + ")")();
+  if (typeof v !== "number" || !isFinite(v))
+    throw new Error("not a finite number");
   return v;
 }
 
 // HTTP 响应辅助
 export function send(res, status, body, headers = {}) {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', ...headers });
-  res.end(typeof body === 'string' ? body : JSON.stringify(body));
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    ...headers,
+  });
+  res.end(typeof body === "string" ? body : JSON.stringify(body));
 }
 
 // SSE 事件发送
@@ -36,22 +47,24 @@ export function readJsonBody(req, maxBytes = 6 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
-    req.on('data', c => {
+    req.on("data", (c) => {
       size += c.length;
       if (size > maxBytes) {
         req.destroy();
-        reject(new Error('payload too large'));
+        reject(new Error("payload too large"));
         return;
       }
       chunks.push(c);
     });
-    req.on('end', () => {
+    req.on("end", () => {
       try {
-        const raw = Buffer.concat(chunks).toString('utf-8');
+        const raw = Buffer.concat(chunks).toString("utf-8");
         resolve(raw ? JSON.parse(raw) : {});
-      } catch (e) { reject(e); }
+      } catch (e) {
+        reject(e);
+      }
     });
-    req.on('error', reject);
+    req.on("error", reject);
   });
 }
 
@@ -63,32 +76,50 @@ export function createInputQueue() {
   return {
     push(msg) {
       if (closed) return;
-      if (resolver) { const r = resolver; resolver = null; r({ value: msg, done: false }); }
-      else buf.push(msg);
+      if (resolver) {
+        const r = resolver;
+        resolver = null;
+        r({ value: msg, done: false });
+      } else buf.push(msg);
     },
     close() {
       closed = true;
-      if (resolver) { const r = resolver; resolver = null; r({ value: undefined, done: true }); }
+      if (resolver) {
+        const r = resolver;
+        resolver = null;
+        r({ value: undefined, done: true });
+      }
     },
     iterable() {
       const self = this;
       return {
-        [Symbol.asyncIterator]() { return this; },
-        next() {
-          if (buf.length) return Promise.resolve({ value: buf.shift(), done: false });
-          if (closed) return Promise.resolve({ value: undefined, done: true });
-          return new Promise(r => { resolver = r; });
+        [Symbol.asyncIterator]() {
+          return this;
         },
-        return() { closed = true; return Promise.resolve({ value: undefined, done: true }); }
+        next() {
+          if (buf.length)
+            return Promise.resolve({ value: buf.shift(), done: false });
+          if (closed) return Promise.resolve({ value: undefined, done: true });
+          return new Promise((r) => {
+            resolver = r;
+          });
+        },
+        return() {
+          closed = true;
+          return Promise.resolve({ value: undefined, done: true });
+        },
       };
-    }
+    },
   };
 }
 
 // MCP 工具返回值辅助
 export function mcpOk(data) {
-  return { content: [{ type: 'text', text: JSON.stringify(data) }] };
+  return { content: [{ type: "text", text: JSON.stringify(data) }] };
 }
 export function mcpErr(msg) {
-  return { content: [{ type: 'text', text: JSON.stringify({ error: msg }) }], isError: true };
+  return {
+    content: [{ type: "text", text: JSON.stringify({ error: msg }) }],
+    isError: true,
+  };
 }

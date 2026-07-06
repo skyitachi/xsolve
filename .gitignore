@@ -109,3 +109,4 @@ temp/
 *.db-shm
 *.db-wal
 .trae-html-share-packages/
+images
