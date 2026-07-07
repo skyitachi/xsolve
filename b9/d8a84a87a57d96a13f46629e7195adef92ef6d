@@ -1,0 +1,14 @@
+.gitignore
+  h_5a1c62fd74efa2 112-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b9d8a84a87a57d96a13f46629e7195adef92ef6d",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
