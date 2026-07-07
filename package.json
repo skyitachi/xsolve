@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "rebuild:native": "npm rebuild better-sqlite3",
+    "prestart": "node -e \"const fs=require('fs'),path=require('path');try{const p=path.join('node_modules','better-sqlite3','build','Release','better_sqlite3.node');const v=process.versions.modules;if(fs.existsSync(p)){const m=require(p);}}catch(e){if(/NODE_MODULE_VERSION|was compiled against/.test(e.message)){console.log('[prestart] native module mismatch, rebuilding...');require('child_process').execSync('npm rebuild better-sqlite3',{stdio:'inherit'});}else if(/cannot find module|no such file/i.test(e.message)){console.log('[prestart] native module missing, rebuilding...');require('child_process').execSync('npm rebuild better-sqlite3',{stdio:'inherit'});}}\"",
     "start": "node backend/server.js"
   },
   "dependencies": {

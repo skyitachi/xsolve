@@ -88,7 +88,51 @@ function initApp() {
     });
   });
 
-  // 启动：加载题库、创建会话
+  // 清空对话历史（保留 session ID，类似 /clear）
+  document.querySelector("#btn-clear-history").addEventListener("click", async () => {
+    if (state.turnInFlight) {
+      addSystemMsg("⏳ AI正在处理中，请稍候再清空。");
+      return;
+    }
+    if (!state.sessionId) {
+      addSystemMsg("⚠️ 当前没有活跃会话。");
+      return;
+    }
+    try {
+      AiStatus.begin("正在清空历史…");
+      await clearChatHistory();
+      elChatLog.innerHTML = "";
+      addSystemMsg("🧹 对话历史已清空（会话保留，可继续对话）。");
+      AiStatus.done();
+    } catch (e) {
+      addErrorMsg("清空历史失败: " + e.message);
+      AiStatus.error(e.message);
+    }
+  });
+
+  // 新建对话（覆盖老 session，创建新 session）
+  document.querySelector("#btn-new-chat").addEventListener("click", async () => {
+    if (state.turnInFlight) {
+      addSystemMsg("⏳ AI正在处理中，请稍候再新建对话。");
+      return;
+    }
+    if (!state.sessionId) {
+      addSystemMsg("⚠️ 当前没有活跃会话。");
+      return;
+    }
+    try {
+      AiStatus.begin("正在新建对话…");
+      await newChatOverride();
+      elChatLog.innerHTML = "";
+      addSystemMsg("✨ 新对话已开启（旧会话已覆盖）。");
+      AiStatus.done();
+    } catch (e) {
+      addErrorMsg("新建对话失败: " + e.message);
+      AiStatus.error(e.message);
+    }
+  });
+
+  // 启动：加载题库、恢复或创建会话
   (async function boot() {
     try {
       await loadProblems();
@@ -102,6 +146,27 @@ function initApp() {
       state.idx = startIdx;
     }
     renderProblem();
+
+    // 尝试恢复上次的 session（刷新页面场景）
+    const savedSid = getSavedSessionId();
+    if (savedSid) {
+      try {
+        const restored = await restoreSession(savedSid);
+        if (restored) {
+          // 同步模式
+          if (restored.mode && restored.mode !== state.mode) {
+            setModeUI(restored.mode);
+          }
+          addSystemMsg("🔄 已恢复上次对话（session 保留中）。");
+          return;
+        }
+      } catch {
+        // session 已失效，清除旧 ID 并新建
+        saveSessionId(null);
+      }
+    }
+
+    // 新建 session
     try {
       await createSession(state.mode);
       addSystemMsg(

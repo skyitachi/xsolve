@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { STATIC_ROOT } from './config.js';
-import { sessions, createSession, destroySession } from './session.js';
+import { sessions, createSession, destroySession, clearSessionHistory, resetSession } from './session.js';
 import {
   getProblemsForClient, getProblem, getAllProblems,
   insertProblem, updateProblemFigure, deleteProblem
@@ -72,11 +72,36 @@ export async function handleRequest(req, res) {
     return send(res, 200, { id: s.id, mode: s.mode, currentProblemId: s.currentProblemId });
   }
 
+  // 查询 session 是否存在（刷新页面时恢复用）
+  if (req.method === 'GET' && pathname.match(/^\/api\/session\/[^/]+$/)) {
+    const id = pathname.split('/')[3];
+    const s = sessions.get(id);
+    if (!s) return send(res, 404, { error: 'session not found' });
+    return send(res, 200, { id: s.id, mode: s.mode, currentProblemId: s.currentProblemId, createdAt: s.createdAt });
+  }
+
   if (req.method === 'DELETE' && pathname.startsWith('/api/session/')) {
     const id = pathname.split('/')[3];
     const s = sessions.get(id);
     if (s) await destroySession(s);
     return send(res, 200, { ok: true });
+  }
+
+  // 清空会话历史（保留 session ID，重置 SDK 进程）
+  if (req.method === 'POST' && pathname.match(/^\/api\/session\/[^/]+\/clear$/)) {
+    const id = pathname.split('/')[3];
+    const s = sessions.get(id);
+    if (!s) return send(res, 404, { error: 'session not found' });
+    await clearSessionHistory(s);
+    return send(res, 200, { ok: true, id: s.id, mode: s.mode, currentProblemId: s.currentProblemId });
+  }
+
+  // 新建会话覆盖老会话（销毁旧 session，创建新 session，返回新 ID）
+  if (req.method === 'POST' && pathname.match(/^\/api\/session\/[^/]+\/reset$/)) {
+    const oldId = pathname.split('/')[3];
+    const body = await readJsonBody(req).catch(() => ({}));
+    const newSession = await resetSession(oldId, body);
+    return send(res, 200, { ok: true, id: newSession.id, mode: newSession.mode, currentProblemId: newSession.currentProblemId });
   }
 
   // ---------- 草稿同步 ----------

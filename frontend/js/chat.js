@@ -219,6 +219,47 @@ async function createSession(mode = state.mode || "student") {
   const data = await resp.json();
   state.sessionId = data.id;
   state.mode = data.mode || mode;
+  saveSessionId(data.id);
+  return data;
+}
+
+// 恢复已有 session（刷新页面时用）
+async function restoreSession(sid) {
+  const resp = await fetch(`/api/session/${sid}`, { method: "GET" });
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  state.sessionId = data.id;
+  state.mode = data.mode || state.mode;
+  saveSessionId(data.id);
+  return data;
+}
+
+// 清空当前会话历史（保留 session ID，类似 /clear）
+async function clearChatHistory() {
+  if (!state.sessionId) return;
+  const resp = await fetch(`/api/session/${state.sessionId}/clear`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+  });
+  if (!resp.ok) throw new Error("清空历史失败: " + resp.status);
+  const data = await resp.json();
+  // session ID 不变，但 SDK 进程已重置
+  return data;
+}
+
+// 新建会话覆盖老会话（销毁旧 session，创建新 session）
+async function newChatOverride() {
+  const oldId = state.sessionId;
+  const resp = await fetch(`/api/session/${oldId}/reset`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ mode: state.mode }),
+  });
+  if (!resp.ok) throw new Error("新建对话失败: " + resp.status);
+  const data = await resp.json();
+  state.sessionId = data.id;
+  state.mode = data.mode || state.mode;
+  saveSessionId(data.id);
   return data;
 }
 

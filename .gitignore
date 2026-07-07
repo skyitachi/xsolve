@@ -110,3 +110,5 @@ temp/
 *.db-wal
 .trae-html-share-packages/
 images
+.agents
+.claude

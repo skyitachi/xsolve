@@ -18,3 +18,12 @@ function saveHistory() {
   state.history = state.history.slice(-50);
   localStorage.setItem("practice_history", JSON.stringify(state.history));
 }
+
+// session ID 持久化（刷新页面后恢复）
+function saveSessionId(id) {
+  if (id) localStorage.setItem("xsolve_session_id", id);
+  else localStorage.removeItem("xsolve_session_id");
+}
+function getSavedSessionId() {
+  return localStorage.getItem("xsolve_session_id") || null;
+}
