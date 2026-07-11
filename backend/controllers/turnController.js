@@ -2,70 +2,93 @@
 import { sessions } from '../session.js';
 
 // POST /api/session/:id/turn
-export async function handleTurn(req, res) {
+export function handleTurn(req, res) {
   const id = req.params.id;
   const s = sessions.get(id);
   if (!s) return res.status(404).json({ error: 'session not found' });
 
   const body = req.body || {};
-  const message = body.message;
-  if (!message || typeof message !== 'string') {
-    return res.status(400).json({ error: 'missing message' });
+  const userMsg = (body.message || '').trim();
+  const imgBody = body.image;
+  const audioBody = body.audio;
+  if (!userMsg && !imgBody && !audioBody) {
+    return res.status(400).json({ error: 'empty message' });
   }
+
+  // 同步前端状态到 session
+  if (typeof body.currentProblemId === 'string') s.currentProblemId = body.currentProblemId;
+  if (typeof body.scratchStrokes === 'number') s.scratchStrokes = body.scratchStrokes;
 
   // SSE headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
     'X-Accel-Buffering': 'no',
   });
-  res.write('event: connected\ndata: {}\n\n');
 
-  const onMessage = (msg) => {
-    try {
-      res.write(`event: ${msg.type}\ndata: ${JSON.stringify(msg)}\n\n`);
-    } catch {
-      /* ignore */
+  // 发送 user 事件（告知前端消息已接收）
+  sendSSE(res, 'user', { message: userMsg, hasImage: !!imgBody, hasAudio: !!audioBody });
+
+  // session 对象使用自定义 subscribe/unsubscribe 模式（非 EventEmitter）
+  const unsubscribe = s.subscribe((event, data) => {
+    sendSSE(res, event, data);
+    // 收到最终结果或错误后，发送 done 并关闭连接
+    if (event === 'sdk_message' && data.type === 'result') {
+      sendSSE(res, 'done', {});
+      setImmediate(() => { try { res.end(); } catch { /* ignore */ } });
+    } else if (event === 'error') {
+      sendSSE(res, 'done', {});
+      setImmediate(() => { try { res.end(); } catch { /* ignore */ } });
     }
-  };
-
-  s.on('message', onMessage);
-
-  // 心跳保活
-  const heartbeat = setInterval(() => {
-    try {
-      res.write(': heartbeat\n\n');
-    } catch {
-      /* ignore */
-    }
-  }, 15000);
-
-  const cleanup = () => {
-    clearInterval(heartbeat);
-    s.off('message', onMessage);
-  };
-
-  req.on('close', () => {
-    cleanup();
-    s.closed = true;
   });
 
+  // 客户端断开时清理订阅（用 res.close 而非 req.close，Express 5 中 req.close 会提前触发）
+  res.on('close', () => { unsubscribe(); });
+
+  // 构造消息内容并入队
   try {
-    await s.queue.push({
-      type: 'user',
-      message: { role: 'user', content: message },
-      session_id: s.id,
-      shouldQuery: true,
-    });
-  } catch (err) {
-    console.error('[turn] error:', err);
-    try {
-      res.write(
-        `event: error\ndata: ${JSON.stringify({ error: err.message })}\n\n`,
-      );
-    } catch {
-      /* ignore */
+    let effectiveText = userMsg || '';
+    if (imgBody && imgBody.data) {
+      s.lastImage = `data:${imgBody.mediaType || 'image/jpeg'};base64,${imgBody.data}`;
+      if (effectiveText && !/(图片|image|照片|上传|识别)/i.test(effectiveText)) {
+        effectiveText += '\n\n（学生刚刚上传了一张图片。如果你需要查看图片内容，请调用 recognize_problem_image 工具。）';
+      } else if (!effectiveText) {
+        effectiveText = '（学生上传了一张图片，请调用 recognize_problem_image 工具识别图片内容。）';
+      }
     }
+    const content = [];
+    if (audioBody && audioBody.data) {
+      content.push({ type: 'audio', source: { type: 'base64', media_type: audioBody.mediaType || 'audio/webm', data: audioBody.data } });
+    }
+    if (effectiveText) {
+      content.push({ type: 'text', text: effectiveText });
+    }
+    if (content.length === 0) {
+      sendSSE(res, 'error', { message: '消息内容为空' });
+      sendSSE(res, 'done', {});
+      setImmediate(() => { try { res.end(); } catch { /* ignore */ } });
+      return;
+    }
+    const finalContent = content.length === 1 && content[0].type === 'text' ? content[0].text : content;
+
+    s.queue.push({
+      type: 'user',
+      message: { role: 'user', content: finalContent },
+      parent_tool_use_id: null,
+      session_id: s.id,
+    });
+  } catch (e) {
+    sendSSE(res, 'error', { message: '消息入队失败: ' + (e.message || String(e)) });
+    sendSSE(res, 'done', {});
+    setImmediate(() => { try { res.end(); } catch { /* ignore */ } });
+  }
+}
+
+function sendSSE(res, event, data) {
+  try {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  } catch {
+    /* ignore */
   }
 }
