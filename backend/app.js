@@ -23,6 +23,12 @@ import {
   archiveSession,
 } from './controllers/sessionController.js';
 import { handleTurn } from './controllers/turnController.js';
+import {
+  evalDashboard,
+  getTurnScores,
+  getSessionScores,
+  triggerJudge,
+} from './controllers/evalController.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
@@ -67,6 +73,12 @@ export function createApp() {
 
   // ========== 对话 turn（SSE 流式） ==========
   app.post('/api/session/:id/turn', handleTurn);
+
+  // ========== 评估 ==========
+  app.get('/api/eval/dashboard', evalDashboard);
+  app.get('/api/eval/scores/turn/:turnId', getTurnScores);
+  app.get('/api/eval/scores/session/:sessionId', getSessionScores);
+  app.post('/api/eval/judge/:turnId', triggerJudge);
 
   // ========== 404 兜底 ==========
   app.use((req, res) => {

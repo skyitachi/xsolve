@@ -1,6 +1,7 @@
 // 对话 turn controller（SSE 流式响应）
 import { sessions } from '../session.js';
 import { insertChatTurn, updateChatSession } from '../db.js';
+import { judgeTurn } from '../eval/llm-judge.js';
 
 // POST /api/session/:id/turn
 export function handleTurn(req, res) {
@@ -95,7 +96,7 @@ export function handleTurn(req, res) {
       const ai_message = aiTextAccumulator || null;
       const tool_calls_json = JSON.stringify(toolCallsAccumulator);
 
-      insertChatTurn({
+      const turnId = insertChatTurn({
         session_id: s.id,
         role: s.mode,
         user_message: userMsg || (imgBody ? '[图片消息]' : '[语音消息]'),
@@ -112,6 +113,19 @@ export function handleTurn(req, res) {
         updateChatSession(s.id, {
           title: userMsg.slice(0, 20),
           current_problem_id: s.currentProblemId,
+        });
+      }
+
+      // 异步触发 LLM Judge（不阻塞 SSE 响应）
+      if (ai_message && !turnError) {
+        judgeTurn({
+          id: turnId,
+          role: s.mode,
+          user_message: userMsg || (imgBody ? '[图片消息]' : '[语音消息]'),
+          ai_message,
+          tool_calls_json,
+        }, s.id, s.currentProblemId).catch(err => {
+          console.error(`[turn] LLM Judge failed for turn ${turnId}:`, err.message);
         });
       }
     } catch (e) {

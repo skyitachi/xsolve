@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>xsolve 评估面板</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, "PingFang SC", system-ui, sans-serif;
+  background: #f5f5f7; color: #1a1a2e; font-size: 14px; line-height: 1.6;
+}
+.container { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+h1 { font-size: 1.5rem; font-weight: 700; }
+h2 { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
+.back-link { color: #4b3fe3; text-decoration: none; font-size: 13px; }
+.filter-bar { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1.5rem; }
+.filter-bar select, .filter-bar button {
+  padding: 6px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; background: #fff;
+}
+.filter-bar button { cursor: pointer; background: #4b3fe3; color: #fff; border: none; }
+
+/* Summary cards */
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.summary-card {
+  background: #fff; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.summary-card .label { font-size: 12px; color: #6b6b80; margin-bottom: 0.5rem; }
+.summary-card .value { font-size: 1.75rem; font-weight: 700; color: #1a1a2e; }
+.summary-card .sub { font-size: 12px; color: #6b6b80; margin-top: 0.25rem; }
+
+/* Dimension scores */
+.dim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.dim-card {
+  background: #fff; border-radius: 10px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  border-left: 3px solid #4b3fe3;
+}
+.dim-card .dim-name { font-size: 12px; color: #6b6b80; margin-bottom: 0.3rem; }
+.dim-card .dim-score { font-size: 1.3rem; font-weight: 700; }
+.dim-card .dim-bar { height: 4px; background: #e8e8ee; border-radius: 2px; margin-top: 0.5rem; overflow: hidden; }
+.dim-card .dim-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+/* Turn table */
+.turn-table-wrap { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead { background: #f0f0f3; }
+th { text-align: left; padding: 10px 14px; font-weight: 600; white-space: nowrap; }
+td { padding: 10px 14px; border-top: 1px solid #eee; vertical-align: top; }
+tbody tr:hover { background: #fafafe; }
+.toggle-detail { cursor: pointer; color: #4b3fe3; }
+.detail-row { display: none; }
+.detail-row.open { display: table-row; background: #fafafe; }
+.detail-content { padding: 1rem; }
+.detail-section { margin-bottom: 0.75rem; }
+.detail-section .ds-label { font-size: 11px; color: #6b6b80; text-transform: uppercase; margin-bottom: 0.25rem; }
+.detail-section .ds-value { font-size: 13px; }
+
+/* Score badges */
+.score-badge {
+  display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; margin: 1px;
+}
+.score-high { background: #e8f9f0; color: #0a7c43; }
+.score-mid { background: #fff4e0; color: #c47600; }
+.score-low { background: #fde8e8; color: #c4341a; }
+.score-na { background: #f0f0f3; color: #6b6b80; }
+
+.empty { text-align: center; padding: 3rem; color: #6b6b80; }
+.loading { text-align: center; padding: 2rem; color: #6b6b80; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div>
+      <h1>xsolve 评估面板</h1>
+      <p style="color:#6b6b80;font-size:13px;margin-top:4px;">LLM Judge 自动评分 + Turn 级别质量追踪</p>
+    </div>
+    <a class="back-link" href="/index.html">← 返回主应用</a>
+  </header>
+
+  <div class="filter-bar">
+    <select id="roleFilter">
+      <option value="">全部角色</option>
+      <option value="student">学生</option>
+      <option value="parent">家长</option>
+    </select>
+    <button onclick="loadDashboard()">刷新</button>
+  </div>
+
+  <div id="summarySection" class="summary-grid">
+    <div class="summary-card"><div class="label">加载中...</div></div>
+  </div>
+
+  <div id="dimSection">
+    <h2>LLM Judge 维度均分</h2>
+    <div id="dimGrid" class="dim-grid"><div class="loading">加载中...</div></div>
+  </div>
+
+  <h2>Turn 列表（最近 50 条）</h2>
+  <div class="turn-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>时间</th>
+          <th>角色</th>
+          <th>用户输入</th>
+          <th>AI 回复</th>
+          <th>工具</th>
+          <th>耗时</th>
+          <th>Judge 评分</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="turnBody">
+        <tr><td colspan="8" class="loading">加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const DIMENSIONS = {
+  non_disclosure: '答案不泄露',
+  tutoring_strategy: '辅导策略',
+  tool_correctness: '工具使用',
+  problem_quality: '出题质量',
+  tone_interaction: '语气互动',
+};
+
+function scoreClass(v) {
+  if (v === null || v === undefined) return 'score-na';
+  if (v >= 4) return 'score-high';
+  if (v >= 3) return 'score-mid';
+  return 'score-low';
+}
+
+function fmtTime(ts) {
+  const d = new Date(ts * 1000);
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function parseScores(str) {
+  if (!str) return {};
+  const result = {};
+  for (const part of str.split('||')) {
+    const [dim, val, comment] = part.split(':');
+    result[dim] = { value: parseFloat(val), comment: comment || '' };
+  }
+  return result;
+}
+
+async function loadDashboard() {
+  const role = document.getElementById('roleFilter').value;
+  const resp = await fetch(`/api/eval/dashboard${role ? '?role=' + role : ''}`);
+  const data = await resp.json();
+
+  // Summary cards
+  const judgeCount = data.llm_judge_count || 0;
+  const dims = Object.keys(data.llm_judge_avg || {});
+  const overallAvg = dims.length > 0
+    ? (dims.reduce((s, d) => s + data.llm_judge_avg[d], 0) / dims.length).toFixed(2)
+    : '-';
+
+  document.getElementById('summarySection').innerHTML = `
+    <div class="summary-card">
+      <div class="label">总 Turn 数</div>
+      <div class="value">${data.total_turns}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">已评估 Turn 数</div>
+      <div class="value">${judgeCount}</div>
+      <div class="sub">${data.total_turns > 0 ? Math.round(judgeCount / data.total_turns * 100) : 0}% 覆盖率</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">LLM Judge 总均分</div>
+      <div class="value">${overallAvg}<span style="font-size:1rem;color:#6b6b80">/5</span></div>
+    </div>
+  `;
+
+  // Dimension scores
+  const dimHtml = Object.entries(DIMENSIONS).map(([key, label]) => {
+    const val = data.llm_judge_avg?.[key];
+    const pct = val ? (val / 5 * 100) : 0;
+    const color = val >= 4 ? '#1dc981' : val >= 3 ? '#efaa17' : val ? '#e8463a' : '#e0e0e6';
+    return `
+      <div class="dim-card">
+        <div class="dim-name">${label}</div>
+        <div class="dim-score">${val ? val.toFixed(2) : '-'}<span style="font-size:0.85rem;color:#6b6b80">/5</span></div>
+        <div class="dim-bar"><div class="dim-fill" style="width:${pct}%;background:${color}"></div></div>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('dimGrid').innerHTML = dimHtml;
+
+  // Turn table
+  if (!data.recent_turns || data.recent_turns.length === 0) {
+    document.getElementById('turnBody').innerHTML = '<tr><td colspan="8" class="empty">暂无 Turn 数据，发送一条消息试试</td></tr>';
+    return;
+  }
+
+  const rows = data.recent_turns.map((t, i) => {
+    const llmScores = parseScores(t.llm_scores);
+    const ruleScores = parseScores(t.rule_scores);
+    const toolCount = JSON.parse(t.tool_calls_json || '[]').length;
+
+    const scoreBadges = Object.entries(DIMENSIONS).map(([key, label]) => {
+      const s = llmScores[key];
+      if (!s) return `<span class="score-badge score-na">${label}: -</span>`;
+      return `<span class="score-badge ${scoreClass(s.value)}" title="${s.comment || ''}">${label}: ${s.value}</span>`;
+    }).join('');
+
+    return `
+      <tr>
+        <td>${fmtTime(t.created_at)}</td>
+        <td>${t.role === 'student' ? '学生' : '家长'}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(t.user_message||'').slice(0,40)}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(t.ai_message||'').slice(0,40)}</td>
+        <td>${toolCount > 0 ? toolCount + '次' : '-'}</td>
+        <td>${t.duration_ms ? (t.duration_ms/1000).toFixed(1)+'s' : '-'}</td>
+        <td>${scoreBadges || '<span class="score-badge score-na">未评估</span>'}</td>
+        <td><span class="toggle-detail" onclick="toggleDetail(${i})">展开</span></td>
+      </tr>
+      <tr class="detail-row" id="detail-${i}">
+        <td colspan="8">
+          <div class="detail-content">
+            <div class="detail-section">
+              <div class="ds-label">用户输入</div>
+              <div class="ds-value">${(t.user_message||'').replace(/</g,'&lt;')}</div>
+            </div>
+            <div class="detail-section">
+              <div class="ds-label">AI 回复</div>
+              <div class="ds-value" style="white-space:pre-wrap">${(t.ai_message||'').replace(/</g,'&lt;')}</div>
+            </div>
+            <div class="detail-section">
+              <div class="ds-label">工具调用</div>
+              <div class="ds-value"><pre style="font-size:12px;white-space:pre-wrap">${JSON.stringify(JSON.parse(t.tool_calls_json||'[]'),null,2).replace(/</g,'&lt;')}</pre></div>
+            </div>
+            <div class="detail-section">
+              <div class="ds-label">LLM Judge 评分详情</div>
+              <div class="ds-value">
+                ${Object.entries(DIMENSIONS).map(([key,label])=>{
+                  const s=llmScores[key];
+                  if(!s)return `<div>${label}: <span style="color:#6b6b80">未评估</span></div>`;
+                  return `<div>${label}: <strong>${s.value}</strong>/5 — ${s.comment||''}</div>`;
+                }).join('')}
+              </div>
+            </div>
+            ${t.error ? `<div class="detail-section"><div class="ds-label">错误</div><div class="ds-value" style="color:#c4341a">${t.error}</div></div>` : ''}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  document.getElementById('turnBody').innerHTML = rows;
+}
+
+function toggleDetail(i) {
+  const row = document.getElementById('detail-' + i);
+  row.classList.toggle('open');
+}
+
+// Initial load
+loadDashboard();
+// Auto refresh every 30s
+setInterval(loadDashboard, 30000);
+</script>
+</body>
+</html>

@@ -65,6 +65,24 @@ function initSchema() {
 
     CREATE INDEX IF NOT EXISTS idx_chat_turns_session ON chat_turns(session_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_chat_turns_role ON chat_turns(role, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS eval_scores (
+      id TEXT PRIMARY KEY,
+      turn_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'student',
+      scorer TEXT NOT NULL,
+      dimension TEXT NOT NULL,
+      value REAL NOT NULL,
+      data_type TEXT NOT NULL DEFAULT 'numeric',
+      comment TEXT,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+      FOREIGN KEY (turn_id) REFERENCES chat_turns(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_eval_scores_turn ON eval_scores(turn_id);
+    CREATE INDEX IF NOT EXISTS idx_eval_scores_session ON eval_scores(session_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_eval_scores_role ON eval_scores(role, created_at DESC);
   `);
 }
 
@@ -237,6 +255,72 @@ function getRecentChatTurns(role, limit = 20) {
   return rows.reverse();
 }
 
+// ========== Eval Scores CRUD ==========
+
+function insertEvalScore({ id, turn_id, session_id, role, scorer, dimension, value, data_type, comment }) {
+  getDb();
+  const scoreId = id || crypto.randomUUID();
+  db.prepare(`
+    INSERT INTO eval_scores (id, turn_id, session_id, role, scorer, dimension, value, data_type, comment)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    scoreId, turn_id, session_id, role || 'student',
+    scorer, dimension, value,
+    data_type || 'numeric', comment || null
+  );
+  return scoreId;
+}
+
+function getEvalScoresByTurn(turn_id) {
+  getDb();
+  return db.prepare('SELECT * FROM eval_scores WHERE turn_id = ? ORDER BY created_at ASC').all(turn_id);
+}
+
+function getEvalScoresBySession(session_id) {
+  getDb();
+  return db.prepare('SELECT * FROM eval_scores WHERE session_id = ? ORDER BY created_at ASC').all(session_id);
+}
+
+function getEvalDashboard(role) {
+  getDb();
+  const roleFilter = role ? 'WHERE s.role = ?' : '';
+  const params = role ? [role] : [];
+
+  const totalTurns = db.prepare(
+    `SELECT COUNT(*) as c FROM chat_turns ${role ? 'WHERE role = ?' : ''}`
+  ).get(...(role ? [role] : [])).c;
+
+  const llmJudgeScores = db.prepare(`
+    SELECT es.dimension, AVG(es.value) as avg_value, COUNT(*) as count
+    FROM eval_scores es
+    ${role ? 'WHERE es.role = ? AND' : 'WHERE'} es.scorer = 'llm-judge'
+    GROUP BY es.dimension
+  `).all(...(role ? [role] : []));
+
+  const recentTurns = db.prepare(`
+    SELECT t.id, t.session_id, t.role, t.user_message, t.ai_message,
+           t.tool_calls_json, t.duration_ms, t.error, t.created_at,
+           (SELECT GROUP_CONCAT(es.dimension || ':' || es.value || ':' || COALESCE(es.comment,''), '||')
+            FROM eval_scores es WHERE es.turn_id = t.id AND es.scorer = 'llm-judge') as llm_scores,
+           (SELECT GROUP_CONCAT(es.dimension || ':' || es.value, '||')
+            FROM eval_scores es WHERE es.turn_id = t.id AND es.scorer = 'rule') as rule_scores
+    FROM chat_turns t
+    ${role ? 'WHERE t.role = ?' : ''}
+    ORDER BY t.created_at DESC
+    LIMIT 50
+  `).all(...(role ? [role] : []));
+
+  return {
+    total_turns: totalTurns,
+    llm_judge_avg: llmJudgeScores.reduce((acc, s) => {
+      acc[s.dimension] = Math.round(s.avg_value * 100) / 100;
+      return acc;
+    }, {}),
+    llm_judge_count: llmJudgeScores.reduce((sum, s) => sum + s.count, 0),
+    recent_turns: recentTurns,
+  };
+}
+
 export {
   getDb,
   getAllProblems,
@@ -253,4 +337,8 @@ export {
   insertChatTurn,
   getChatTurns,
   getRecentChatTurns,
+  insertEvalScore,
+  getEvalScoresByTurn,
+  getEvalScoresBySession,
+  getEvalDashboard,
 };
