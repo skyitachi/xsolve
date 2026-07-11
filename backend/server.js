@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { PORT, VISION_MODEL, CLAUDE_MODEL } from "./config.js";
+import { getVisionApiConfig, resolveApiFormat } from "./vision.js";
 import { sessions, destroySession } from "./session.js";
 import { handleRequest } from "./routes.js";
 import { send } from "./utils.js";
@@ -53,13 +54,8 @@ function validateConfig() {
   }
 
   // 3. OpenAI 格式视觉必须设置 VISION_MODEL
-  const visionFormat = process.env.VISION_API_FORMAT;
-  const openaiBaseOnly =
-    process.env.OPENAI_BASE_URL && !process.env.ANTHROPIC_BASE_URL;
-  if (
-    (visionFormat === "openai" || openaiBaseOnly) &&
-    !process.env.VISION_MODEL
-  ) {
+  const visionFormat = resolveApiFormat();
+  if (visionFormat === "openai" && !process.env.VISION_MODEL) {
     errors.push(
       "使用 OpenAI 兼容格式时必须设置 VISION_MODEL。\n" +
         "  例如：VISION_MODEL=Pro/Qwen/Qwen2.5-VL-7B-Instruct",
@@ -103,20 +99,19 @@ server.listen(PORT, () => {
 
   // 视觉模型信息
   let visionModelDisplay = VISION_MODEL;
-  const effectiveBase = cfg.baseUrl;
+  const visionCfg = getVisionApiConfig();
+  const visionBase = visionCfg.baseUrl;
+  const visionSeparate =
+    !!process.env.VISION_BASE_URL || !!process.env.VISION_API_KEY;
   let isAnthropicOfficial = false;
   try {
     isAnthropicOfficial = /anthropic\.com$/i.test(
-      new URL(effectiveBase).hostname,
+      new URL(visionBase).hostname,
     );
   } catch {
     isAnthropicOfficial = false;
   }
-  const visionFormat =
-    process.env.VISION_API_FORMAT ||
-    (process.env.OPENAI_BASE_URL && !process.env.ANTHROPIC_BASE_URL
-      ? "openai"
-      : "anthropic");
+  const visionFormat = resolveApiFormat();
 
   if (!process.env.VISION_MODEL) {
     if (visionFormat === "anthropic") {
@@ -134,6 +129,9 @@ server.listen(PORT, () => {
   }
   console.log(
     `[selflearning] vision model: ${visionModelDisplay} [${visionFormat} format]`,
+  );
+  console.log(
+    `[selflearning] vision api base: ${visionBase}${visionSeparate ? " (separate from chat)" : " (inherited from chat)"}`,
   );
 
   // 打印警告

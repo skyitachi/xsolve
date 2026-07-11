@@ -15,6 +15,8 @@ export const CLAUDE_MODEL = process.env.CLAUDE_MODEL || null;
 //   - Anthropic 官方 API → claude-sonnet-4-20250514
 //   - 设置了 CLAUDE_MODEL → 复用主对话模型（Claude 原生支持视觉）
 //   - OpenAI 兼容格式 → 必须显式设置
+// 视觉的 API Key / Base URL 也可与主对话模型分开（VISION_API_KEY / VISION_BASE_URL），
+// 详见 backend/vision.js 的 getVisionApiConfig()
 export const VISION_MODEL = process.env.VISION_MODEL || null;
 export const VISION_MAX_TURNS = parseInt(process.env.VISION_MAX_TURNS || '2', 10);
 

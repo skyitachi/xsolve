@@ -77,7 +77,9 @@ docker run -d --name xsolve -p 8765:8765 --env-file .env -v xsolve-data:/data --
 | `ANTHROPIC_BASE_URL` | 否 | `https://api.anthropic.com` | 自定义 API 代理地址（必须支持 Anthropic 协议） |
 | `CLAUDE_MODEL` | 自定义代理时**强烈建议** | SDK 默认 (`claude-sonnet-4-6`) | 主对话模型。设置后视觉也自动复用。常用值：`claude-sonnet-4-20250514`、`claude-sonnet-4-6`、`claude-opus-4-20250514` |
 | `VISION_MODEL` | 否 | 自动选择 | 视觉模型。默认自动选择：官方 API 用 Claude Sonnet，设了 CLAUDE_MODEL 就复用。只有需要用非 Claude 视觉模型（如 Qwen-VL）时才单独设置 |
-| `VISION_API_FORMAT` | 否 | `anthropic` | 视觉 API 格式：`anthropic`（默认）或 `openai`。设为 `openai` 时必须同时设置 `VISION_MODEL` 和 `OPENAI_BASE_URL`/`OPENAI_API_KEY` |
+| `VISION_API_KEY` | 否 | 继承主对话模型 | 视觉子代理独立 API Key。设置后视觉调用优先使用，未设置则回退到 `ANTHROPIC_API_KEY` |
+| `VISION_BASE_URL` | 否 | 继承主对话模型 | 视觉子代理独立 API 地址。设置后视觉调用优先使用，未设置则回退到 `ANTHROPIC_BASE_URL`。若指向 OpenAI 兼容接口需同时设 `VISION_API_FORMAT=openai` |
+| `VISION_API_FORMAT` | 否 | `anthropic` | 视觉 API 格式：`anthropic`（默认）或 `openai`。设为 `openai` 时必须同时设置 `VISION_MODEL` 和视觉的 API Key/Base URL（`VISION_API_KEY`/`VISION_BASE_URL`，或 `OPENAI_API_KEY`/`OPENAI_BASE_URL`） |
 | `VISION_MAX_TURNS` | 否 | `2` | 视觉子代理最大轮次 |
 | `PORT` | 否 | `8765` | HTTP 服务端口 |
 | `DB_PATH` | 否 | `./xsolve.db` | SQLite 数据库路径（Docker 中默认 `/data/xsolve.db`） |

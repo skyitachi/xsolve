@@ -6,9 +6,15 @@ import path from 'node:path';
 import { VISION_MODEL, CLAUDE_MODEL, VISION_SUBAGENT_PROMPT } from './config.js';
 
 // API 配置读取（环境变量 + ~/.claude/settings.json）
-function getVisionApiConfig() {
-  let baseUrl = process.env.ANTHROPIC_BASE_URL || process.env.OPENAI_BASE_URL;
-  let apiKey = process.env.ANTHROPIC_API_KEY
+// 视觉子代理的 API_KEY / BASE_URL 可与主对话模型分开配置：
+//   - 单独配置了 VISION_API_KEY / VISION_BASE_URL 时优先使用
+//   - 否则继承主对话模型的配置（ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL 等）
+export function getVisionApiConfig() {
+  let baseUrl = process.env.VISION_BASE_URL
+    || process.env.ANTHROPIC_BASE_URL
+    || process.env.OPENAI_BASE_URL;
+  let apiKey = process.env.VISION_API_KEY
+    || process.env.ANTHROPIC_API_KEY
     || process.env.ANTHROPIC_AUTH_TOKEN
     || process.env.OPENAI_API_KEY;
 
@@ -18,8 +24,8 @@ function getVisionApiConfig() {
       if (fs.existsSync(settingsPath)) {
         const s = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
         const env = s.env || {};
-        baseUrl = baseUrl || env.ANTHROPIC_BASE_URL;
-        apiKey = apiKey || env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN;
+        baseUrl = baseUrl || env.VISION_BASE_URL || env.ANTHROPIC_BASE_URL;
+        apiKey = apiKey || env.VISION_API_KEY || env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN;
       }
     } catch { /* ignore */ }
   }
@@ -31,12 +37,15 @@ function getVisionApiConfig() {
  * 判断应该使用哪种 API 格式
  * - 默认使用 Anthropic 格式（因为主 SDK 只支持 Anthropic 格式，代理必须兼容此格式）
  * - 设置 VISION_API_FORMAT=openai 可强制使用 OpenAI 格式
- * - 如果只设了 OPENAI_BASE_URL 而没设 ANTHROPIC_BASE_URL，也使用 OpenAI 格式
+ * - 视觉单独配置了 VISION_BASE_URL 时，无法从 URL 推断协议，默认 anthropic
+ *   （需要 OpenAI 格式时必须显式设置 VISION_API_FORMAT=openai）
+ * - 未单独配置视觉地址时：只设了 OPENAI_BASE_URL 而没设 ANTHROPIC_BASE_URL，使用 OpenAI 格式
  */
-function resolveApiFormat() {
+export function resolveApiFormat() {
   const explicit = process.env.VISION_API_FORMAT;
   if (explicit === 'openai') return 'openai';
   if (explicit === 'anthropic') return 'anthropic';
+  if (process.env.VISION_BASE_URL) return 'anthropic';
   if (process.env.OPENAI_BASE_URL && !process.env.ANTHROPIC_BASE_URL) return 'openai';
   return 'anthropic';
 }
@@ -75,7 +84,7 @@ export async function runVisionHttp(imageDataUrl, emit, customPrompt) {
   const mediaType = m[1], base64Data = m[2];
 
   const { baseUrl, apiKey } = getVisionApiConfig();
-  if (!apiKey) throw new Error('未找到 API Key。请设置 ANTHROPIC_API_KEY 环境变量。');
+  if (!apiKey) throw new Error('未找到 API Key。请设置 VISION_API_KEY 或 ANTHROPIC_API_KEY 环境变量。');
 
   const apiFormat = resolveApiFormat();
   const model = resolveVisionModel(apiFormat, baseUrl);
