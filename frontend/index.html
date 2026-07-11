@@ -14,17 +14,23 @@
   <header class="topbar">
     <div class="brand">小学AI做题助手</div>
     <div class="topbar-actions">
-      <button id="prev-problem">上一题</button>
-      <button id="next-problem">下一题</button>
-      <button id="delete-problem" title="删除当前题">🗑️ 删除</button>
-      <button id="settings-btn" title="设置API Key">⚙️</button>
+      <button id="prev-problem" title="上一题">‹</button>
+      <button id="next-problem" title="下一题">›</button>
+      <button id="delete-problem" title="删除当前题">🗑️</button>
+      <button id="settings-btn" title="设置">⚙️</button>
     </div>
   </header>
 
-  <main class="layout">
+  <main class="layout" id="layout">
     <!-- 题目展示区域 -->
-    <section class="panel panel-problem">
-      <div class="panel-title">📘 题目</div>
+    <section class="panel panel-problem" data-tab-panel="problem">
+      <div class="panel-title">
+        📘 题目
+        <span class="panel-title-actions">
+          <button id="prev-problem-mobile" class="title-nav-btn" title="上一题">‹</button>
+          <button id="next-problem-mobile" class="title-nav-btn" title="下一题">›</button>
+        </span>
+      </div>
       <div class="problem-meta">
         <span id="problem-index">1 / 1</span>
         <span class="tag" id="problem-topic">算术</span>
@@ -34,8 +40,11 @@
     </section>
 
     <!-- 做题区域 -->
-    <section class="panel panel-work">
-      <div class="panel-title">✏️ 做题区</div>
+    <section class="panel panel-work" data-tab-panel="work">
+      <div class="panel-title">
+        ✏️ 做题区
+        <button id="tools-more-btn" class="tools-more-btn" title="更多工具">⋯ 更多</button>
+      </div>
       <div class="work-answer">
         <label>最终答案：</label>
         <input id="final-answer" type="text" placeholder="在这里输入你的答案" />
@@ -68,12 +77,12 @@
     </section>
 
     <!-- AI 交互区域 -->
-    <section class="panel panel-ai">
+    <section class="panel panel-ai" data-tab-panel="ai">
       <div class="panel-title">
         🤖 AI 助教
         <span class="chat-actions-top">
-          <button id="btn-clear-history" class="chat-action-btn" title="清空当前对话历史（保留会话）">🧹 清空历史</button>
-          <button id="btn-new-chat" class="chat-action-btn" title="新建对话（覆盖当前会话）">✨ 新对话</button>
+          <button id="btn-clear-history" class="chat-action-btn" title="清空当前对话历史（保留会话）">🧹</button>
+          <button id="btn-new-chat" class="chat-action-btn" title="新建对话（覆盖当前会话）">✨</button>
         </span>
         <span class="mode-switch">
           <button id="mode-student" class="mode-btn active" data-mode="student">学生版</button>
@@ -96,6 +105,23 @@
         <button id="chat-send">发送</button>
       </div>
     </section>
+
+    <!-- 移动端底部 Tab 栏（仅小屏显示） -->
+    <nav class="mobile-tabbar" id="mobile-tabbar">
+      <button class="mobile-tab active" data-tab="problem">
+        <span class="tab-icon">📘</span>
+        <span class="tab-label">题目</span>
+      </button>
+      <button class="mobile-tab" data-tab="work">
+        <span class="tab-icon">✏️</span>
+        <span class="tab-label">做题</span>
+      </button>
+      <button class="mobile-tab" data-tab="ai">
+        <span class="tab-icon">🤖</span>
+        <span class="tab-label">AI</span>
+        <span class="tab-badge" id="ai-tab-badge" hidden></span>
+      </button>
+    </nav>
   </main>
 
   <!-- 设置弹窗 -->

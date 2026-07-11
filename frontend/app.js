@@ -68,6 +68,10 @@ function initApp() {
   // 快捷按钮
   document.querySelectorAll(".quick").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      // 移动端：点击快捷按钮后自动切到 AI Tab
+      if (typeof isMobile === "function" && isMobile()) {
+        switchTab("ai");
+      }
       const prompt = btn.dataset.prompt;
       // "检查过程"按钮：引导AI调用recognize_scratch查看草稿
       if (prompt.includes("检查我刚才写在草稿区")) {
@@ -130,6 +134,104 @@ function initApp() {
       addErrorMsg("新建对话失败: " + e.message);
       AiStatus.error(e.message);
     }
+  });
+
+  // ========== 移动端交互逻辑 ==========
+  // 判断是否为移动端
+  function isMobile() {
+    return window.matchMedia("(max-width: 768px)").matches;
+  }
+
+  // 移动端 Tab 切换
+  var mobileTabs = document.querySelectorAll(".mobile-tab");
+  var tabPanels = document.querySelectorAll("[data-tab-panel]");
+  var currentTab = "problem";
+  var aiUnreadCount = 0;
+  var aiBadge = document.querySelector("#ai-tab-badge");
+
+  function switchTab(tabName) {
+    if (!isMobile()) return;
+    currentTab = tabName;
+    mobileTabs.forEach(function (t) {
+      t.classList.toggle("active", t.dataset.tab === tabName);
+    });
+    tabPanels.forEach(function (p) {
+      p.classList.toggle("mobile-active", p.dataset.tabPanel === tabName);
+    });
+    // 切换到 AI Tab 时清除未读 badge
+    if (tabName === "ai") {
+      aiUnreadCount = 0;
+      if (aiBadge) aiBadge.hidden = true;
+    }
+    // 切换到做题 Tab 时重置 Canvas 尺寸（因为 display:none 的 canvas 无法正确计算尺寸）
+    if (tabName === "work") {
+      setTimeout(resizeCanvas, 50);
+    }
+  }
+
+  mobileTabs.forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      switchTab(tab.dataset.tab);
+    });
+  });
+
+  // 做题区"更多工具"折叠展开
+  var toolsMoreBtn = document.querySelector("#tools-more-btn");
+  var workTools = document.querySelector(".work-tools");
+  if (toolsMoreBtn && workTools) {
+    toolsMoreBtn.addEventListener("click", function () {
+      workTools.classList.toggle("expanded");
+      toolsMoreBtn.textContent = workTools.classList.contains("expanded") ? "⋯ 收起" : "⋯ 更多";
+    });
+  }
+
+  // 题目面板的上下题导航按钮（移动端专用）
+  var prevBtnMobile = document.querySelector("#prev-problem-mobile");
+  var nextBtnMobile = document.querySelector("#next-problem-mobile");
+  if (prevBtnMobile) prevBtnMobile.addEventListener("click", function () { document.querySelector("#prev-problem").click(); });
+  if (nextBtnMobile) nextBtnMobile.addEventListener("click", function () { document.querySelector("#next-problem").click(); });
+
+  // AI 收到新消息时，如果不在 AI Tab，显示未读 badge
+  // 通过 MutationObserver 监听 chat-log 的变化
+  var chatLogEl = document.querySelector("#chat-log");
+  if (chatLogEl) {
+    var observer = new MutationObserver(function (mutations) {
+      if (!isMobile()) return;
+      if (currentTab !== "ai") {
+        // 检查新增的消息是否是 AI 回复（msg-ai）
+        for (var i = 0; i < mutations.length; i++) {
+          var added = mutations[i].addedNodes;
+          for (var j = 0; j < added.length; j++) {
+            var node = added[j];
+            if (node.classList && (node.classList.contains("msg-ai") || node.classList.contains("tool-card"))) {
+              aiUnreadCount++;
+              if (aiBadge) aiBadge.hidden = false;
+              break;
+            }
+          }
+        }
+      }
+    });
+    observer.observe(chatLogEl, { childList: true });
+  }
+
+  // 初始化：如果是移动端，默认显示题目面板
+  if (isMobile()) {
+    switchTab("problem");
+  }
+
+  // 窗口尺寸变化时处理布局切换
+  var resizeTimer;
+  window.addEventListener("resize", function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      if (isMobile()) {
+        switchTab(currentTab);
+      } else {
+        // 桌面端：清除所有 mobile-active，恢复 grid 布局
+        tabPanels.forEach(function (p) { p.classList.remove("mobile-active"); });
+      }
+    }, 150);
   });
 
   // 启动：加载题库、恢复或创建会话

@@ -555,3 +555,214 @@ dialog h3 { margin: 0 0 8px 0; }
   .panel-problem, .panel-work, .panel-ai { grid-column: 1; grid-row: auto; }
   .panel { min-height: 360px; }
 }
+
+/* ===== 桌面端隐藏移动端元素 ===== */
+.mobile-tabbar,
+.tools-more-btn,
+.title-nav-btn,
+.panel-title-actions { display: none; }
+
+/* ===== 移动端布局（≤768px） ===== */
+@media (max-width: 768px) {
+  /* 顶栏精简 */
+  .topbar { height: 46px; padding: 0 10px; }
+  .brand { font-size: 15px; }
+  .topbar-actions { gap: 4px; }
+  .topbar button { padding: 5px 8px; font-size: 13px; border-radius: 6px; }
+
+  /* 布局改为 Tab 切换 */
+  .layout {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 46px - 56px); /* 减去顶栏和底栏 */
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  /* 所有面板绝对定位，通过 active 控制显隐 */
+  .panel {
+    flex: 1;
+    min-height: 0;
+    border-radius: 0;
+    display: none;
+  }
+  .panel[data-tab-panel].mobile-active {
+    display: flex;
+  }
+
+  /* 题目面板标题栏增加导航按钮 */
+  .panel-title {
+    padding: 8px 12px;
+    font-size: 14px;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .panel-title-actions {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: auto;
+  }
+  .title-nav-btn {
+    display: flex;
+    width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    color: #4b5563;
+    padding: 0;
+  }
+  .title-nav-btn:active { background: #e5e7eb; }
+
+  /* 做题区：答案行紧凑 */
+  .work-answer { padding: 8px 12px; gap: 6px; flex-wrap: wrap; }
+  .work-answer input { font-size: 13px; padding: 5px 8px; }
+  .work-answer label { font-size: 12px; }
+  .submit-answer-btn { padding: 5px 10px; font-size: 12px; }
+
+  /* 工具栏可折叠 */
+  .work-tools {
+    padding: 6px 10px;
+    gap: 4px;
+    overflow: hidden;
+    max-height: 36px; /* 只显示第一行 */
+    transition: max-height .25s ease;
+    flex-wrap: nowrap;
+  }
+  .work-tools.expanded {
+    max-height: 200px;
+    flex-wrap: wrap;
+  }
+  .work-tools .tool {
+    font-size: 12px;
+    padding: 3px 8px;
+    white-space: nowrap;
+  }
+  .work-tools .hint { display: none; }
+  .tools-more-btn {
+    display: inline-flex;
+    align-items: center;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #6b7280;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+  .tools-more-btn:active { background: #e5e7eb; }
+
+  /* 草稿画板占满剩余空间 */
+  #scratch { flex: 1; min-height: 200px; }
+
+  /* AI 标题栏简化 */
+  .panel-ai .panel-title { flex-wrap: wrap; gap: 4px; }
+  .panel-ai .panel-title .chat-action-btn {
+    font-size: 14px;
+    padding: 3px 6px;
+    border: none;
+    background: transparent;
+  }
+  .panel-ai .panel-title .mode-switch { font-size: 11px; }
+  .panel-ai .panel-title .mode-btn { font-size: 11px; padding: 2px 8px; }
+  .panel-ai .panel-title .ai-status { font-size: 11px; padding: 2px 8px; }
+
+  /* 聊天区域占满 */
+  .chat-log { flex: 1; padding: 8px; gap: 6px; }
+  .msg { font-size: 14px; padding: 6px 10px; max-width: 95%; }
+  .chat-actions { padding: 4px 8px; gap: 4px; }
+  .chat-actions .quick { font-size: 11px; padding: 3px 8px; }
+  .chat-input { padding: 6px 8px; gap: 4px; }
+  .chat-input textarea { font-size: 13px; padding: 5px 8px; }
+  .chat-input button { padding: 5px 10px; font-size: 13px; }
+
+  /* 底部 Tab 栏 */
+  .mobile-tabbar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    box-shadow: 0 -1px 6px rgba(0,0,0,.06);
+    z-index: 100;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .mobile-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #9ca3af;
+    font-size: 11px;
+    font-weight: 500;
+    transition: color .15s;
+    position: relative;
+    padding: 0;
+  }
+  .mobile-tab.active { color: #4f46e5; }
+  .mobile-tab .tab-icon { font-size: 20px; line-height: 1; }
+  .mobile-tab .tab-label { font-size: 11px; }
+  .mobile-tab .tab-badge {
+    position: absolute;
+    top: 6px;
+    right: 50%;
+    margin-right: -20px;
+    width: 8px;
+    height: 8px;
+    background: #ef4444;
+    border-radius: 50%;
+    border: 2px solid white;
+  }
+
+  /* 弹窗适配 */
+  dialog { min-width: 0; width: 92vw; max-width: 400px; padding: 16px; }
+  #manual-input-dialog { min-width: 0; width: 92vw; max-width: 500px; }
+  #manual-input-dialog textarea { font-size: 14px; }
+  .proposal-text { font-size: 14px; }
+
+  /* 题目内容紧凑 */
+  .problem-content { padding: 10px 12px; font-size: 15px; line-height: 1.6; }
+  .problem-meta { padding: 6px 12px; font-size: 12px; }
+
+  /* 上传预览适配 */
+  .upload-preview { padding: 6px 10px; gap: 8px; flex-wrap: wrap; }
+  .upload-preview img { max-height: 100px; max-width: 140px; }
+
+  /* 工具调用卡片 */
+  .tool-card { font-size: 11px; padding: 6px 8px; }
+
+  /* 语音按钮 */
+  .voice-btn { width: 36px; height: 36px; font-size: 18px; }
+}
+
+/* ===== 横屏特殊处理 ===== */
+@media (max-width: 768px) and (orientation: landscape) and (max-height: 500px) {
+  .layout { height: calc(100vh - 46px - 56px); }
+  #scratch { min-height: 150px; }
+}
+
+/* ===== 大屏隐藏移动端元素（确保不影响桌面） ===== */
+@media (min-width: 769px) {
+  .mobile-tabbar { display: none !important; }
+  .tools-more-btn { display: none !important; }
+  .title-nav-btn,
+  .panel-title-actions { display: none !important; }
+  /* 恢复顶栏按钮文字 */
+  #prev-problem::after { content: ""; }
+  #next-problem::after { content: ""; }
+}
