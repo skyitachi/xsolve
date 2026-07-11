@@ -10,6 +10,8 @@ import { getVisionApiConfig, resolveApiFormat } from "./vision.js";
 import { sessions, destroySession } from "./session.js";
 import { handleRequest } from "./routes.js";
 import { send } from "./utils.js";
+import { shutdown as langfuseShutdown } from "./langfuse/client.js";
+import { LANGFUSE_ACTIVE } from "./langfuse/config.js";
 
 // ---------- 启动配置校验 ----------
 function validateConfig() {
@@ -144,10 +146,18 @@ server.listen(PORT, () => {
   if (cfg.errors.length > 0) {
     console.log("[selflearning] ❌ 以上配置错误需要修复后才能正常使用。");
   }
+
+  // Langfuse 状态
+  console.log(`[selflearning] langfuse: ${LANGFUSE_ACTIVE ? "enabled" : "disabled"}`);
+  if (LANGFUSE_ACTIVE) {
+    console.log(`[selflearning] langfuse host: ${process.env.LANGFUSE_HOST || "http://localhost:3000"}`);
+  }
 });
 
 process.on("SIGINT", async () => {
   console.log("shutting down...");
   for (const s of sessions.values()) await destroySession(s);
+  // Langfuse: flush 队列中的事件
+  try { await langfuseShutdown(); } catch {}
   process.exit(0);
 });

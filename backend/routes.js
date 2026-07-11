@@ -8,6 +8,9 @@ import {
   insertProblem, updateProblemFigure, deleteProblem
 } from './db.js';
 import { send, sendSSE, readJsonBody } from './utils.js';
+import { LANGFUSE_ACTIVE } from './langfuse/config.js';
+import { shutdown as langfuseShutdown } from './langfuse/client.js';
+import { beginTrace } from './langfuse/tracer.js';
 
 // 静态文件服务
 function serveStatic(req, res, pathname) {
@@ -224,6 +227,17 @@ export async function handleRequest(req, res) {
       'x-accel-buffering': 'no'
     });
     sendSSE(res, 'user', { message: userMsg, hasImage: !!imgBody, hasAudio: !!audioBody });
+
+    // Langfuse: 为这个 turn 创建 trace
+    if (LANGFUSE_ACTIVE) {
+      s.currentTraceCtx = beginTrace({
+        sessionId: s.id,
+        mode: s.mode,
+        message: userMsg || '(image/audio)',
+        currentProblemId: s.currentProblemId,
+        scratchStrokes: s.scratchStrokes,
+      });
+    }
 
     const unsubscribe = s.subscribe((event, data) => {
       sendSSE(res, event, data);

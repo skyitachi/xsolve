@@ -5,6 +5,8 @@ import { getDb, getAllProblems } from './db.js';
 import { buildTutorMcp } from './mcp-tools.js';
 import { buildSystemPrompt, ALLOWED_TOOLS, CLAUDE_MODEL } from './config.js';
 import { createInputQueue } from './utils.js';
+import { beginTrace, handleSdkMessage, endTrace } from './langfuse/tracer.js';
+import { LANGFUSE_ACTIVE } from './langfuse/config.js';
 
 // 会话注册表
 export const sessions = new Map();
@@ -37,6 +39,7 @@ export function createSession(opts = {}) {
     query: null,
     runPromise: null,
     closed: false,
+    currentTraceCtx: null, // Langfuse trace context（每个 turn 一个）
     emit(event, data) {
       for (const sub of subscribers) sub(event, data);
     },
@@ -72,6 +75,15 @@ export function createSession(opts = {}) {
       for await (const msg of session.query) {
         if (session.closed) break;
         session.emit('sdk_message', msg);
+        // Langfuse tracing
+        if (LANGFUSE_ACTIVE && session.currentTraceCtx) {
+          handleSdkMessage(session.currentTraceCtx, msg);
+        }
+      }
+      // turn 正常结束
+      if (LANGFUSE_ACTIVE && session.currentTraceCtx) {
+        endTrace(session.currentTraceCtx);
+        session.currentTraceCtx = null;
       }
     } catch (e) {
       const errMsg = e.message || String(e);
@@ -85,6 +97,11 @@ export function createSession(opts = {}) {
         detail = `网络错误，请检查网络连接：\n${errMsg}`;
       }
       console.error('[sdk error]', e);
+      // Langfuse: 记录错误
+      if (LANGFUSE_ACTIVE && session.currentTraceCtx) {
+        endTrace(session.currentTraceCtx, { error: e });
+        session.currentTraceCtx = null;
+      }
       session.emit('error', { message: detail });
       session.emit('done', {});
     }
@@ -159,6 +176,15 @@ export async function clearSessionHistory(s) {
       for await (const msg of s.query) {
         if (s.closed) break;
         s.emit('sdk_message', msg);
+        // Langfuse tracing
+        if (LANGFUSE_ACTIVE && s.currentTraceCtx) {
+          handleSdkMessage(s.currentTraceCtx, msg);
+        }
+      }
+      // turn 正常结束
+      if (LANGFUSE_ACTIVE && s.currentTraceCtx) {
+        endTrace(s.currentTraceCtx);
+        s.currentTraceCtx = null;
       }
     } catch (e) {
       const errMsg = e.message || String(e);
@@ -172,6 +198,11 @@ export async function clearSessionHistory(s) {
         detail = `网络错误，请检查网络连接：\n${errMsg}`;
       }
       console.error('[sdk error]', e);
+      // Langfuse: 记录错误
+      if (LANGFUSE_ACTIVE && s.currentTraceCtx) {
+        endTrace(s.currentTraceCtx, { error: e });
+        s.currentTraceCtx = null;
+      }
       s.emit('error', { message: detail });
       s.emit('done', {});
     }
