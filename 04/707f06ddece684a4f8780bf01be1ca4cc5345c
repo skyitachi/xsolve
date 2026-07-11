@@ -1,0 +1,31 @@
+backend/vision.js
+  s_80ba274cdbe4f1::t_be89d26ff30fba 87
+  s_80ba274cdbe4f1::t_4dd852459ae618 9-17,27-28,40-42,44,48
+backend/server.js
+  s_80ba274cdbe4f1::t_9e927b10149b9a 9
+  s_80ba274cdbe4f1::t_fecbab48ab37ef 57-58
+  s_80ba274cdbe4f1::t_a4aa364f162b40 102-105,109,114
+  s_80ba274cdbe4f1::t_d123e9eaedb724 133-135
+backend/config.js
+  s_80ba274cdbe4f1::t_4ed8496b5ac245 18-19
+.env.example
+  s_80ba274cdbe4f1::t_072dba25687a98 28-37,40-41
+DEPLOY.md
+  s_80ba274cdbe4f1::t_d9f30c5ac3b9fb 80-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.33-trip",
+  "base_commit_sha": "04707f06ddece684a4f8780bf01be1ca4cc5345c",
+  "prompts": {},
+  "sessions": {
+    "s_80ba274cdbe4f1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee78b8fd-a61c-4c8f-85d9-c6c5ebad9c50",
+        "model": "glm-5.2"
+      },
+      "human_author": "yaosp <yaosp@trip.com>"
+    }
+  }
+}
