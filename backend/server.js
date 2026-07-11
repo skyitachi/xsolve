@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 // 小学 AI 做题助手 后端入口
 import "./env.js"; // 必须最先导入：加载 .env 文件到 process.env
-import http from "node:http";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { PORT, VISION_MODEL, CLAUDE_MODEL } from "./config.js";
 import { getVisionApiConfig, resolveApiFormat } from "./vision.js";
 import { sessions, destroySession } from "./session.js";
-import { handleRequest } from "./routes.js";
-import { send } from "./utils.js";
+import { createApp } from "./app.js";
 
 // ---------- 启动配置校验 ----------
 function validateConfig() {
@@ -71,16 +69,11 @@ function validateConfig() {
   };
 }
 
-const server = http.createServer(async (req, res) => {
-  try {
-    await handleRequest(req, res);
-  } catch (e) {
-    console.error(e);
-    send(res, 500, { error: e.message });
-  }
-});
+// 创建 Express app
+const app = createApp();
 
-server.listen(PORT, () => {
+// 启动 HTTP 服务器
+const server = app.listen(PORT, () => {
   const cfg = validateConfig();
 
   console.log(`[selflearning] http://localhost:${PORT}`);
@@ -148,6 +141,7 @@ server.listen(PORT, () => {
 
 process.on("SIGINT", async () => {
   console.log("shutting down...");
+  server.close();
   for (const s of sessions.values()) await destroySession(s);
   process.exit(0);
 });
