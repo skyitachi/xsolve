@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import crypto from 'node:crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PROBLEMS as BUILTIN_PROBLEMS } from './problems.js';
@@ -33,6 +34,37 @@ function initSchema() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_problems_created_at ON problems(created_at);
+
+    CREATE TABLE IF NOT EXISTS chat_sessions (
+      id TEXT PRIMARY KEY,
+      role TEXT NOT NULL DEFAULT 'student',
+      title TEXT,
+      current_problem_id TEXT,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+      updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+      is_archived INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_chat_sessions_role ON chat_sessions(role);
+    CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS chat_turns (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'student',
+      user_message TEXT,
+      ai_message TEXT,
+      tool_calls_json TEXT NOT NULL DEFAULT '[]',
+      input_tokens INTEGER DEFAULT 0,
+      output_tokens INTEGER DEFAULT 0,
+      duration_ms INTEGER DEFAULT 0,
+      error TEXT,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+      FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_chat_turns_session ON chat_turns(session_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_chat_turns_role ON chat_turns(role, created_at DESC);
   `);
 }
 
@@ -131,6 +163,80 @@ function getProblemsForClient() {
   });
 }
 
+// ========== Chat Session CRUD ==========
+
+function insertChatSession({ id, role, title, current_problem_id }) {
+  getDb();
+  db.prepare(`
+    INSERT INTO chat_sessions (id, role, title, current_problem_id)
+    VALUES (?, ?, ?, ?)
+  `).run(id, role, title || null, current_problem_id || null);
+  return getChatSession(id);
+}
+
+function getChatSession(id) {
+  getDb();
+  const row = db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(id);
+  return row || null;
+}
+
+function listChatSessions(role) {
+  getDb();
+  const rows = role
+    ? db.prepare('SELECT * FROM chat_sessions WHERE role = ? AND is_archived = 0 ORDER BY updated_at DESC').all(role)
+    : db.prepare('SELECT * FROM chat_sessions WHERE is_archived = 0 ORDER BY updated_at DESC').all();
+  return rows;
+}
+
+function updateChatSession(id, { title, current_problem_id, is_archived }) {
+  getDb();
+  const sets = [];
+  const vals = [];
+  if (title !== undefined) { sets.push('title = ?'); vals.push(title); }
+  if (current_problem_id !== undefined) { sets.push('current_problem_id = ?'); vals.push(current_problem_id); }
+  if (is_archived !== undefined) { sets.push('is_archived = ?'); vals.push(is_archived ? 1 : 0); }
+  sets.push("updated_at = strftime('%s','now')");
+  vals.push(id);
+  db.prepare(`UPDATE chat_sessions SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+}
+
+function deleteChatSession(id) {
+  getDb();
+  db.prepare('DELETE FROM chat_sessions WHERE id = ?').run(id);
+}
+
+// ========== Chat Turn CRUD ==========
+
+function insertChatTurn({ id, session_id, role, user_message, ai_message, tool_calls_json, input_tokens, output_tokens, duration_ms, error }) {
+  getDb();
+  const turnId = id || crypto.randomUUID();
+  db.prepare(`
+    INSERT INTO chat_turns (id, session_id, role, user_message, ai_message, tool_calls_json, input_tokens, output_tokens, duration_ms, error)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    turnId, session_id, role || 'student',
+    user_message || null, ai_message || null,
+    tool_calls_json || '[]',
+    input_tokens || 0, output_tokens || 0, duration_ms || 0,
+    error || null
+  );
+  // 更新 session 的 updated_at
+  updateChatSession(session_id, {});
+  return turnId;
+}
+
+function getChatTurns(session_id) {
+  getDb();
+  const rows = db.prepare('SELECT * FROM chat_turns WHERE session_id = ? ORDER BY created_at ASC').all(session_id);
+  return rows;
+}
+
+function getRecentChatTurns(role, limit = 20) {
+  getDb();
+  const rows = db.prepare('SELECT * FROM chat_turns WHERE role = ? ORDER BY created_at DESC LIMIT ?').all(role, limit);
+  return rows.reverse();
+}
+
 export {
   getDb,
   getAllProblems,
@@ -138,5 +244,13 @@ export {
   insertProblem,
   updateProblemFigure,
   deleteProblem,
-  getProblemsForClient
+  getProblemsForClient,
+  insertChatSession,
+  getChatSession,
+  listChatSessions,
+  updateChatSession,
+  deleteChatSession,
+  insertChatTurn,
+  getChatTurns,
+  getRecentChatTurns,
 };

@@ -5,7 +5,15 @@ import {
   destroySession,
   clearSessionHistory,
   resetSession,
+  restoreSession,
 } from '../session.js';
+import {
+  listChatSessions,
+  getChatSession,
+  getChatTurns,
+  deleteChatSession,
+  updateChatSession,
+} from '../db.js';
 
 // POST /api/session
 export function createSessionHandler(req, res) {
@@ -36,6 +44,88 @@ export async function deleteSession(req, res) {
   const id = req.params.id;
   const s = sessions.get(id);
   if (s) await destroySession(s);
+  res.json({ ok: true });
+}
+
+// GET /api/sessions?role=student
+export function listSessions(req, res) {
+  const role = req.query.role;
+  const rows = listChatSessions(role);
+  res.json(rows.map(r => ({
+    id: r.id,
+    role: r.role,
+    title: r.title,
+    currentProblemId: r.current_problem_id,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  })));
+}
+
+// GET /api/session/:id/history
+export function getSessionHistory(req, res) {
+  const id = req.params.id;
+  const dbRow = getChatSession(id);
+  if (!dbRow) return res.status(404).json({ error: 'session not found' });
+  const turns = getChatTurns(id);
+  res.json({
+    session: {
+      id: dbRow.id,
+      role: dbRow.role,
+      title: dbRow.title,
+      currentProblemId: dbRow.current_problem_id,
+    },
+    turns: turns.map(t => ({
+      id: t.id,
+      userMessage: t.user_message,
+      aiMessage: t.ai_message,
+      toolCalls: JSON.parse(t.tool_calls_json || '[]'),
+      inputTokens: t.input_tokens,
+      outputTokens: t.output_tokens,
+      durationMs: t.duration_ms,
+      error: t.error,
+      createdAt: t.created_at,
+    })),
+  });
+}
+
+// GET /api/session/:id (覆写：支持从 DB 恢复)
+export function getSessionOrRestore(req, res) {
+  const id = req.params.id;
+  // 先查内存
+  let s = sessions.get(id);
+  if (s) {
+    return res.json({
+      id: s.id,
+      mode: s.mode,
+      currentProblemId: s.currentProblemId,
+      createdAt: s.createdAt,
+    });
+  }
+  // 内存没有，尝试从 DB 恢复
+  s = restoreSession(id);
+  if (!s) return res.status(404).json({ error: 'session not found' });
+  res.json({
+    id: s.id,
+    mode: s.mode,
+    currentProblemId: s.currentProblemId,
+    createdAt: s.createdAt,
+    restored: true,
+  });
+}
+
+// POST /api/session/:id/archive
+export function archiveSession(req, res) {
+  const id = req.params.id;
+  updateChatSession(id, { is_archived: 1 });
+  res.json({ ok: true });
+}
+
+// DELETE /api/session/:id (覆写：同时删 DB)
+export async function deleteSessionWithDb(req, res) {
+  const id = req.params.id;
+  const s = sessions.get(id);
+  if (s) await destroySession(s);
+  deleteChatSession(id);
   res.json({ ok: true });
 }
 

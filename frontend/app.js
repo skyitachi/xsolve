@@ -30,17 +30,32 @@ function initApp() {
       const mode = btn.dataset.mode;
       if (mode === state.mode || state.turnInFlight) return;
       setModeUI(mode);
-      // 切换模式 = 重建会话（系统提示不同），清空当前对话
+      // 切换角色：不销毁旧 session，而是加载/创建目标角色的 session
       elChatLog.innerHTML = "";
-      addSystemMsg(
-        mode === "parent"
-          ? "🔁 已切换到「家长版」。你可以让我识别题目、给辅导思路、分析孩子错因；我会更主动地讲解。"
-          : "🔁 已切换到「学生版」。我不会主动分析题目或给思路，只有你提问时才回答——自己先想想看吧。",
-      );
       try {
+        // 先尝试恢复该角色的已有 session
+        const savedSid = getSavedSessionId(mode);
+        if (savedSid) {
+          const restored = await restoreSession(savedSid);
+          if (restored) {
+            await loadSessionHistory(restored.id);
+            addSystemMsg(
+              mode === "parent"
+                ? "🔁 已切换到「家长版」，已恢复历史对话。"
+                : "🔁 已切换到「学生版」，已恢复历史对话。",
+            );
+            return;
+          }
+        }
+        // 该角色没有 session，新建
         await createSession(mode);
+        addSystemMsg(
+          mode === "parent"
+            ? "🔁 已切换到「家长版」。你可以让我识别题目、给辅导思路、分析孩子错因；我会更主动地讲解。"
+            : "🔁 已切换到「学生版」。我不会主动分析题目或给思路，只有你提问时才回答——自己先想想看吧。",
+        );
       } catch (e) {
-        addErrorMsg("重建会话失败: " + e.message);
+        addErrorMsg("切换角色失败: " + e.message);
       }
     });
   });
@@ -249,22 +264,20 @@ function initApp() {
     }
     renderProblem();
 
-    // 尝试恢复上次的 session（刷新页面场景）
-    const savedSid = getSavedSessionId();
+    // 尝试恢复当前角色的 session（刷新页面场景）
+    const savedSid = getSavedSessionId(state.mode);
     if (savedSid) {
       try {
         const restored = await restoreSession(savedSid);
         if (restored) {
-          // 同步模式
-          if (restored.mode && restored.mode !== state.mode) {
-            setModeUI(restored.mode);
-          }
+          // 加载历史对话
+          await loadSessionHistory(restored.id);
           addSystemMsg("🔄 已恢复上次对话（session 保留中）。");
           return;
         }
       } catch {
         // session 已失效，清除旧 ID 并新建
-        saveSessionId(null);
+        saveSessionId(null, state.mode);
       }
     }
 

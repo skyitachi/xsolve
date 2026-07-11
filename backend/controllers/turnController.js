@@ -1,5 +1,6 @@
 // 对话 turn controller（SSE 流式响应）
 import { sessions } from '../session.js';
+import { insertChatTurn, updateChatSession } from '../db.js';
 
 // POST /api/session/:id/turn
 export function handleTurn(req, res) {
@@ -19,6 +20,16 @@ export function handleTurn(req, res) {
   if (typeof body.currentProblemId === 'string') s.currentProblemId = body.currentProblemId;
   if (typeof body.scratchStrokes === 'number') s.scratchStrokes = body.scratchStrokes;
 
+  // 记录 turn 开始时间
+  const turnStartTime = Date.now();
+
+  // 累积 AI 输出和工具调用
+  let aiTextAccumulator = '';
+  let toolCallsAccumulator = [];
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let turnError = null;
+
   // SSE headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
@@ -33,17 +44,82 @@ export function handleTurn(req, res) {
   // session 对象使用自定义 subscribe/unsubscribe 模式（非 EventEmitter）
   const unsubscribe = s.subscribe((event, data) => {
     sendSSE(res, event, data);
+
+    // 累积 AI 输出和工具调用用于持久化
+    if (event === 'sdk_message') {
+      if (data.type === 'stream_event' && data.event?.type === 'content_block_start') {
+        const block = data.event.content_block;
+        if (block?.type === 'tool_use') {
+          toolCallsAccumulator.push({ name: block.name, input: block.input || {} });
+        }
+      } else if (data.type === 'stream_event' && data.event?.type === 'message_delta') {
+        const usage = data.event.usage;
+        if (usage) {
+          outputTokens = usage.output_tokens || outputTokens;
+        }
+      } else if (data.type === 'result') {
+        // SDK result 消息：result 是字符串（AI 回复文本），usage 在顶层
+        if (typeof data.result === 'string') {
+          aiTextAccumulator = data.result;
+        } else if (data.result?.content) {
+          for (const block of data.result.content) {
+            if (block.type === 'text') aiTextAccumulator += block.text;
+          }
+        }
+        if (data.usage) {
+          inputTokens = data.usage.input_tokens || inputTokens;
+          outputTokens = data.usage.output_tokens || outputTokens;
+        }
+      }
+    } else if (event === 'error') {
+      turnError = data.message || 'unknown error';
+    }
+
     // 收到最终结果或错误后，发送 done 并关闭连接
     if (event === 'sdk_message' && data.type === 'result') {
+      // 持久化 turn 到 DB
+      persistTurn();
       sendSSE(res, 'done', {});
       setImmediate(() => { try { res.end(); } catch { /* ignore */ } });
     } else if (event === 'error') {
+      persistTurn();
       sendSSE(res, 'done', {});
       setImmediate(() => { try { res.end(); } catch { /* ignore */ } });
     }
   });
 
-  // 客户端断开时清理订阅（用 res.close 而非 req.close，Express 5 中 req.close 会提前触发）
+  // 持久化 turn 到 DB
+  function persistTurn() {
+    try {
+      const duration_ms = Date.now() - turnStartTime;
+      const ai_message = aiTextAccumulator || null;
+      const tool_calls_json = JSON.stringify(toolCallsAccumulator);
+
+      insertChatTurn({
+        session_id: s.id,
+        role: s.mode,
+        user_message: userMsg || (imgBody ? '[图片消息]' : '[语音消息]'),
+        ai_message,
+        tool_calls_json,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        duration_ms,
+        error: turnError,
+      });
+
+      // 如果是第一条 turn，更新 session title
+      if (userMsg) {
+        updateChatSession(s.id, {
+          title: userMsg.slice(0, 20),
+          current_problem_id: s.currentProblemId,
+        });
+      }
+    } catch (e) {
+      console.error('[turn] persist error:', e);
+    }
+  }
+
+  // 客户端断开时清理订阅
   res.on('close', () => { unsubscribe(); });
 
   // 构造消息内容并入队

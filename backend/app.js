@@ -9,13 +9,18 @@ import { listProblems, removeProblem } from './controllers/problemController.js'
 import {
   createSessionHandler,
   getSession,
+  getSessionOrRestore,
   deleteSession,
+  deleteSessionWithDb,
   clearSession,
   resetSessionHandler,
   syncScratch,
   syncScratchImage,
   deleteConfirm,
   proposalConfirm,
+  listSessions,
+  getSessionHistory,
+  archiveSession,
 } from './controllers/sessionController.js';
 import { handleTurn } from './controllers/turnController.js';
 
@@ -40,12 +45,17 @@ export function createApp() {
   app.get('/api/problems', listProblems);
   app.delete('/api/problem/:id', removeProblem);
 
+  // ========== 会话列表 ==========
+  app.get('/api/sessions', listSessions);
+
   // ========== 会话管理 ==========
   app.post('/api/session', createSessionHandler);
-  app.get('/api/session/:id', getSession);
-  app.delete('/api/session/:id', deleteSession);
+  app.get('/api/session/:id/history', getSessionHistory);
+  app.get('/api/session/:id', getSessionOrRestore);
+  app.delete('/api/session/:id', deleteSessionWithDb);
   app.post('/api/session/:id/clear', clearSession);
   app.post('/api/session/:id/reset', resetSessionHandler);
+  app.post('/api/session/:id/archive', archiveSession);
 
   // ========== 草稿同步 ==========
   app.post('/api/session/:id/scratch', syncScratch);

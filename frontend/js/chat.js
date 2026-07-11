@@ -209,6 +209,8 @@ function finishToolCard(card, result, isError = false) {
 }
 
 // ========== 会话管理 ==========
+
+// 创建新会话（绑定角色）
 async function createSession(mode = state.mode || "student") {
   const resp = await fetch("/api/session", {
     method: "POST",
@@ -219,19 +221,41 @@ async function createSession(mode = state.mode || "student") {
   const data = await resp.json();
   state.sessionId = data.id;
   state.mode = data.mode || mode;
-  saveSessionId(data.id);
+  saveSessionId(data.id, state.mode);
   return data;
 }
 
-// 恢复已有 session（刷新页面时用）
+// 恢复已有 session（刷新页面或切换角色时用）
+// 先尝试从内存恢复（GET /api/session/:id 会自动触发后端 restoreSession）
 async function restoreSession(sid) {
   const resp = await fetch(`/api/session/${sid}`, { method: "GET" });
   if (!resp.ok) return null;
   const data = await resp.json();
   state.sessionId = data.id;
   state.mode = data.mode || state.mode;
-  saveSessionId(data.id);
+  saveSessionId(data.id, state.mode);
   return data;
+}
+
+// 加载会话历史并渲染到聊天界面
+async function loadSessionHistory(sid) {
+  try {
+    const resp = await fetch(`/api/session/${sid}/history`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data.turns && data.turns.length > 0) {
+      for (const turn of data.turns) {
+        if (turn.userMessage) {
+          addUserMsg(turn.userMessage);
+        }
+        if (turn.aiMessage) {
+          addAiMsg(turn.aiMessage);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("加载历史失败:", e.message);
+  }
 }
 
 // 清空当前会话历史（保留 session ID，类似 /clear）
@@ -259,7 +283,7 @@ async function newChatOverride() {
   const data = await resp.json();
   state.sessionId = data.id;
   state.mode = data.mode || state.mode;
-  saveSessionId(data.id);
+  saveSessionId(data.id, state.mode);
   return data;
 }
 

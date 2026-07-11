@@ -19,11 +19,28 @@ function saveHistory() {
   localStorage.setItem("practice_history", JSON.stringify(state.history));
 }
 
-// session ID 持久化（刷新页面后恢复）
-function saveSessionId(id) {
-  if (id) localStorage.setItem("xsolve_session_id", id);
-  else localStorage.removeItem("xsolve_session_id");
+// ========== 按角色持久化 session ID ==========
+// 每个角色（student/parent）独立维护一个 sessionId
+// 切换角色时从 localStorage 读取目标角色的 sessionId
+
+function saveSessionId(id, mode) {
+  const m = mode || state.mode;
+  if (id) {
+    localStorage.setItem("xsolve_session_" + m, id);
+  } else {
+    localStorage.removeItem("xsolve_session_" + m);
+  }
 }
-function getSavedSessionId() {
-  return localStorage.getItem("xsolve_session_id") || null;
+
+function getSavedSessionId(mode) {
+  const m = mode || state.mode;
+  return localStorage.getItem("xsolve_session_" + m) || null;
+}
+
+// 获取所有角色的 session ID 映射
+function getAllSavedSessionIds() {
+  return {
+    student: localStorage.getItem("xsolve_session_student"),
+    parent: localStorage.getItem("xsolve_session_parent"),
+  };
 }

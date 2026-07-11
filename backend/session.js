@@ -1,7 +1,7 @@
 // 会话管理：每个浏览器 session 对应一个 SDK query() 实例
 import crypto from 'node:crypto';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { getDb, getAllProblems } from './db.js';
+import { getDb, getAllProblems, insertChatSession, getChatSession, getChatTurns, updateChatSession } from './db.js';
 import { buildTutorMcp } from './mcp-tools.js';
 import { buildSystemPrompt, ALLOWED_TOOLS, CLAUDE_MODEL } from './config.js';
 import { createInputQueue } from './utils.js';
@@ -91,6 +91,113 @@ export function createSession(opts = {}) {
   })();
 
   sessions.set(id, session);
+
+  // 持久化到 DB
+  insertChatSession({ id, role: mode, current_problem_id: firstProblemId });
+
+  return session;
+}
+
+/**
+ * 从 DB 恢复一个 session（服务重启后用）
+ * 读取历史 turns，创建新的 SDK 进程，将历史消息注入
+ * @param {string} id - session ID
+ * @returns {object|null} session 对象，或 null（DB 中不存在）
+ */
+export function restoreSession(id) {
+  const dbRow = getChatSession(id);
+  if (!dbRow) return null;
+
+  // 如果内存中已存在（如页面刷新但服务未重启），直接返回
+  if (sessions.has(id)) return sessions.get(id);
+
+  const mode = dbRow.role;
+  const subscribers = new Set();
+
+  const session = {
+    id,
+    mode,
+    createdAt: dbRow.created_at * 1000,
+    currentProblemId: dbRow.current_problem_id,
+    history: [],
+    scratchStrokes: 0,
+    scratchImage: null,
+    pendingDelete: null,
+    proposedProblems: [],
+    lastImage: null,
+    queue: createInputQueue(),
+    query: null,
+    runPromise: null,
+    closed: false,
+    emit(event, data) {
+      for (const sub of subscribers) sub(event, data);
+    },
+    subscribe(fn) { subscribers.add(fn); return () => subscribers.delete(fn); }
+  };
+
+  // 注册 MCP 工具集
+  const tutorMcp = buildTutorMcp(session);
+
+  session.query = query({
+    prompt: session.queue.iterable(),
+    options: {
+      systemPrompt: buildSystemPrompt(mode),
+      mcpServers: { tutor: tutorMcp },
+      tools: [],
+      allowedTools: ALLOWED_TOOLS,
+      permissionMode: 'bypassPermissions',
+      persistSession: false,
+      includePartialMessages: true,
+      stderr: (data) => {
+        const text = (typeof data === 'string' ? data : data.toString()).trimEnd();
+        if (text) console.error('[claude-code]', text);
+      },
+      ...(CLAUDE_MODEL ? { model: CLAUDE_MODEL } : {}),
+      env: { ...process.env, CLAUDE_AGENT_SDK_CLIENT_APP: 'selflearning/0.1.0' }
+    }
+  });
+
+  // 后台循环
+  session.runPromise = (async () => {
+    try {
+      for await (const msg of session.query) {
+        if (session.closed) break;
+        session.emit('sdk_message', msg);
+      }
+    } catch (e) {
+      const errMsg = e.message || String(e);
+      let detail = errMsg;
+      if (e.status) detail = `[HTTP ${e.status}] ${errMsg}`;
+      if (e.type === 'authentication_error' || /api key|auth/i.test(errMsg)) {
+        detail = `鉴权失败：请检查 ANTHROPIC_API_KEY 是否正确设置。\n${errMsg}`;
+      } else if (/rate limit|overloaded/i.test(errMsg)) {
+        detail = `API 限流/过载，请稍后重试：\n${errMsg}`;
+      } else if (/network|fetch|ECONNRESET|ETIMEDOUT/i.test(errMsg)) {
+        detail = `网络错误，请检查网络连接：\n${errMsg}`;
+      }
+      console.error('[sdk error]', e);
+      session.emit('error', { message: detail });
+      session.emit('done', {});
+    }
+  })();
+
+  sessions.set(id, session);
+
+  // 将历史 turns 注入 SDK 上下文（作为已完成的对话，不触发新的 query）
+  const turns = getChatTurns(id);
+  for (const turn of turns) {
+    if (turn.user_message) {
+      session.queue.push({
+        type: 'user',
+        message: { role: 'user', content: turn.user_message },
+        parent_tool_use_id: null,
+        session_id: id,
+      });
+    }
+    // AI 消息不需要 push，SDK 会自己生成
+    // 历史仅用于前端渲染和 LLM Judge，SDK 上下文通过 user 消息重建
+  }
+
   return session;
 }
 
