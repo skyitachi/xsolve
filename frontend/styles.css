@@ -638,6 +638,23 @@ dialog h3 { margin: 0 0 8px 0; }
 .diagram-btn-next:hover:not(:disabled) {
   background: #3a2fd0;
 }
+.diagram-btn-auto {
+  background: #fff;
+  color: #6b6b80;
+  border: 1px solid #ddd;
+  font-size: 12px;
+  padding: 4px 12px;
+}
+.diagram-btn-auto:hover {
+  background: #f8f8fa;
+  border-color: #4b3fe3;
+  color: #4b3fe3;
+}
+.diagram-btn-auto.playing {
+  background: #f0effa;
+  border-color: #4b3fe3;
+  color: #4b3fe3;
+}
 .diagram-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
