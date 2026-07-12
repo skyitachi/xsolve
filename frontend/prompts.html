@@ -5,6 +5,10 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>xsolve Prompt 管理</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -80,8 +84,8 @@ h2 { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
 }
 .modal-overlay.open { display: flex; }
 .modal {
-  background: #fff; border-radius: 16px; padding: 1.5rem; width: 90%; max-width: 700px;
-  max-height: 85vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  background: #fff; border-radius: 16px; padding: 1.5rem; width: 90%; max-width: 900px;
+  max-height: 88vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.12);
 }
 .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .modal-title { font-size: 1.1rem; font-weight: 700; }
@@ -91,19 +95,75 @@ h2 { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
 /* Form */
 .form-group { margin-bottom: 1rem; }
 .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 0.3rem; }
-.form-group select, .form-group input, .form-group textarea {
+.form-group select, .form-group input {
   width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px;
   font-family: inherit;
 }
-.form-group textarea { min-height: 300px; resize: vertical; font-family: "SF Mono", "Fira Code", monospace; font-size: 12px; line-height: 1.5; }
 .form-group .hint { font-size: 12px; color: #8b8b9a; margin-top: 0.25rem; }
 
-/* Full content view */
-.full-content {
-  background: #f8f8fa; border-radius: 8px; padding: 1rem; font-family: "SF Mono", "Fira Code", monospace;
-  font-size: 12px; line-height: 1.6; white-space: pre-wrap; max-height: 400px; overflow-y: auto;
-  border: 1px solid #eee;
+/* Markdown editor */
+.md-editor { border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
+.md-editor-toolbar {
+  display: flex; align-items: center; gap: 0.25rem; padding: 6px 8px; background: #f8f8fa;
+  border-bottom: 1px solid #eee; flex-wrap: wrap;
 }
+.md-editor-toolbar-group { display: flex; gap: 2px; align-items: center; }
+.md-editor-toolbar-divider { width: 1px; height: 18px; background: #ddd; margin: 0 4px; }
+.md-btn {
+  padding: 3px 8px; border: none; border-radius: 4px; font-size: 12px; cursor: pointer;
+  background: transparent; color: #4a4a5e; transition: all 0.15s; min-width: 26px;
+}
+.md-btn:hover { background: #e8e8ee; }
+.md-btn.active { background: #4b3fe3; color: #fff; }
+.md-mode-tabs { display: flex; gap: 2px; margin-left: auto; }
+.md-mode-tabs .md-btn { font-weight: 600; }
+
+.md-editor-body { display: flex; min-height: 320px; }
+.md-editor-body.mode-edit .md-preview-pane { display: none; }
+.md-editor-body.mode-preview .md-edit-pane { display: none; }
+.md-editor-body.mode-split .md-edit-pane { width: 50%; }
+.md-editor-body.mode-split .md-preview-pane { width: 50%; display: block; }
+
+.md-edit-pane { width: 100%; display: flex; }
+.md-textarea {
+  width: 100%; border: none; outline: none; padding: 12px; font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 12px; line-height: 1.6; resize: none; min-height: 320px; background: #fff;
+  border-right: 1px solid #eee;
+}
+.md-preview-pane {
+  padding: 12px 16px; overflow-y: auto; background: #fff; font-size: 13px; line-height: 1.7;
+}
+.md-preview-pane h1, .md-preview-pane h2, .md-preview-pane h3 { margin: 0.75rem 0 0.5rem; }
+.md-preview-pane h1 { font-size: 1.3rem; }
+.md-preview-pane h2 { font-size: 1.1rem; }
+.md-preview-pane h3 { font-size: 1rem; }
+.md-preview-pane p { margin: 0.4rem 0; }
+.md-preview-pane ul, .md-preview-pane ol { margin: 0.4rem 0; padding-left: 1.5rem; }
+.md-preview-pane li { margin: 0.2rem 0; }
+.md-preview-pane code { background: #f0f0f3; padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+.md-preview-pane pre { background: #f8f8fa; border-radius: 6px; padding: 0.75rem; overflow-x: auto; margin: 0.5rem 0; }
+.md-preview-pane pre code { background: none; padding: 0; }
+.md-preview-pane strong { font-weight: 700; }
+.md-preview-pane em { font-style: italic; }
+.md-preview-pane blockquote { border-left: 3px solid #4b3fe3; padding-left: 12px; color: #6b6b80; margin: 0.5rem 0; }
+
+/* Full content view (markdown rendered) */
+.full-content {
+  background: #f8f8fa; border-radius: 8px; padding: 1rem 1.25rem; font-size: 13px; line-height: 1.7;
+  max-height: 450px; overflow-y: auto; border: 1px solid #eee;
+}
+.full-content h1, .full-content h2, .full-content h3 { margin: 0.75rem 0 0.5rem; }
+.full-content h1 { font-size: 1.3rem; }
+.full-content h2 { font-size: 1.1rem; }
+.full-content h3 { font-size: 1rem; }
+.full-content p { margin: 0.4rem 0; }
+.full-content ul, .full-content ol { margin: 0.4rem 0; padding-left: 1.5rem; }
+.full-content li { margin: 0.2rem 0; }
+.full-content code { background: #e8e8ee; padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+.full-content pre { background: #fff; border-radius: 6px; padding: 0.75rem; overflow-x: auto; margin: 0.5rem 0; }
+.full-content pre code { background: none; padding: 0; }
+.full-content strong { font-weight: 700; }
+.full-content blockquote { border-left: 3px solid #4b3fe3; padding-left: 12px; color: #6b6b80; margin: 0.5rem 0; }
 
 /* Empty & loading */
 .empty { text-align: center; padding: 3rem; color: #6b6b80; }
@@ -185,8 +245,33 @@ h2 { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
     </div>
     <div class="form-group">
       <label>提示词内容 (Content)</label>
-      <textarea id="createFormContent" placeholder="输入完整的系统提示词内容..."></textarea>
-      <div class="hint">版本号将自动递增，新版本创建后默认为未激活状态</div>
+      <div class="md-editor">
+        <div class="md-editor-toolbar">
+          <div class="md-editor-toolbar-group">
+            <button class="md-btn" onclick="mdInsert('**','**')" title="粗体"><b>B</b></button>
+            <button class="md-btn" onclick="mdInsert('*','*')" title="斜体"><i>I</i></button>
+            <button class="md-btn" onclick="mdInsert('`','`')" title="行内代码">&lt;/&gt;</button>
+            <button class="md-btn" onclick="mdInsertLine('## ')" title="标题">H2</button>
+            <button class="md-btn" onclick="mdInsertLine('- ')" title="列表项">•</button>
+            <button class="md-btn" onclick="mdInsertLine('> ')" title="引用">"</button>
+            <div class="md-editor-toolbar-divider"></div>
+            <button class="md-btn" onclick="mdInsert('$','$')" title="行内公式">$x$</button>
+            <button class="md-btn" onclick="mdInsert('$$\n','\n$$')" title="块级公式">$$</button>
+          </div>
+          <div class="md-mode-tabs">
+            <button class="md-btn" id="modeBtnEdit" onclick="mdSetMode('edit')">编辑</button>
+            <button class="md-btn active" id="modeBtnSplit" onclick="mdSetMode('split')">分屏</button>
+            <button class="md-btn" id="modeBtnPreview" onclick="mdSetMode('preview')">预览</button>
+          </div>
+        </div>
+        <div class="md-editor-body mode-split" id="mdEditorBody">
+          <div class="md-edit-pane">
+            <textarea class="md-textarea" id="createFormContent" placeholder="输入完整的系统提示词内容... 支持 Markdown 和 LaTeX 公式" oninput="renderPreview()"></textarea>
+          </div>
+          <div class="md-preview-pane" id="mdPreviewPane"></div>
+        </div>
+      </div>
+      <div class="hint">版本号将自动递增，新版本创建后默认为未激活状态 · 支持 Markdown 语法和 LaTeX 公式</div>
     </div>
     <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
       <button class="btn btn-secondary" onclick="closeModal('createModal')">取消</button>
@@ -218,10 +303,88 @@ const ROLE_COLORS = {
 let currentRole = '';
 let allPrompts = [];
 let roleCounts = {};
+let mdMode = 'split';
 
 function fmtTime(ts) {
   const d = new Date(ts * 1000);
   return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+// ========== Markdown rendering ==========
+
+function renderMarkdown(text) {
+  if (!text) return '<span style="color:#8b8b9a">(空)</span>';
+  if (typeof marked === 'undefined') return escapeHtml(text);
+  try {
+    const html = marked.parse(text, { breaks: true });
+    return html;
+  } catch {
+    return escapeHtml(text);
+  }
+}
+
+function renderKatexInElement(el) {
+  if (typeof renderMathInElement === 'undefined') return;
+  try {
+    renderMathInElement(el, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '$', right: '$', display: false },
+      ],
+      throwOnError: false,
+    });
+  } catch { /* ignore */ }
+}
+
+function renderPreview() {
+  const textarea = document.getElementById('createFormContent');
+  const pane = document.getElementById('mdPreviewPane');
+  if (!textarea || !pane) return;
+  pane.innerHTML = renderMarkdown(textarea.value);
+  renderKatexInElement(pane);
+}
+
+// ========== Markdown editor toolbar ==========
+
+function mdSetMode(mode) {
+  mdMode = mode;
+  const body = document.getElementById('mdEditorBody');
+  if (!body) return;
+  body.className = 'md-editor-body mode-' + mode;
+  // Update active button
+  ['Edit', 'Split', 'Preview'].forEach(m => {
+    const btn = document.getElementById('modeBtn' + m);
+    if (btn) btn.classList.remove('active');
+  });
+  const activeBtn = document.getElementById('modeBtn' + mode.charAt(0).toUpperCase() + mode.slice(1));
+  if (activeBtn) activeBtn.classList.add('active');
+  if (mode !== 'edit') renderPreview();
+}
+
+function mdInsert(before, after) {
+  const ta = document.getElementById('createFormContent');
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const selected = ta.value.slice(start, end);
+  ta.value = ta.value.slice(0, start) + before + selected + after + ta.value.slice(end);
+  ta.focus();
+  if (selected.length === 0) {
+    ta.selectionStart = ta.selectionEnd = start + before.length;
+  } else {
+    ta.selectionStart = start;
+    ta.selectionEnd = start + before.length + selected.length + after.length;
+  }
+  renderPreview();
+}
+
+function mdInsertLine(prefix) {
+  const ta = document.getElementById('createFormContent');
+  const start = ta.selectionStart;
+  const lineStart = ta.value.lastIndexOf('\n', start - 1) + 1;
+  ta.value = ta.value.slice(0, lineStart) + prefix + ta.value.slice(lineStart);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = start + prefix.length;
+  renderPreview();
 }
 
 function showToast(msg, type = '') {
@@ -345,7 +508,7 @@ async function viewPrompt(id) {
     ${p.description ? `<div class="form-group"><label>描述</label><div style="font-size:13px;color:#4a4a5e;">${escapeHtml(p.description)}</div></div>` : ''}
     <div class="form-group">
       <label>完整内容</label>
-      <div class="full-content">${escapeHtml(p.content)}</div>
+      <div class="full-content" id="viewContent">${renderMarkdown(p.content)}</div>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.75rem;">
       <span style="font-size:12px;color:#8b8b9a;">创建于 ${fmtTime(p.created_at)}</span>
@@ -357,6 +520,9 @@ async function viewPrompt(id) {
     </div>
   `;
   openModal('viewModal');
+  // Render KaTeX in the view content
+  const viewContent = document.getElementById('viewContent');
+  if (viewContent) renderKatexInElement(viewContent);
 }
 
 // ========== Create ==========
@@ -369,6 +535,8 @@ async function copyToCreate(id) {
   document.getElementById('createFormContent').value = p.content;
   closeModal('viewModal');
   openModal('createModal');
+  mdSetMode('split');
+  renderPreview();
 }
 
 function openCreateModal() {
@@ -376,6 +544,8 @@ function openCreateModal() {
   document.getElementById('createFormDesc').value = '';
   document.getElementById('createFormContent').value = '';
   openModal('createModal');
+  mdSetMode('split');
+  renderPreview();
 }
 
 async function submitCreate() {
