@@ -212,6 +212,7 @@ ${problemInfo ? '\n' + problemInfo : ''}
         value: item.score,
         data_type: 'numeric',
         comment: item.comment || '',
+        prompt_version_id: turn.prompt_version_id || null,
       });
     }
   }

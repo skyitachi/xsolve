@@ -157,6 +157,7 @@ tbody tr:hover { background: #fafafe; }
           <th>角色</th>
           <th>用户输入</th>
           <th>AI 回复</th>
+          <th>Prompt</th>
           <th>工具</th>
           <th>耗时</th>
           <th>Judge 评分</th>
@@ -164,7 +165,7 @@ tbody tr:hover { background: #fafafe; }
         </tr>
       </thead>
       <tbody id="turnBody">
-        <tr><td colspan="8" class="loading">加载中...</td></tr>
+        <tr><td colspan="9" class="loading">加载中...</td></tr>
       </tbody>
     </table>
   </div>
@@ -249,7 +250,7 @@ async function loadDashboard() {
 
   // Turn table
   if (!data.recent_turns || data.recent_turns.length === 0) {
-    document.getElementById('turnBody').innerHTML = '<tr><td colspan="8" class="empty">暂无 Turn 数据，发送一条消息试试</td></tr>';
+    document.getElementById('turnBody').innerHTML = '<tr><td colspan="9" class="empty">暂无 Turn 数据，发送一条消息试试</td></tr>';
     document.getElementById('turnCards').innerHTML = '<div class="empty">暂无 Turn 数据，发送一条消息试试</div>';
     return;
   }
@@ -269,15 +270,16 @@ async function loadDashboard() {
       <tr>
         <td>${fmtTime(t.created_at)}</td>
         <td>${t.role === 'student' ? '学生' : '家长'}</td>
-        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(t.user_message||'').slice(0,40)}</td>
-        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(t.ai_message||'').slice(0,40)}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(t.user_message||'').slice(0,40)}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(t.ai_message||'').slice(0,40)}</td>
+        <td style="text-align:center">${t.prompt_version ? `<span style="font-size:12px;background:#e8e0ff;color:#4b3fe3;padding:1px 8px;border-radius:10px;font-weight:600;">v${t.prompt_version}</span>` : '<span style="color:#aaa">-</span>'}</td>
         <td>${toolCount > 0 ? toolCount + '次' : '-'}</td>
         <td>${t.duration_ms ? (t.duration_ms/1000).toFixed(1)+'s' : '-'}</td>
         <td>${scoreBadges || '<span class="score-badge score-na">未评估</span>'}</td>
         <td><span class="toggle-detail" onclick="toggleDetail(${i})">展开</span></td>
       </tr>
       <tr class="detail-row" id="detail-${i}">
-        <td colspan="8">
+        <td colspan="9">
           <div class="detail-content">
             <div class="detail-section">
               <div class="ds-label">用户输入</div>
@@ -322,7 +324,7 @@ async function loadDashboard() {
       <div class="turn-card">
         <div class="turn-card-head">
           <span class="turn-card-role">${t.role === 'student' ? '👨‍🎓 学生' : '👨‍👩‍👧 家长'}</span>
-          <span class="turn-card-meta">${fmtTime(t.created_at)} · ${t.duration_ms ? (t.duration_ms/1000).toFixed(1)+'s' : '-'} · ${toolCount > 0 ? toolCount+'工具' : '无工具'}</span>
+          <span class="turn-card-meta">${fmtTime(t.created_at)} · ${t.prompt_version ? 'Prompt v'+t.prompt_version : ''} · ${t.duration_ms ? (t.duration_ms/1000).toFixed(1)+'s' : '-'} · ${toolCount > 0 ? toolCount+'工具' : '无工具'}</span>
         </div>
         <div class="turn-card-msg"><span class="msg-label">用户:</span>${(t.user_message||'').slice(0,50).replace(/</g,'&lt;')}</div>
         <div class="turn-card-msg"><span class="msg-label">AI:</span>${(t.ai_message||'').slice(0,50).replace(/</g,'&lt;')}</div>

@@ -78,6 +78,7 @@ function initSchema() {
       value REAL NOT NULL,
       data_type TEXT NOT NULL DEFAULT 'numeric',
       comment TEXT,
+      prompt_version_id TEXT,
       created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
       FOREIGN KEY (turn_id) REFERENCES chat_turns(id) ON DELETE CASCADE
     );
@@ -105,6 +106,13 @@ function initSchema() {
     db.prepare("SELECT prompt_version_id FROM chat_turns LIMIT 0").get();
   } catch {
     db.exec("ALTER TABLE chat_turns ADD COLUMN prompt_version_id TEXT");
+  }
+
+  // Migration: add prompt_version_id to eval_scores if not exists
+  try {
+    db.prepare("SELECT prompt_version_id FROM eval_scores LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE eval_scores ADD COLUMN prompt_version_id TEXT");
   }
 }
 
@@ -280,16 +288,16 @@ function getRecentChatTurns(role, limit = 20) {
 
 // ========== Eval Scores CRUD ==========
 
-function insertEvalScore({ id, turn_id, session_id, role, scorer, dimension, value, data_type, comment }) {
+function insertEvalScore({ id, turn_id, session_id, role, scorer, dimension, value, data_type, comment, prompt_version_id }) {
   getDb();
   const scoreId = id || crypto.randomUUID();
   db.prepare(`
-    INSERT INTO eval_scores (id, turn_id, session_id, role, scorer, dimension, value, data_type, comment)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO eval_scores (id, turn_id, session_id, role, scorer, dimension, value, data_type, comment, prompt_version_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     scoreId, turn_id, session_id, role || 'student',
     scorer, dimension, value,
-    data_type || 'numeric', comment || null
+    data_type || 'numeric', comment || null, prompt_version_id || null
   );
   return scoreId;
 }
@@ -323,11 +331,13 @@ function getEvalDashboard(role) {
   const recentTurns = db.prepare(`
     SELECT t.id, t.session_id, t.role, t.user_message, t.ai_message,
            t.tool_calls_json, t.duration_ms, t.error, t.created_at,
+           t.prompt_version_id, pv.version as prompt_version,
            (SELECT GROUP_CONCAT(es.dimension || ':' || es.value || ':' || COALESCE(es.comment,''), '||')
             FROM eval_scores es WHERE es.turn_id = t.id AND es.scorer = 'llm-judge') as llm_scores,
            (SELECT GROUP_CONCAT(es.dimension || ':' || es.value, '||')
             FROM eval_scores es WHERE es.turn_id = t.id AND es.scorer = 'rule') as rule_scores
     FROM chat_turns t
+    LEFT JOIN prompt_versions pv ON t.prompt_version_id = pv.id
     ${role ? 'WHERE t.role = ?' : ''}
     ORDER BY t.created_at DESC
     LIMIT 50
