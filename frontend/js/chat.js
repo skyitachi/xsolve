@@ -176,6 +176,7 @@ var TOOL_LABELS = {
   ability_report: "📊 水平评估",
   read_scratch_state: "🖊️ 检查草稿",
   calc: "🧮 计算",
+  render_diagram: "🎨 画图法",
 };
 
 function addToolCallCard(label, args) {
@@ -566,6 +567,14 @@ function handleUiEvent(ev) {
     AiStatus.tick(`正在识别草稿笔迹（${ev.model || "vision"}）…`, "tool");
   } else if (ev.type === "scratch_recognition_done") {
     AiStatus.tick("草稿识别完成，AI 分析中…", "thinking");
+  } else if (ev.type === "render_diagram") {
+    // 画图法：在聊天区渲染交互式 SVG 图形
+    var diagramContainer = document.createElement("div");
+    diagramContainer.className = "diagram-container";
+    var chatLog = $("chat-log");
+    chatLog.appendChild(diagramContainer);
+    renderDiagram(ev.spec, diagramContainer);
+    chatLog.scrollTop = chatLog.scrollHeight;
   }
 }
 

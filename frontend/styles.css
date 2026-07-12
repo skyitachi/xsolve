@@ -562,6 +562,93 @@ dialog h3 { margin: 0 0 8px 0; }
 .title-nav-btn,
 .panel-title-actions { display: none; }
 
+/* ===== 画图法/图形法 Diagram ===== */
+.diagram-container {
+  margin: 0.5rem 0;
+}
+.diagram-wrapper {
+  background: #f8f9ff;
+  border: 1px solid #d8daf0;
+  border-radius: 12px;
+  padding: 0.875rem;
+  overflow: hidden;
+}
+.diagram-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #4b3fe3;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+.diagram-svg {
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 8px;
+}
+.diagram-steps {
+  margin-top: 0.625rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid #e8e8ee;
+}
+.diagram-step-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-bottom: 0.25rem;
+}
+.diagram-step-desc {
+  font-size: 12px;
+  color: #4a4a5e;
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+  min-height: 1.2em;
+}
+.diagram-step-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+.diagram-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  min-height: 36px;
+  -webkit-tap-highlight-color: transparent;
+}
+.diagram-btn-prev {
+  background: #fff;
+  color: #4b3fe3;
+  border: 1px solid #4b3fe3;
+}
+.diagram-btn-prev:hover:not(:disabled) {
+  background: #f0effa;
+}
+.diagram-btn-next {
+  background: #4b3fe3;
+  color: #fff;
+}
+.diagram-btn-next:hover:not(:disabled) {
+  background: #3a2fd0;
+}
+.diagram-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.diagram-progress {
+  font-size: 12px;
+  color: #6b6b80;
+  min-width: 50px;
+  text-align: center;
+}
+
 /* ===== 移动端布局（≤768px） ===== */
 @media (max-width: 768px) {
   /* 顶栏精简 */
@@ -754,6 +841,18 @@ dialog h3 { margin: 0 0 8px 0; }
 @media (max-width: 768px) and (orientation: landscape) and (max-height: 500px) {
   .layout { height: calc(100vh - 46px - 56px); }
   #scratch { min-height: 150px; }
+}
+
+/* ===== Diagram 移动端适配 ===== */
+@media (max-width: 768px) {
+  .diagram-svg { max-width: 100%; }
+  .diagram-wrapper { padding: 0.625rem; }
+  .diagram-btn { padding: 8px 20px; font-size: 14px; min-height: 40px; }
+}
+@media (max-width: 480px) {
+  .diagram-title { font-size: 13px; }
+  .diagram-step-title { font-size: 12px; }
+  .diagram-step-desc { font-size: 11px; }
 }
 
 /* ===== 大屏隐藏移动端元素（确保不影响桌面） ===== */

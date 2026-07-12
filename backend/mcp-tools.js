@@ -238,7 +238,60 @@ export function buildTutorMcp(session) {
         } catch (e) {
           return mcpErr('invalid expression: ' + e.message);
         }
-      })
+      }),
+
+      // ========== 画图法/图形法 ==========
+      tool('render_diagram',
+        '当学生要求"画图法""图形法""画个图"解释题目时调用。生成结构化图形描述(JSON)，前端会渲染为带分步动画的交互式 SVG 图形。支持类型：geometry(几何图形:矩形/三角形/圆/线段)、bar-model(条形模型/新加坡画图法,用长条表示数量关系)。',
+        {
+          type: z.enum(['geometry', 'bar-model']).describe('图形类型：geometry=几何图形，bar-model=条形模型'),
+          title: z.string().describe('图形标题'),
+          elements: z.array(z.object({
+            kind: z.enum(['rect', 'circle', 'line', 'text', 'bar', 'bracket']).describe('元素类型'),
+            id: z.string().optional().describe('唯一标识，用于动画引用'),
+            x: z.number().describe('左上角 x 坐标'),
+            y: z.number().describe('左上角 y 坐标'),
+            w: z.number().optional().describe('宽度(rect/bar)'),
+            h: z.number().optional().describe('高度(rect/bar)'),
+            r: z.number().optional().describe('半径(circle)'),
+            x2: z.number().optional().describe('终点 x(line)'),
+            y2: z.number().optional().describe('终点 y(line)'),
+            text: z.string().optional().describe('文字内容(text)'),
+            fill: z.string().optional().describe('填充色,如 #ffd700'),
+            stroke: z.string().optional().describe('边框色'),
+            strokeWidth: z.number().optional().describe('边框宽度'),
+            label: z.string().optional().describe('标签(显示在元素旁边)'),
+            labelPos: z.enum(['top', 'bottom', 'left', 'right']).optional().describe('标签位置'),
+            fontSize: z.number().optional().describe('字体大小,默认14'),
+            visible: z.boolean().optional().describe('是否初始可见,默认true'),
+          })).min(1).max(40).describe('图形元素列表,坐标系左上角原点,y轴向下,建议画布范围 360x280'),
+          steps: z.array(z.object({
+            title: z.string().describe('步骤标题'),
+            description: z.string().describe('步骤说明'),
+            show: z.array(z.string()).optional().describe('本步骤要显示的元素 id 列表'),
+            hide: z.array(z.string()).optional().describe('本步骤要隐藏的元素 id 列表'),
+          })).optional().describe('分步说明,每步可控制元素显示/隐藏'),
+        },
+        async (args) => {
+          // 验证基本结构
+          if (!args.elements || args.elements.length === 0) {
+            return mcpErr('elements 不能为空');
+          }
+          const spec = {
+            type: args.type,
+            title: args.title,
+            elements: args.elements,
+            steps: args.steps || [],
+          };
+          session.emit('ui_event', { type: 'render_diagram', spec });
+          return mcpOk({
+            ok: true,
+            element_count: args.elements.length,
+            step_count: (args.steps || []).length,
+            note: '图形已发送到前端渲染。学生可以看到带分步动画的交互图。'
+          });
+        }
+      )
     ]
   });
 }
