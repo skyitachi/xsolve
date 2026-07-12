@@ -106,6 +106,7 @@ export function handleTurn(req, res) {
         output_tokens: outputTokens,
         duration_ms,
         error: turnError,
+        prompt_version_id: s.promptVersionId || null,
       });
 
       // 如果是第一条 turn，更新 session title
@@ -124,6 +125,7 @@ export function handleTurn(req, res) {
           user_message: userMsg || (imgBody ? '[图片消息]' : '[语音消息]'),
           ai_message,
           tool_calls_json,
+          prompt_version_id: s.promptVersionId || null,
         }, s.id, s.currentProblemId).catch(err => {
           console.error(`[turn] LLM Judge failed for turn ${turnId}:`, err.message);
         });

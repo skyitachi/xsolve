@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import crypto from 'node:crypto';
-import path from 'path';
+import path from 'node:path';
+import { SEED_PROMPTS } from './prompt-seeds.js';
 import { fileURLToPath } from 'url';
 import { PROBLEMS as BUILTIN_PROBLEMS } from './problems.js';
 
@@ -16,6 +17,7 @@ function getDb() {
   db.pragma('foreign_keys = ON');
   initSchema();
   seedBuiltinProblems();
+  seedPromptVersions();
   return db;
 }
 
@@ -83,7 +85,27 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_eval_scores_turn ON eval_scores(turn_id);
     CREATE INDEX IF NOT EXISTS idx_eval_scores_session ON eval_scores(session_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_eval_scores_role ON eval_scores(role, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS prompt_versions (
+      id TEXT PRIMARY KEY,
+      role TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      description TEXT,
+      is_active INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+      UNIQUE(role, version)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_prompt_versions_role ON prompt_versions(role, is_active DESC, version DESC);
   `);
+
+  // Migration: add prompt_version_id to chat_turns if not exists
+  try {
+    db.prepare("SELECT prompt_version_id FROM chat_turns LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE chat_turns ADD COLUMN prompt_version_id TEXT");
+  }
 }
 
 function seedBuiltinProblems() {
@@ -225,18 +247,19 @@ function deleteChatSession(id) {
 
 // ========== Chat Turn CRUD ==========
 
-function insertChatTurn({ id, session_id, role, user_message, ai_message, tool_calls_json, input_tokens, output_tokens, duration_ms, error }) {
+function insertChatTurn({ id, session_id, role, user_message, ai_message, tool_calls_json, input_tokens, output_tokens, duration_ms, error, prompt_version_id }) {
   getDb();
   const turnId = id || crypto.randomUUID();
   db.prepare(`
-    INSERT INTO chat_turns (id, session_id, role, user_message, ai_message, tool_calls_json, input_tokens, output_tokens, duration_ms, error)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO chat_turns (id, session_id, role, user_message, ai_message, tool_calls_json, input_tokens, output_tokens, duration_ms, error, prompt_version_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     turnId, session_id, role || 'student',
     user_message || null, ai_message || null,
     tool_calls_json || '[]',
     input_tokens || 0, output_tokens || 0, duration_ms || 0,
-    error || null
+    error || null,
+    prompt_version_id || null
   );
   // 更新 session 的 updated_at
   updateChatSession(session_id, {});
@@ -321,6 +344,75 @@ function getEvalDashboard(role) {
   };
 }
 
+// ========== Prompt Version CRUD ==========
+
+function insertPromptVersion({ role, content, description }) {
+  getDb();
+  const id = crypto.randomUUID();
+  // 获取当前最大版本号
+  const row = db.prepare('SELECT MAX(version) as max_v FROM prompt_versions WHERE role = ?').get(role);
+  const version = (row?.max_v || 0) + 1;
+  // 插入新版本
+  db.prepare(`
+    INSERT INTO prompt_versions (id, role, version, content, description, is_active)
+    VALUES (?, ?, ?, ?, ?, 0)
+  `).run(id, role, version, content, description || null);
+  return { id, role, version };
+}
+
+function activatePromptVersion(id) {
+  getDb();
+  const row = db.prepare('SELECT role FROM prompt_versions WHERE id = ?').get(id);
+  if (!row) return false;
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE prompt_versions SET is_active = 0 WHERE role = ?').run(row.role);
+    db.prepare('UPDATE prompt_versions SET is_active = 1 WHERE id = ?').run(id);
+  });
+  tx();
+  return true;
+}
+
+function getActivePromptVersion(role) {
+  getDb();
+  const row = db.prepare('SELECT * FROM prompt_versions WHERE role = ? AND is_active = 1').get(role);
+  return row || null;
+}
+
+function listPromptVersions(role) {
+  getDb();
+  const rows = role
+    ? db.prepare('SELECT * FROM prompt_versions WHERE role = ? ORDER BY version DESC').all(role)
+    : db.prepare('SELECT * FROM prompt_versions ORDER BY role, version DESC').all();
+  return rows;
+}
+
+function getPromptVersion(id) {
+  getDb();
+  return db.prepare('SELECT * FROM prompt_versions WHERE id = ?').get(id) || null;
+}
+
+function listPromptRoles() {
+  getDb();
+  return db.prepare('SELECT DISTINCT role FROM prompt_versions ORDER BY role').all().map(r => r.role);
+}
+
+// ========== Prompt Seed ==========
+
+function seedPromptVersions() {
+  getDb();
+  const count = db.prepare("SELECT COUNT(*) as c FROM prompt_versions").get().c;
+  if (count > 0) return;
+
+  for (const seed of SEED_PROMPTS) {
+    const id = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO prompt_versions (id, role, version, content, description, is_active)
+      VALUES (?, ?, 1, ?, ?, 1)
+    `).run(id, seed.role, seed.content, seed.description);
+  }
+  console.log('[db] seeded prompt_versions with initial prompts');
+}
+
 export {
   getDb,
   getAllProblems,
@@ -341,4 +433,11 @@ export {
   getEvalScoresByTurn,
   getEvalScoresBySession,
   getEvalDashboard,
+  insertPromptVersion,
+  activatePromptVersion,
+  getActivePromptVersion,
+  listPromptVersions,
+  getPromptVersion,
+  listPromptRoles,
+  seedPromptVersions,
 };

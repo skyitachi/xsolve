@@ -29,6 +29,13 @@ import {
   getSessionScores,
   triggerJudge,
 } from './controllers/evalController.js';
+import {
+  listPrompts,
+  getPrompt,
+  createPrompt,
+  activatePrompt,
+  listRoles,
+} from './controllers/promptController.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
@@ -79,6 +86,13 @@ export function createApp() {
   app.get('/api/eval/scores/turn/:turnId', getTurnScores);
   app.get('/api/eval/scores/session/:sessionId', getSessionScores);
   app.post('/api/eval/judge/:turnId', triggerJudge);
+
+  // ========== Prompt 版本管理 ==========
+  app.get('/api/prompts', listPrompts);
+  app.get('/api/prompts/roles/list', listRoles);
+  app.get('/api/prompts/:id', getPrompt);
+  app.post('/api/prompts', createPrompt);
+  app.post('/api/prompts/:id/activate', activatePrompt);
 
   // ========== 404 兜底 ==========
   app.use((req, res) => {

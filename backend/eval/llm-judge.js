@@ -1,11 +1,12 @@
 // LLM-as-Judge: 对单个 turn 进行 5 维度质量评估
 // 自动检测 API 格式（Anthropic / OpenAI 兼容），复用主对话模型的 API 配置
+// Judge prompt 从 DB prompt_versions 表读取（支持版本管理）
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { CLAUDE_MODEL } from '../config.js';
 import { resolveApiFormat } from '../vision.js';
-import { insertEvalScore, getProblem } from '../db.js';
+import { insertEvalScore, getProblem, getActivePromptVersion, getPromptVersion } from '../db.js';
 
 const JUDGE_MODEL = process.env.JUDGE_MODEL || CLAUDE_MODEL || 'claude-sonnet-4-20250514';
 
@@ -28,7 +29,8 @@ function getApiConfig() {
   return { baseUrl: baseUrl.replace(/\/+$/, ''), apiKey };
 }
 
-const JUDGE_SYSTEM_PROMPT = `你是一个小学数学 AI 助教的质量评估专家。请根据以下 trace 数据，对 AI 助教的回复质量进行 5 个维度的评分（1-5 分）。
+// Fallback judge prompt（DB 未就绪时使用）
+const FALLBACK_JUDGE_PROMPT = `你是一个小学数学 AI 助教的质量评估专家。请根据以下 trace 数据，对 AI 助教的回复质量进行 5 个维度的评分（1-5 分）。
 
 评分维度：
 1. non_disclosure（1-5）：学生模式下，AI 是否避免直接给出答案而是引导学生思考。5=完全没透露答案，1=直接给了答案。家长模式此项固定5分。
@@ -41,6 +43,31 @@ const JUDGE_SYSTEM_PROMPT = `你是一个小学数学 AI 助教的质量评估�
 {"non_disclosure":{"score":5,"comment":"未直接给出答案"},"tutoring_strategy":{"score":4,"comment":"引导较好"},"tool_correctness":{"score":3,"comment":"无工具调用"},"problem_quality":{"score":3,"comment":"未出题"},"tone_interaction":{"score":5,"comment":"语气友好鼓励"}}
 
 不要输出任何其他内容，只输出 JSON。`;
+
+/**
+ * 获取 judge 系统提示词
+ * 优先从 DB 读取活跃版本，fallback 到硬编码值
+ */
+function getJudgeSystemPrompt() {
+  const active = getActivePromptVersion('judge');
+  return active?.content || FALLBACK_JUDGE_PROMPT;
+}
+
+/**
+ * 获取 turn 对应的 system prompt 内容（用于 judge 评估上下文）
+ * 如果 turn 有 prompt_version_id，读取该版本；否则读取当前活跃版本
+ */
+function getTurnSystemPrompt(turn) {
+  const role = turn.role || 'student';
+  if (turn.prompt_version_id) {
+    const pv = getPromptVersion(turn.prompt_version_id);
+    if (pv) return { content: pv.content, version: pv.version, role };
+  }
+  // Fallback: 当前活跃版本
+  const active = getActivePromptVersion(role);
+  if (active) return { content: active.content, version: active.version, role };
+  return { content: '(prompt 不可用)', version: 0, role };
+}
 
 /**
  * 对单个 turn 执行 LLM Judge 评估
@@ -62,7 +89,6 @@ export async function judgeTurn(turn, sessionId, currentProblemId) {
     try {
       const hostname = new URL(baseUrl.startsWith('http') ? baseUrl : 'https://' + baseUrl).hostname;
       if (!/anthropic\.com$/i.test(hostname)) {
-        // 非 Anthropic 官方域名，用 OpenAI 兼容格式
         effectiveFormat = 'openai';
       }
     } catch { /* ignore */ }
@@ -81,15 +107,35 @@ export async function judgeTurn(turn, sessionId, currentProblemId) {
     }
   }
 
+  // 获取 turn 对应的 system prompt（让 judge 知道 AI 当时的指令是什么）
+  const turnPromptInfo = getTurnSystemPrompt(turn);
+  // 截断 prompt 避免过长（只取关键约束部分）
+  const promptExcerpt = turnPromptInfo.content.length > 2000
+    ? turnPromptInfo.content.slice(0, 2000) + '\n...(已截断)'
+    : turnPromptInfo.content;
+
+  const judgeSystemPrompt = getJudgeSystemPrompt();
+
   const userPrompt = `请评估以下 AI 助教的回复质量：
 
 模式：${role}
-用户输入：${userMsg}
-AI 回复：${aiMsg || '(AI 无回复)'}
-工具调用：${toolCalls.length > 0 ? JSON.stringify(toolCalls.map(t => ({ name: t.name, input: t.input }))) : '无'}
+Prompt 版本：v${turnPromptInfo.version}
+
+【AI 当时的系统提示词（system prompt）】
+${promptExcerpt}
+
+【用户输入】
+${userMsg}
+
+【AI 回复】
+${aiMsg || '(AI 无回复)'}
+
+【工具调用】
+${toolCalls.length > 0 ? JSON.stringify(toolCalls.map(t => ({ name: t.name, input: t.input }))) : '无'}
+
 ${problemInfo ? '\n' + problemInfo : ''}
 
-请按 5 个维度评分（1-5），只输出 JSON。`;
+请参考 AI 当时的 system prompt 来判断 AI 是否遵守了指令要求，按 5 个维度评分（1-5），只输出 JSON。`;
 
   let url, headers, payload;
 
@@ -103,7 +149,7 @@ ${problemInfo ? '\n' + problemInfo : ''}
     payload = {
       model: JUDGE_MODEL,
       max_tokens: 1024,
-      system: JUDGE_SYSTEM_PROMPT,
+      system: judgeSystemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
     };
   } else {
@@ -117,13 +163,13 @@ ${problemInfo ? '\n' + problemInfo : ''}
       model: JUDGE_MODEL,
       max_tokens: 1024,
       messages: [
-        { role: 'system', content: JUDGE_SYSTEM_PROMPT },
+        { role: 'system', content: judgeSystemPrompt },
         { role: 'user', content: userPrompt },
       ],
     };
   }
 
-  console.log(`[llm-judge] POST ${url} model=${JUDGE_MODEL} format=${effectiveFormat}`);
+  console.log(`[llm-judge] POST ${url} model=${JUDGE_MODEL} format=${effectiveFormat} turn=${turn.id} prompt_v${turnPromptInfo.version}`);
 
   const resp = await fetch(url, {
     method: 'POST',

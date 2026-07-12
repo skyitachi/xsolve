@@ -1,13 +1,26 @@
 // 会话管理：每个浏览器 session 对应一个 SDK query() 实例
 import crypto from 'node:crypto';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { getDb, getAllProblems, insertChatSession, getChatSession, getChatTurns, updateChatSession } from './db.js';
+import { getDb, getAllProblems, insertChatSession, getChatSession, getChatTurns, updateChatSession, getActivePromptVersion } from './db.js';
 import { buildTutorMcp } from './mcp-tools.js';
 import { buildSystemPrompt, ALLOWED_TOOLS, CLAUDE_MODEL } from './config.js';
 import { createInputQueue } from './utils.js';
 
 // 会话注册表
 export const sessions = new Map();
+
+/**
+ * 获取活跃 prompt 内容和版本 ID
+ * 优先从 DB 读取，DB 无数据时 fallback 到 config.js 硬编码值
+ */
+function resolvePrompt(mode) {
+  const active = getActivePromptVersion(mode);
+  if (active) {
+    return { content: active.content, versionId: active.id, version: active.version };
+  }
+  // Fallback: 首次启动 DB 尚未 seed 完成时
+  return { content: buildSystemPrompt(mode), versionId: null, version: 0 };
+}
 
 /**
  * 创建一个 SDK 驱动的 session
@@ -46,10 +59,14 @@ export function createSession(opts = {}) {
   // 注册 MCP 工具集
   const tutorMcp = buildTutorMcp(session);
 
+  // 从 DB 获取活跃 prompt
+  const promptInfo = resolvePrompt(mode);
+  session.promptVersionId = promptInfo.versionId;
+
   session.query = query({
     prompt: session.queue.iterable(),
     options: {
-      systemPrompt: buildSystemPrompt(mode),
+      systemPrompt: promptInfo.content,
       mcpServers: { tutor: tutorMcp },
       tools: [],
       allowedTools: ALLOWED_TOOLS,
@@ -138,10 +155,14 @@ export function restoreSession(id) {
   // 注册 MCP 工具集
   const tutorMcp = buildTutorMcp(session);
 
+  // 从 DB 获取活跃 prompt
+  const promptInfo = resolvePrompt(mode);
+  session.promptVersionId = promptInfo.versionId;
+
   session.query = query({
     prompt: session.queue.iterable(),
     options: {
-      systemPrompt: buildSystemPrompt(mode),
+      systemPrompt: promptInfo.content,
       mcpServers: { tutor: tutorMcp },
       tools: [],
       allowedTools: ALLOWED_TOOLS,
@@ -240,11 +261,13 @@ export async function clearSessionHistory(s) {
 
   // 3. 重新构建 MCP 工具集和 SDK query
   const tutorMcp = buildTutorMcp(s);
+  const promptInfo = resolvePrompt(s.mode);
+  s.promptVersionId = promptInfo.versionId;
 
   s.query = query({
     prompt: s.queue.iterable(),
     options: {
-      systemPrompt: buildSystemPrompt(s.mode),
+      systemPrompt: promptInfo.content,
       mcpServers: { tutor: tutorMcp },
       tools: [],
       allowedTools: ALLOWED_TOOLS,

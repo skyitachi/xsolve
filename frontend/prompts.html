@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>xsolve Prompt 管理</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, "PingFang SC", system-ui, sans-serif;
+  background: #f5f5f7; color: #1a1a2e; font-size: 14px; line-height: 1.6;
+}
+.container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+h1 { font-size: 1.5rem; font-weight: 700; }
+h2 { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
+.back-link { color: #4b3fe3; text-decoration: none; font-size: 13px; }
+
+/* Role tabs */
+.role-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.role-tab {
+  padding: 6px 16px; border: 1px solid #ddd; border-radius: 20px; font-size: 13px;
+  cursor: pointer; background: #fff; transition: all 0.2s;
+}
+.role-tab.active { background: #4b3fe3; color: #fff; border-color: #4b3fe3; }
+.role-tab .count { font-size: 11px; opacity: 0.7; margin-left: 4px; }
+
+/* Action bar */
+.action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.btn {
+  padding: 8px 16px; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s;
+}
+.btn-primary { background: #4b3fe3; color: #fff; }
+.btn-primary:hover { background: #3a2fd0; }
+.btn-secondary { background: #fff; color: #4b3fe3; border: 1px solid #4b3fe3; }
+.btn-secondary:hover { background: #f0effa; }
+.btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+.btn-activate { background: #27d2bf; color: #fff; }
+.btn-activate:hover { background: #20b8a6; }
+.btn-activate:disabled { background: #ccc; cursor: not-allowed; }
+
+/* Prompt cards */
+.prompt-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.prompt-card {
+  background: #fff; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  border-left: 3px solid transparent; transition: border-color 0.2s;
+}
+.prompt-card.active { border-left-color: #27d2bf; }
+.prompt-card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+.prompt-card-title { display: flex; align-items: center; gap: 0.5rem; }
+.version-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;
+  background: #f0f0f3; color: #6b6b80;
+}
+.active-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;
+  background: #e8f9f0; color: #0a7c43;
+}
+.prompt-card-desc { font-size: 13px; color: #4a4a5e; margin-bottom: 0.5rem; }
+.prompt-card-preview {
+  font-size: 12px; color: #8b8b9a; font-family: "SF Mono", "Fira Code", monospace;
+  background: #f8f8fa; border-radius: 6px; padding: 0.5rem 0.75rem; white-space: pre-wrap;
+  max-height: 80px; overflow: hidden; position: relative;
+}
+.prompt-card-preview::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 24px;
+  background: linear-gradient(transparent, #f8f8fa);
+}
+.prompt-card-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem; }
+.prompt-card-time { font-size: 12px; color: #8b8b9a; }
+.prompt-card-actions { display: flex; gap: 0.5rem; }
+
+/* Modal */
+.modal-overlay {
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4); z-index: 1000; justify-content: center; align-items: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: #fff; border-radius: 16px; padding: 1.5rem; width: 90%; max-width: 700px;
+  max-height: 85vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+}
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.modal-title { font-size: 1.1rem; font-weight: 700; }
+.modal-close { font-size: 20px; cursor: pointer; color: #8b8b9a; background: none; border: none; }
+.modal-close:hover { color: #1a1a2e; }
+
+/* Form */
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 0.3rem; }
+.form-group select, .form-group input, .form-group textarea {
+  width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px;
+  font-family: inherit;
+}
+.form-group textarea { min-height: 300px; resize: vertical; font-family: "SF Mono", "Fira Code", monospace; font-size: 12px; line-height: 1.5; }
+.form-group .hint { font-size: 12px; color: #8b8b9a; margin-top: 0.25rem; }
+
+/* Full content view */
+.full-content {
+  background: #f8f8fa; border-radius: 8px; padding: 1rem; font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 12px; line-height: 1.6; white-space: pre-wrap; max-height: 400px; overflow-y: auto;
+  border: 1px solid #eee;
+}
+
+/* Empty & loading */
+.empty { text-align: center; padding: 3rem; color: #6b6b80; }
+.loading { text-align: center; padding: 2rem; color: #6b6b80; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: #1a1a2e; color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 13px;
+  z-index: 2000; opacity: 0; transition: opacity 0.3s;
+}
+.toast.show { opacity: 1; }
+.toast.error { background: #c4341a; }
+.toast.success { background: #0a7c43; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div>
+      <h1>xsolve Prompt 版本管理</h1>
+      <p style="color:#6b6b80;font-size:13px;margin-top:4px;">各角色系统提示词的版本控制 · 在线编辑 · 激活切换</p>
+    </div>
+    <div style="display:flex;gap:1rem;align-items:center;">
+      <a class="back-link" href="/eval.html">评估面板</a>
+      <a class="back-link" href="/index.html">← 返回主应用</a>
+    </div>
+  </header>
+
+  <!-- Role tabs -->
+  <div class="role-tabs" id="roleTabs">
+    <div class="role-tab active" data-role="" onclick="selectRole('')">全部 <span class="count" id="count-all"></span></div>
+  </div>
+
+  <!-- Action bar -->
+  <div class="action-bar">
+    <h2 style="margin:0;">提示词版本列表</h2>
+    <button class="btn btn-primary" onclick="openCreateModal()">+ 新建版本</button>
+  </div>
+
+  <!-- Prompt list -->
+  <div id="promptList" class="prompt-list">
+    <div class="loading">加载中...</div>
+  </div>
+</div>
+
+<!-- View Modal -->
+<div class="modal-overlay" id="viewModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="viewTitle">提示词详情</div>
+      <button class="modal-close" onclick="closeModal('viewModal')">&times;</button>
+    </div>
+    <div id="viewBody"></div>
+  </div>
+</div>
+
+<!-- Create Modal -->
+<div class="modal-overlay" id="createModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">新建 Prompt 版本</div>
+      <button class="modal-close" onclick="closeModal('createModal')">&times;</button>
+    </div>
+    <div class="form-group">
+      <label>角色 (Role)</label>
+      <select id="createFormRole">
+        <option value="student">student — 学生模式</option>
+        <option value="parent">parent — 家长模式</option>
+        <option value="judge">judge — LLM Judge</option>
+        <option value="vision_ocr">vision_ocr — 题目图片 OCR</option>
+        <option value="vision_scratch">vision_scratch — 草稿手写识别</option>
+      </select>
+      <div class="hint">选择角色后，可基于当前活跃版本的内容进行编辑</div>
+    </div>
+    <div class="form-group">
+      <label>描述 (Description)</label>
+      <input type="text" id="createFormDesc" placeholder="简短描述本版本的变更，如：调整了出题准则中的难度描述">
+    </div>
+    <div class="form-group">
+      <label>提示词内容 (Content)</label>
+      <textarea id="createFormContent" placeholder="输入完整的系统提示词内容..."></textarea>
+      <div class="hint">版本号将自动递增，新版本创建后默认为未激活状态</div>
+    </div>
+    <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
+      <button class="btn btn-secondary" onclick="closeModal('createModal')">取消</button>
+      <button class="btn btn-primary" onclick="submitCreate()">创建版本</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const ROLE_LABELS = {
+  student: '学生模式',
+  parent: '家长模式',
+  judge: 'LLM Judge',
+  vision_ocr: '题目 OCR',
+  vision_scratch: '草稿识别',
+};
+
+const ROLE_COLORS = {
+  student: '#4b3fe3',
+  parent: '#e8704a',
+  judge: '#27d2bf',
+  vision_ocr: '#efaa17',
+  vision_scratch: '#0a7c43',
+};
+
+let currentRole = '';
+let allPrompts = [];
+let roleCounts = {};
+
+function fmtTime(ts) {
+  const d = new Date(ts * 1000);
+  return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + type;
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ========== Load ==========
+
+async function loadRoles() {
+  const resp = await fetch('/api/prompts/roles/list');
+  const roles = await resp.json();
+  return roles;
+}
+
+async function loadPrompts() {
+  const url = currentRole ? `/api/prompts?role=${currentRole}` : '/api/prompts';
+  const resp = await fetch(url);
+  allPrompts = await resp.json();
+
+  // 计算每个角色的版本数
+  roleCounts = {};
+  for (const p of allPrompts) {
+    roleCounts[p.role] = (roleCounts[p.role] || 0) + 1;
+  }
+
+  renderRoleTabs();
+  renderPromptList();
+}
+
+function renderRoleTabs() {
+  const tabsEl = document.getElementById('roleTabs');
+  let html = `<div class="role-tab ${currentRole === '' ? 'active' : ''}" onclick="selectRole('')">全部 <span class="count">(${allPrompts.length})</span></div>`;
+  for (const [role, label] of Object.entries(ROLE_LABELS)) {
+    const count = roleCounts[role] || 0;
+    if (count > 0) {
+      html += `<div class="role-tab ${currentRole === role ? 'active' : ''}" onclick="selectRole('${role}')">${label} <span class="count">(${count})</span></div>`;
+    }
+  }
+  tabsEl.innerHTML = html;
+}
+
+function renderPromptList() {
+  const listEl = document.getElementById('promptList');
+  if (allPrompts.length === 0) {
+    listEl.innerHTML = '<div class="empty">暂无 Prompt 版本数据</div>';
+    return;
+  }
+
+  // 按角色分组，然后按版本号降序
+  const grouped = {};
+  for (const p of allPrompts) {
+    if (!grouped[p.role]) grouped[p.role] = [];
+    grouped[p.role].push(p);
+  }
+
+  let html = '';
+  for (const [role, prompts] of Object.entries(grouped)) {
+    prompts.sort((a, b) => b.version - a.version);
+    const label = ROLE_LABELS[role] || role;
+    const color = ROLE_COLORS[role] || '#4b3fe3';
+    html += `<h2 style="color:${color};border-bottom:2px solid ${color};padding-bottom:0.3rem;display:inline-block;">${label} (${role})</h2>`;
+    html += '<div class="prompt-list" style="margin-bottom:1.5rem;">';
+    for (const p of prompts) {
+      html += `
+        <div class="prompt-card ${p.is_active ? 'active' : ''}">
+          <div class="prompt-card-head">
+            <div class="prompt-card-title">
+              <span class="version-badge">v${p.version}</span>
+              ${p.is_active ? '<span class="active-badge">● 活跃</span>' : ''}
+              <span style="font-size:12px;color:#8b8b9a;">${p.content_length} 字符</span>
+            </div>
+            <div class="prompt-card-actions">
+              <button class="btn btn-sm btn-secondary" onclick="viewPrompt('${p.id}')">查看</button>
+              <button class="btn btn-sm btn-secondary" onclick="copyToCreate('${p.id}')">复制为新版</button>
+              ${!p.is_active ? `<button class="btn btn-sm btn-activate" onclick="activatePrompt('${p.id}')">激活</button>` : ''}
+            </div>
+          </div>
+          ${p.description ? `<div class="prompt-card-desc">${escapeHtml(p.description)}</div>` : ''}
+          <div class="prompt-card-preview">${escapeHtml(p.content_preview)}</div>
+          <div class="prompt-card-meta">
+            <span class="prompt-card-time">${fmtTime(p.created_at)}</span>
+          </div>
+        </div>
+      `;
+    }
+    html += '</div>';
+  }
+  listEl.innerHTML = html;
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ========== Role filter ==========
+
+function selectRole(role) {
+  currentRole = role;
+  loadPrompts();
+}
+
+// ========== View ==========
+
+async function viewPrompt(id) {
+  const resp = await fetch(`/api/prompts/${id}`);
+  const p = await resp.json();
+  const label = ROLE_LABELS[p.role] || p.role;
+  const color = ROLE_COLORS[p.role] || '#4b3fe3';
+
+  document.getElementById('viewTitle').innerHTML = `
+    <span style="color:${color}">${label}</span>
+    <span class="version-badge" style="margin-left:8px;">v${p.version}</span>
+    ${p.is_active ? '<span class="active-badge" style="margin-left:4px;">活跃</span>' : ''}
+  `;
+  document.getElementById('viewBody').innerHTML = `
+    ${p.description ? `<div class="form-group"><label>描述</label><div style="font-size:13px;color:#4a4a5e;">${escapeHtml(p.description)}</div></div>` : ''}
+    <div class="form-group">
+      <label>完整内容</label>
+      <div class="full-content">${escapeHtml(p.content)}</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.75rem;">
+      <span style="font-size:12px;color:#8b8b9a;">创建于 ${fmtTime(p.created_at)}</span>
+      <div style="display:flex;gap:0.5rem;">
+        <button class="btn btn-sm btn-secondary" onclick="copyToCreate('${p.id}')">复制为新版</button>
+        ${!p.is_active ? `<button class="btn btn-sm btn-activate" onclick="activatePrompt('${p.id}')">激活此版本</button>` : ''}
+      </div>
+    </div>
+  `;
+  openModal('viewModal');
+}
+
+// ========== Create ==========
+
+async function copyToCreate(id) {
+  const resp = await fetch(`/api/prompts/${id}`);
+  const p = await resp.json();
+  document.getElementById('createFormRole').value = p.role;
+  document.getElementById('createFormDesc').value = `基于 v${p.version} 修改`;
+  document.getElementById('createFormContent').value = p.content;
+  closeModal('viewModal');
+  openModal('createModal');
+}
+
+function openCreateModal() {
+  document.getElementById('createFormRole').value = currentRole || 'student';
+  document.getElementById('createFormDesc').value = '';
+  document.getElementById('createFormContent').value = '';
+  openModal('createModal');
+}
+
+async function submitCreate() {
+  const role = document.getElementById('createFormRole').value;
+  const content = document.getElementById('createFormContent').value.trim();
+  const description = document.getElementById('createFormDesc').value.trim();
+
+  if (!role || !content) {
+    showToast('请填写角色和提示词内容', 'error');
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/prompts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, content, description }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) throw new Error(result.error || '创建失败');
+
+    showToast(`已创建 ${ROLE_LABELS[role] || role} v${result.version}`, 'success');
+    closeModal('createModal');
+    await loadPrompts();
+  } catch (e) {
+    showToast('创建失败: ' + e.message, 'error');
+  }
+}
+
+// ========== Activate ==========
+
+async function activatePrompt(id) {
+  if (!confirm('确认激活此版本？激活后，新建的会话将使用此 prompt。已有会话不受影响。')) return;
+  try {
+    const resp = await fetch(`/api/prompts/${id}/activate`, { method: 'POST' });
+    const result = await resp.json();
+    if (!resp.ok) throw new Error(result.error || '激活失败');
+
+    showToast('版本已激活，新建会话将使用此 prompt', 'success');
+    closeModal('viewModal');
+    await loadPrompts();
+  } catch (e) {
+    showToast('激活失败: ' + e.message, 'error');
+  }
+}
+
+// ========== Modal helpers ==========
+
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// Close on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+
+// ========== Init ==========
+
+loadPrompts();
+</script>
+</body>
+</html>
