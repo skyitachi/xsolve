@@ -68,6 +68,53 @@ tbody tr:hover { background: #fafafe; }
 
 .empty { text-align: center; padding: 3rem; color: #6b6b80; }
 .loading { text-align: center; padding: 2rem; color: #6b6b80; }
+
+/* Mobile turn cards */
+.turn-cards { display: none; }
+.turn-card {
+  background: #fff; border-radius: 10px; padding: 0.875rem; margin-bottom: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.turn-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.turn-card-meta { font-size: 12px; color: #8b8b9a; }
+.turn-card-role { font-weight: 600; font-size: 13px; }
+.turn-card-msg { font-size: 12px; color: #4a4a5e; margin: 0.25rem 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.turn-card-msg .msg-label { color: #8b8b9a; margin-right: 4px; }
+.turn-card-scores { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 0.5rem; }
+.turn-card-toggle { color: #4b3fe3; font-size: 12px; cursor: pointer; margin-top: 0.5rem; }
+.turn-card-detail { display: none; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #eee; }
+.turn-card-detail.open { display: block; }
+
+/* ========== Mobile responsive ========== */
+@media (max-width: 768px) {
+  .container { padding: 1rem 0.75rem; }
+  header { flex-direction: column; align-items: flex-start; gap: 0.5rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.25rem; }
+  h2 { font-size: 1rem; margin: 1rem 0 0.5rem; }
+  header > div:last-child { width: 100%; justify-content: flex-end; }
+
+  .summary-grid { grid-template-columns: 1fr; gap: 0.5rem; }
+  .summary-card { padding: 0.875rem; }
+  .summary-card .value { font-size: 1.4rem; }
+
+  .dim-grid { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+  .dim-card { padding: 0.625rem; }
+  .dim-card .dim-score { font-size: 1.1rem; }
+
+  /* Hide table, show cards */
+  .turn-table-wrap { display: none; }
+  .turn-cards { display: block; }
+
+  .filter-bar { flex-wrap: wrap; }
+  .filter-bar select, .filter-bar button { font-size: 14px; }
+}
+
+@media (max-width: 480px) {
+  .container { padding: 0.75rem 0.5rem; }
+  h1 { font-size: 1.1rem; }
+  .dim-grid { grid-template-columns: 1fr; }
+  .summary-card .value { font-size: 1.25rem; }
+}
 </style>
 </head>
 <body>
@@ -120,6 +167,9 @@ tbody tr:hover { background: #fafafe; }
         <tr><td colspan="8" class="loading">加载中...</td></tr>
       </tbody>
     </table>
+  </div>
+  <div id="turnCards" class="turn-cards">
+    <div class="loading">加载中...</div>
   </div>
 </div>
 
@@ -200,6 +250,7 @@ async function loadDashboard() {
   // Turn table
   if (!data.recent_turns || data.recent_turns.length === 0) {
     document.getElementById('turnBody').innerHTML = '<tr><td colspan="8" class="empty">暂无 Turn 数据，发送一条消息试试</td></tr>';
+    document.getElementById('turnCards').innerHTML = '<div class="empty">暂无 Turn 数据，发送一条消息试试</div>';
     return;
   }
 
@@ -257,11 +308,67 @@ async function loadDashboard() {
     `;
   }).join('');
   document.getElementById('turnBody').innerHTML = rows;
+
+  // Render mobile cards
+  const cardsHtml = data.recent_turns.map((t, i) => {
+    const llmScores = parseScores(t.llm_scores);
+    const toolCount = JSON.parse(t.tool_calls_json || '[]').length;
+    const scoreBadges = Object.entries(DIMENSIONS).map(([key, label]) => {
+      const s = llmScores[key];
+      if (!s) return `<span class="score-badge score-na">${label}: -</span>`;
+      return `<span class="score-badge ${scoreClass(s.value)}">${label}: ${s.value}</span>`;
+    }).join('');
+    return `
+      <div class="turn-card">
+        <div class="turn-card-head">
+          <span class="turn-card-role">${t.role === 'student' ? '👨‍🎓 学生' : '👨‍👩‍👧 家长'}</span>
+          <span class="turn-card-meta">${fmtTime(t.created_at)} · ${t.duration_ms ? (t.duration_ms/1000).toFixed(1)+'s' : '-'} · ${toolCount > 0 ? toolCount+'工具' : '无工具'}</span>
+        </div>
+        <div class="turn-card-msg"><span class="msg-label">用户:</span>${(t.user_message||'').slice(0,50).replace(/</g,'&lt;')}</div>
+        <div class="turn-card-msg"><span class="msg-label">AI:</span>${(t.ai_message||'').slice(0,50).replace(/</g,'&lt;')}</div>
+        <div class="turn-card-scores">${scoreBadges || '<span class="score-badge score-na">未评估</span>'}</div>
+        <div class="turn-card-toggle" onclick="toggleCardDetail(${i})">展开详情 ▾</div>
+        <div class="turn-card-detail" id="card-detail-${i}">
+          <div class="detail-section">
+            <div class="ds-label">用户输入</div>
+            <div class="ds-value">${(t.user_message||'').replace(/</g,'&lt;')}</div>
+          </div>
+          <div class="detail-section">
+            <div class="ds-label">AI 回复</div>
+            <div class="ds-value" style="white-space:pre-wrap">${(t.ai_message||'').replace(/</g,'&lt;')}</div>
+          </div>
+          <div class="detail-section">
+            <div class="ds-label">工具调用</div>
+            <div class="ds-value"><pre style="font-size:11px;white-space:pre-wrap">${JSON.stringify(JSON.parse(t.tool_calls_json||'[]'),null,2).replace(/</g,'&lt;')}</pre></div>
+          </div>
+          <div class="detail-section">
+            <div class="ds-label">LLM Judge 评分详情</div>
+            <div class="ds-value">
+              ${Object.entries(DIMENSIONS).map(([key,label])=>{
+                const s=llmScores[key];
+                if(!s)return `<div>${label}: <span style="color:#6b6b80">未评估</span></div>`;
+                return `<div>${label}: <strong>${s.value}</strong>/5 — ${s.comment||''}</div>`;
+              }).join('')}
+            </div>
+          </div>
+          ${t.error ? `<div class="detail-section"><div class="ds-label">错误</div><div class="ds-value" style="color:#c4341a">${t.error}</div></div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('turnCards').innerHTML = cardsHtml;
 }
 
 function toggleDetail(i) {
   const row = document.getElementById('detail-' + i);
   row.classList.toggle('open');
+}
+
+function toggleCardDetail(i) {
+  const el = document.getElementById('card-detail-' + i);
+  el.classList.toggle('open');
+  const toggle = el.previousElementSibling;
+  if (toggle) toggle.textContent = el.classList.contains('open') ? '收起详情 ▴' : '展开详情 ▾';
 }
 
 // Initial load

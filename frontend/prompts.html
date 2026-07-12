@@ -178,7 +178,58 @@ h2 { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
 .toast.show { opacity: 1; }
 .toast.error { background: #c4341a; }
 .toast.success { background: #0a7c43; }
-</style>
+
+/* ========== Mobile responsive ========== */
+@media (max-width: 768px) {
+  .container { padding: 1rem 0.75rem; }
+  header { flex-direction: column; align-items: flex-start; gap: 0.5rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.25rem; }
+  h2 { font-size: 1rem; margin: 1rem 0 0.5rem; }
+  header > div:last-child { width: 100%; justify-content: flex-end; }
+
+  /* Role tabs: horizontal scroll */
+  .role-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; padding-bottom: 4px; }
+  .role-tab { white-space: nowrap; flex-shrink: 0; }
+
+  /* Prompt cards */
+  .prompt-card { padding: 0.875rem; }
+  .prompt-card-head { flex-direction: column; gap: 0.5rem; }
+  .prompt-card-actions { flex-wrap: wrap; width: 100%; }
+  .prompt-card-actions .btn-sm { flex: 1; min-width: 60px; text-align: center; }
+  .prompt-card-preview { max-height: 60px; }
+
+  /* Modal: full screen on mobile */
+  .modal-overlay { padding: 0; }
+  .modal { width: 100%; max-width: 100%; border-radius: 0; padding: 1rem; max-height: 100vh; height: 100vh; }
+  .modal-head { margin-bottom: 0.75rem; }
+
+  /* Markdown editor: no split on mobile, stack vertically */
+  .md-editor-body.mode-split { flex-direction: column; }
+  .md-editor-body.mode-split .md-edit-pane { width: 100%; }
+  .md-editor-body.mode-split .md-preview-pane { width: 100%; border-top: 1px solid #eee; max-height: 250px; }
+  .md-editor-body { min-height: 200px; }
+  .md-textarea { min-height: 200px; font-size: 13px; }
+  .md-preview-pane { font-size: 12px; }
+
+  /* Toolbar: allow wrap, bigger touch targets */
+  .md-editor-toolbar { gap: 0.15rem; padding: 4px; }
+  .md-btn { padding: 5px 10px; font-size: 13px; min-width: 32px; min-height: 28px; }
+  .md-mode-tabs { width: 100%; margin-left: 0; margin-top: 4px; justify-content: flex-end; }
+
+  /* Form */
+  .form-group select, .form-group input { font-size: 14px; /* prevent iOS zoom */ }
+}
+
+@media (max-width: 480px) {
+  .container { padding: 0.75rem 0.5rem; }
+  h1 { font-size: 1.1rem; }
+  .prompt-card { padding: 0.625rem; border-radius: 8px; }
+  .prompt-card-actions { gap: 0.25rem; }
+  .prompt-card-actions .btn-sm { padding: 3px 6px; font-size: 11px; }
+  .modal { padding: 0.75rem; }
+  .md-textarea { min-height: 180px; padding: 8px; }
+  .md-preview-pane { padding: 8px; max-height: 200px; }
+}
 </head>
 <body>
 <div class="container">
