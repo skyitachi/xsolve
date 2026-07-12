@@ -396,6 +396,20 @@ function listPromptRoles() {
   return db.prepare('SELECT DISTINCT role FROM prompt_versions ORDER BY role').all().map(r => r.role);
 }
 
+function deletePromptVersion(id) {
+  getDb();
+  const row = db.prepare('SELECT role, is_active FROM prompt_versions WHERE id = ?').get(id);
+  if (!row) return { ok: false, error: 'not found' };
+
+  // 不允许删除当前活跃版本（避免该角色无可用 prompt）
+  if (row.is_active) {
+    return { ok: false, error: '不能删除正在使用的活跃版本，请先激活其他版本再删除' };
+  }
+
+  db.prepare('DELETE FROM prompt_versions WHERE id = ?').run(id);
+  return { ok: true, role: row.role };
+}
+
 // ========== Prompt Seed ==========
 
 function seedPromptVersions() {
@@ -439,5 +453,6 @@ export {
   listPromptVersions,
   getPromptVersion,
   listPromptRoles,
+  deletePromptVersion,
   seedPromptVersions,
 };

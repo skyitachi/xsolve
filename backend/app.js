@@ -34,6 +34,7 @@ import {
   getPrompt,
   createPrompt,
   activatePrompt,
+  deletePrompt,
   listRoles,
 } from './controllers/promptController.js';
 
@@ -93,6 +94,7 @@ export function createApp() {
   app.get('/api/prompts/:id', getPrompt);
   app.post('/api/prompts', createPrompt);
   app.post('/api/prompts/:id/activate', activatePrompt);
+  app.delete('/api/prompts/:id', deletePrompt);
 
   // ========== 404 兜底 ==========
   app.use((req, res) => {

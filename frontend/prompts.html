@@ -39,6 +39,8 @@ h2 { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
 .btn-activate { background: #27d2bf; color: #fff; }
 .btn-activate:hover { background: #20b8a6; }
 .btn-activate:disabled { background: #ccc; cursor: not-allowed; }
+.btn-danger { background: #fff; color: #c4341a; border: 1px solid #c4341a; }
+.btn-danger:hover { background: #fde8e8; }
 
 /* Prompt cards */
 .prompt-list { display: flex; flex-direction: column; gap: 0.75rem; }
@@ -298,6 +300,7 @@ function renderPromptList() {
               <button class="btn btn-sm btn-secondary" onclick="viewPrompt('${p.id}')">查看</button>
               <button class="btn btn-sm btn-secondary" onclick="copyToCreate('${p.id}')">复制为新版</button>
               ${!p.is_active ? `<button class="btn btn-sm btn-activate" onclick="activatePrompt('${p.id}')">激活</button>` : ''}
+              ${!p.is_active ? `<button class="btn btn-sm btn-danger" onclick="deletePrompt('${p.id}', ${p.version})">删除</button>` : ''}
             </div>
           </div>
           ${p.description ? `<div class="prompt-card-desc">${escapeHtml(p.description)}</div>` : ''}
@@ -349,6 +352,7 @@ async function viewPrompt(id) {
       <div style="display:flex;gap:0.5rem;">
         <button class="btn btn-sm btn-secondary" onclick="copyToCreate('${p.id}')">复制为新版</button>
         ${!p.is_active ? `<button class="btn btn-sm btn-activate" onclick="activatePrompt('${p.id}')">激活此版本</button>` : ''}
+        ${!p.is_active ? `<button class="btn btn-sm btn-danger" onclick="deletePrompt('${p.id}', ${p.version})">删除</button>` : ''}
       </div>
     </div>
   `;
@@ -415,6 +419,23 @@ async function activatePrompt(id) {
     await loadPrompts();
   } catch (e) {
     showToast('激活失败: ' + e.message, 'error');
+  }
+}
+
+// ========== Delete ==========
+
+async function deletePrompt(id, version) {
+  if (!confirm(`确认删除 v${version}？此操作不可撤销。`)) return;
+  try {
+    const resp = await fetch(`/api/prompts/${id}`, { method: 'DELETE' });
+    const result = await resp.json();
+    if (!resp.ok) throw new Error(result.error || '删除失败');
+
+    showToast('版本已删除', 'success');
+    closeModal('viewModal');
+    await loadPrompts();
+  } catch (e) {
+    showToast('删除失败: ' + e.message, 'error');
   }
 }
 

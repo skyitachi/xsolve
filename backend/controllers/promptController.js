@@ -4,6 +4,7 @@ import {
   getPromptVersion,
   insertPromptVersion,
   activatePromptVersion,
+  deletePromptVersion,
   listPromptRoles,
 } from '../db.js';
 
@@ -56,4 +57,14 @@ export function activatePrompt(req, res) {
 // GET /api/prompts/roles/list — 列出所有 prompt 角色
 export function listRoles(req, res) {
   res.json(listPromptRoles());
+}
+
+// DELETE /api/prompts/:id — 删除版本（不允许删除活跃版本）
+export function deletePrompt(req, res) {
+  const result = deletePromptVersion(req.params.id);
+  if (!result.ok) {
+    const status = result.error === 'not found' ? 404 : 400;
+    return res.status(status).json({ error: result.error });
+  }
+  res.json({ ok: true, message: '版本已删除' });
 }
