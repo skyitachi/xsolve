@@ -571,7 +571,7 @@ function handleUiEvent(ev) {
     // 画图法：在聊天区渲染交互式 SVG 图形
     var diagramContainer = document.createElement("div");
     diagramContainer.className = "diagram-container";
-    var chatLog = $("chat-log");
+    var chatLog = $("#chat-log");
     chatLog.appendChild(diagramContainer);
     renderDiagram(ev.spec, diagramContainer);
     chatLog.scrollTop = chatLog.scrollHeight;
