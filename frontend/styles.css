@@ -790,27 +790,62 @@ dialog h3 { margin: 0 0 8px 0; }
 }
 .diagram-open:hover { text-decoration: underline; }
 .diagram-frame {
-  width: 100%;
   height: 520px;
-  max-width: 640px;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   background: #fff;
 }
-.diagram-resize-handle {
+.diagram-frame-wrap {
   position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* ---- 三向拖拽手柄 ---- */
+.diagram-resize-handle {
+  position: absolute;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  z-index: 5;
+}
+
+/* 右边缘：竖条 */
+.diagram-resize-handle.rz-e {
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+}
+.diagram-resize-handle.rz-e::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 48px;
+  background: #c5c8d0;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+.diagram-resize-handle.rz-e:hover::before,
+.diagram-resize-handle.rz-e.dragging::before {
+  background: #4c6ef5;
+}
+
+/* 底边缘：横条（相对于 card 定位） */
+.diagram-resize-handle.rz-s {
+  position: relative;
+  width: 100%;
   height: 20px;
-  margin-top: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: ns-resize;
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: none;
-  max-width: 640px;
 }
-.diagram-resize-handle::before {
+.diagram-resize-handle.rz-s::before {
   content: '';
   position: absolute;
   top: 7px;
@@ -820,23 +855,57 @@ dialog h3 { margin: 0 0 8px 0; }
   border-radius: 2px;
   transition: background 0.15s;
 }
-.diagram-resize-handle:hover::before,
-.diagram-resize-handle.dragging::before {
+.diagram-resize-handle.rz-s:hover::before,
+.diagram-resize-handle.rz-s.dragging::before {
   background: #4c6ef5;
 }
+
+/* 右下角：方块 */
+.diagram-resize-handle.rz-se {
+  bottom: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  z-index: 6;
+}
+.diagram-resize-handle.rz-se::before {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  border-right: 3px solid #c5c8d0;
+  border-bottom: 3px solid #c5c8d0;
+  border-radius: 0 0 2px 0;
+  transition: border-color 0.15s;
+}
+.diagram-resize-handle.rz-se:hover::before,
+.diagram-resize-handle.rz-se.dragging::before {
+  border-right-color: #4c6ef5;
+  border-bottom-color: #4c6ef5;
+}
+
+/* 提示文字（所有手柄共用） */
 .diagram-resize-hint {
   position: absolute;
-  bottom: 0;
   font-size: 10px;
   color: #aaa;
   opacity: 0;
   transition: opacity 0.15s;
   pointer-events: none;
+  white-space: nowrap;
 }
+.rz-s .diagram-resize-hint { bottom: 0; left: 50%; transform: translateX(-50%); }
+.rz-e .diagram-resize-hint { top: 50%; right: 14px; transform: translateY(-50%); }
+.rz-se .diagram-resize-hint { bottom: 18px; right: 18px; }
+
 .diagram-resize-handle:hover .diagram-resize-hint,
 .diagram-resize-handle.dragging .diagram-resize-hint {
   opacity: 1;
 }
+
 @media (max-width: 768px) {
   .diagram-frame { height: 460px; }
 }

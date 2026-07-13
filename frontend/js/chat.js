@@ -600,49 +600,77 @@ function showDiagramCard(url, title) {
   frame.src = url;
   frame.title = title || "分步作图";
   frame.sandbox = "allow-scripts allow-same-origin";
+  frame.style.width = "100%";
+  frame.style.maxWidth = "640px";
 
-  // 拖拽调整大小的手柄（底部边缘）
-  const handle = document.createElement("div");
-  handle.className = "diagram-resize-handle";
-  const handleHint = document.createElement("span");
-  handleHint.className = "diagram-resize-hint";
-  handleHint.textContent = "⇅ 拖拽调整高度";
-  handle.appendChild(handleHint);
+  // ---- 三向拖拽手柄：右边缘(宽度) / 底边缘(高度) / 右下角(宽+高) ----
+  var minW = 280, maxW = 1200;
+  var minH = 220, maxH = 1200;
 
-  function startResize(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    var startY = e.touches ? e.touches[0].clientY : e.clientY;
-    var startH = frame.offsetHeight;
-    handle.classList.add("dragging");
+  function makeHandle(dir) {
+    var h = document.createElement("div");
+    h.className = "diagram-resize-handle rz-" + dir;
+    var hint = document.createElement("span");
+    hint.className = "diagram-resize-hint";
+    hint.textContent = dir === "se" ? "⇲ 拖拽调整大小" : (dir === "s" ? "⇅ 拖拽调整高度" : "⇄ 拖拽调整宽度");
+    h.appendChild(hint);
 
-    function onMove(ev) {
-      ev.preventDefault();
-      var clientY = ev.touches ? ev.touches[0].clientY : ev.clientY;
-      var newH = Math.max(220, Math.min(1200, startH + clientY - startY));
-      frame.style.height = newH + "px";
+    function start(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var startX = e.touches ? e.touches[0].clientX : e.clientX;
+      var startY = e.touches ? e.touches[0].clientY : e.clientY;
+      var startW = frame.offsetWidth;
+      var startH = frame.offsetHeight;
+      h.classList.add("dragging");
+
+      function onMove(ev) {
+        ev.preventDefault();
+        var cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+        var cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
+        if (dir === "e" || dir === "se") {
+          var newW = Math.max(minW, Math.min(maxW, startW + cx - startX));
+          frame.style.width = newW + "px";
+          frame.style.maxWidth = newW + "px";
+        }
+        if (dir === "s" || dir === "se") {
+          var newH = Math.max(minH, Math.min(maxH, startH + cy - startY));
+          frame.style.height = newH + "px";
+        }
+      }
+
+      function onEnd() {
+        h.classList.remove("dragging");
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("touchmove", onMove);
+        document.removeEventListener("mouseup", onEnd);
+        document.removeEventListener("touchend", onEnd);
+      }
+
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("touchmove", onMove, { passive: false });
+      document.addEventListener("mouseup", onEnd);
+      document.addEventListener("touchend", onEnd);
     }
 
-    function onEnd() {
-      handle.classList.remove("dragging");
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("touchmove", onMove);
-      document.removeEventListener("mouseup", onEnd);
-      document.removeEventListener("touchend", onEnd);
-    }
-
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("touchmove", onMove, { passive: false });
-    document.addEventListener("mouseup", onEnd);
-    document.addEventListener("touchend", onEnd);
+    h.addEventListener("mousedown", start);
+    h.addEventListener("touchstart", start, { passive: false });
+    return h;
   }
 
-  handle.addEventListener("mousedown", startResize);
-  handle.addEventListener("touchstart", startResize, { passive: false });
+  var handleR = makeHandle("e");
+  var handleB = makeHandle("s");
+  var handleSE = makeHandle("se");
 
   card.appendChild(head);
-  card.appendChild(frame);
-  card.appendChild(handle);
+  // 包裹 iframe + 右手柄，使右手柄贴合右侧
+  var frameWrap = document.createElement("div");
+  frameWrap.className = "diagram-frame-wrap";
+  frameWrap.appendChild(frame);
+  frameWrap.appendChild(handleR);
+  frameWrap.appendChild(handleSE);
+  card.appendChild(frameWrap);
+  card.appendChild(handleB);
   elChatLog.appendChild(card);
   scrollChat();
 }
