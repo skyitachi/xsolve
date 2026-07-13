@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>画图法：容斥原理·两科都不喜欢的人数</title>
+<script src="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraphcore.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraph.css" type="text/css">
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; margin: 16px; color:#222; }
+  #box { width: 100%; max-width: 620px; height: 420px; border:1px solid #e0e0e0; border-radius:8px; }
+  .step-info { margin: 12px 0; padding: 10px 14px; background:#f5f7fa; border-left:4px solid #4c6ef5; border-radius:6px; min-height: 20px; }
+  #progress { color:#666; font-size:13px; margin-bottom:8px; }
+  button { padding:8px 18px; margin-right:8px; cursor:pointer; border:none; border-radius:6px; background:#4c6ef5; color:#fff; font-size:14px; }
+  button:disabled { background:#c5cae9; cursor:not-allowed; }
+  button.ghost { background:#fff; color:#4c6ef5; border:1px solid #4c6ef5; }
+</style>
+</head>
+<body>
+<h2>画图法：容斥原理·两科都不喜欢的人数</h2>
+<div id="progress">进度：0 / 6 步</div>
+<div id="box" class="jxgbox"></div>
+<div class="step-info" id="info">点击「下一步」开始作图</div>
+<button id="next">下一步 ▶</button>
+<button id="reset" class="ghost">重置 ↺</button>
+
+<script>
+if (typeof JXG === 'undefined') {
+  document.getElementById('info').textContent = '⚠️ JSXGraph 加载失败：请检查网络是否能访问 cdn.jsdelivr.net（CDN 被拦截时按钮会无反应）。';
+} else {
+const board = JXG.JSXGraph.initBoard('box', {
+  boundingbox: [-6,5,8,-4],          // [xmin, ymax, xmax, ymin]
+  axis: true, showCopyright: false,
+  keepaspectratio: true                  // 关键：1 单位 x = 1 单位 y（像素），保证图形不被拉变形
+});
+
+// ===== 在此用 board.create(...) 预建所有元素（初始 visible:false），并定义 steps 数组 =====
+// 每个 step: { els: [元素, ...], text: '第 n 步说明' }
+
+// 外框：全班 40 人
+const rect = board.create('polygon', [[-5.5, -3.5], [7.5, -3.5], [7.5, 4.5], [-5.5, 4.5]], {
+  visible: false, fillColor: '#f0f8ff', fillOpacity: 0.3,
+  borders: { strokeColor: '#333', strokeWidth: 2 },
+  vertices: { visible: false }, withLines: true, hasInnerPoints: false
+});
+const rectLabel = board.create('text', [-5.2, 4.1, '全班 40 人'], { visible: false, fontSize: 16, color: '#333' });
+
+// 数学圆
+const mathCircle = board.create('circle', [[-0.5, 0.5], 2.5], {
+  visible: false, strokeColor: '#1e88e5', strokeWidth: 2,
+  fillColor: '#90caf9', fillOpacity: 0.4
+});
+const mathLabel = board.create('text', [-3.5, 3, '喜欢数学 25 人'], { visible: false, fontSize: 15, color: '#1565c0' });
+
+// 语文圆
+const chnCircle = board.create('circle', [[2.5, 0.5], 2.5], {
+  visible: false, strokeColor: '#e53935', strokeWidth: 2,
+  fillColor: '#ef9a9a', fillOpacity: 0.4
+});
+const chnLabel = board.create('text', [4, 3, '喜欢语文 20 人'], { visible: false, fontSize: 15, color: '#c62828' });
+
+// 交集标注：两科都喜欢 10 人
+const bothLabel = board.create('text', [0.7, 0.4, '两科都喜欢\n10 人'], { visible: false, fontSize: 13, color: '#4a148c' });
+
+// 只喜欢数学
+const onlyMath = board.create('text', [-2, 0.4, '只数学\n15 人'], { visible: false, fontSize: 13, color: '#0d47a1' });
+// 只喜欢语文
+const onlyChn = board.create('text', [4.2, 0.4, '只语文\n10 人'], { visible: false, fontSize: 13, color: '#b71c1c' });
+
+// 至少喜欢一科
+const atLeast = board.create('text', [-5, -2, '至少喜欢一科：15+10+10 = 35 人'], { visible: false, fontSize: 14, color: '#2e7d32' });
+
+// 都不喜欢
+const neither = board.create('text', [4, -2.5, '都不喜欢\n40−35 = 5 人'], { visible: false, fontSize: 15, color: '#d84315' });
+
+const steps = [
+  { els: [rect, rectLabel], text: '第 1 步：画一个大框表示全班 40 人。' },
+  { els: [mathCircle, mathLabel], text: '第 2 步：画一个蓝圆表示喜欢数学的 25 人。' },
+  { els: [chnCircle, chnLabel], text: '第 3 步：画一个红圆表示喜欢语文的 20 人，两圆重叠部分是两科都喜欢的。' },
+  { els: [bothLabel, onlyMath, onlyChn], text: '第 4 步：重叠区 = 10 人；只数学 = 25−10 = 15；只语文 = 20−10 = 10。' },
+  { els: [atLeast], text: '第 5 步：至少喜欢一科 = 15 + 10 + 10 = 35 人。' },
+  { els: [neither], text: '第 6 步：两科都不喜欢 = 40 − 35 = 5 人 ✅' }
+];
+
+
+// ===== 以下为通用揭示 / 重置逻辑，一般无需改动 =====
+let cur = 0;
+const info = document.getElementById('info');
+const prog = document.getElementById('progress');
+const nextBtn = document.getElementById('next');
+const resetBtn = document.getElementById('reset');
+function applyStep() {
+  if (cur >= steps.length) return;
+  steps[cur].els.forEach(e => e.setAttribute({visible:true}));
+  info.textContent = steps[cur].text;
+  cur++;
+  prog.textContent = '进度：' + cur + ' / ' + steps.length + ' 步';
+  if (cur >= steps.length) nextBtn.disabled = true;
+}
+function reset() {
+  steps.forEach(s => s.els.forEach(e => e.setAttribute({visible:false})));
+  cur = 0; nextBtn.disabled = false;
+  prog.textContent = '进度：0 / ' + steps.length + ' 步';
+  info.textContent = '点击「下一步」开始作图';
+}
+nextBtn.addEventListener('click', applyStep);
+resetBtn.addEventListener('click', reset);
+}
+</script>
+</body>
+</html>

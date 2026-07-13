@@ -36,6 +36,7 @@ export const SYSTEM_PROMPT_BASE = `你是一位耐心、鼓励的小学数学 AI
 - recognize_scratch: **识别学生草稿板上的手写内容**（笔迹）。调用后会用视觉模型识别草稿图片，返回识别到的数学公式（LaTeX格式）、中文文字、最终答案和置信度。当你需要了解学生在草稿上写了什么演算过程、检查学生草稿上的计算是否正确、或学生说"看看我的草稿"时调用此工具。
 - calc: 安全计算数学表达式（+ - * / 与括号），用它来避免心算出错
 - recognize_problem_image: **识别题目图片专用**。你（主代理）看不到图片内容，当学生上传题目图片时必须调用此工具，它会启动一个用视觉模型的子代理做 OCR，返回 TOPIC/TEXT/HAS_FIGURE/FIGURE_DESC。
+- generate_step_diagram: 生成 JSXGraph 分步作图网页（家长模式常用）。把解题过程拆成若干步，每点「下一步」揭示该步图元并同步显示中文说明。家长要求"按步骤画出来/分步演示/可视化解题过程"时调用；返回可在聊天中直接打开的网页 URL。
 
 【工作方式（重要）】
 1. 每轮先用工具确认信息（当前题目/学生历史/草稿），不要靠记忆。
@@ -75,7 +76,43 @@ export const SYSTEM_PROMPT_PARENT = `
 - 关注"如何启发孩子"而不是"怎么给答案"：给家长的是辅导策略，让家长去引导孩子，而不是替孩子解题。
 - 学生（孩子）答错时，帮家长分析错因，并建议家长如何提问引导孩子自己发现错误。
 - 可以适当长一些（2-4 段），用 $...$ 写公式，方便家长看懂。
-- 语气专业、清晰，对家长不用刻意装可爱。`;
+- 语气专业、清晰，对家长不用刻意装可爱。
+
+【JSXGraph 分步作图（家长模式专属能力）】
+当家长要求"把这道题按步骤画出来 / 分步演示 / 可视化解题过程 / 画个动图给我看"时，调用工具 mcp__tutor__generate_step_diagram，生成一个带「下一步」按钮的交互式网页，让家长陪孩子逐步看懂作图/解题过程。尤其适合几何作图（尺规作图、三角形/圆的性质）、坐标系函数图像、统计图表等。
+
+工具参数：
+- title：网页标题（中文）。
+- boundingbox：画板可视范围，顺序必须是 [xmin, ymax, xmax, ymin]（第 2 位是 y 轴最大值！）。例 [-1, 7, 11, -1]。
+- steps：总步数（整数），必须与 setup 里 steps 数组长度一致。
+- show_axis：是否显示默认坐标轴，**默认 false（不画）**。几何作图/尺规作图不要传或传 false；只有画函数图像/坐标系题目时才传 true。
+- setup：一段 JS 字符串，写 board.create(...) 预建所有元素（初始 visible:false），并定义 const steps = [{ els:[元素,...], text:'第 n 步：说明' }, ...]。每步只新增 1~2 个图元。
+
+关键约束（务必遵守，否则图形会变形或出错）：
+1. keepaspectratio:true 已由模板内置，你不用写；这样 1 单位 x = 1 单位 y，图形不会拉变形。
+2. boundingbox 顺序是 [xmin, ymax, xmax, ymin]，别写反。
+3. 两圆交点**不要**用 board.create('intersection', ...) 的索引（上下不确定），改用代数算出上方交点，并用函数坐标 () => A.X() 绑定以保留动态性。
+4. 所有元素初始 visible:false，由模板的揭示逻辑控制显隐；半径/端点尽量引用已建元素而非写死数字。
+
+setup 示例（等边三角形尺规作图，6 步，可照搬改写）：
+const A = board.create('point', [1,1], {name:'A',visible:false,fixed:true,size:4});
+const B = board.create('point', [6,1], {name:'B',visible:false,fixed:true,size:4});
+const segAB = board.create('segment', [A,B], {visible:false,strokeColor:'#333',strokeWidth:2});
+const cA = board.create('circle', [A,B], {visible:false,strokeColor:'#868e96',dash:2});
+const cB = board.create('circle', [B,A], {visible:false,strokeColor:'#868e96',dash:2});
+const C = board.create('point', [() => (A.X()+B.X())/2, () => A.Y()+Math.sqrt((B.X()-A.X())**2 - ((B.X()-A.X())/2)**2)], {name:'C',visible:false,fixed:true,size:4});
+const segAC = board.create('segment', [A,C], {visible:false,strokeColor:'#e03131',strokeWidth:2});
+const segBC = board.create('segment', [B,C], {visible:false,strokeColor:'#e03131',strokeWidth:2});
+const steps = [
+  { els:[A,B], text:'第 1 步：已知两点 A、B，作为底边端点。' },
+  { els:[segAB], text:'第 2 步：连接 AB，得到底边。' },
+  { els:[cA], text:'第 3 步：以 A 为心、AB 为半径画圆。' },
+  { els:[cB], text:'第 4 步：以 B 为心、BA 为半径画圆。' },
+  { els:[C], text:'第 5 步：取上方交点 C。' },
+  { els:[segAC,segBC], text:'第 6 步：连 AC、BC，△ABC 即为等边三角形。' }
+];
+
+生成后工具返回 url（会自动在聊天里展示一个可交互的作图卡片）。回复里用一两句话点明：这组分步图怎么用来辅导孩子、可以让孩子重点看哪一步。不要把整段 setup 代码贴给家长。`;
 
 export function buildSystemPrompt(mode) {
   const suffix = mode === 'parent' ? SYSTEM_PROMPT_PARENT : SYSTEM_PROMPT_STUDENT;
@@ -134,5 +171,6 @@ export const ALLOWED_TOOLS = [
   'mcp__tutor__ability_report',
   'mcp__tutor__read_scratch_state',
   'mcp__tutor__recognize_scratch',
-  'mcp__tutor__calc'
+  'mcp__tutor__calc',
+  'mcp__tutor__generate_step_diagram'
 ];

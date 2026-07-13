@@ -1,5 +1,6 @@
 // Express app — 路由定义与中间件配置
 import express from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -40,6 +41,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
+const DIAGRAMS_DIR = path.join(__dirname, '..', 'diagrams');
 
 export function createApp() {
   const app = express();
@@ -50,6 +52,10 @@ export function createApp() {
 
   // 静态文件
   app.use(express.static(FRONTEND_DIR));
+
+  // JSXGraph 分步作图产物（由 generate_step_diagram 工具写入）
+  fs.mkdirSync(DIAGRAMS_DIR, { recursive: true });
+  app.use('/diagrams', express.static(DIAGRAMS_DIR));
 
   // ========== 健康检查 ==========
   app.get('/healthz', healthCheck);

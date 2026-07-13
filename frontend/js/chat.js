@@ -176,6 +176,7 @@ var TOOL_LABELS = {
   ability_report: "📊 水平评估",
   read_scratch_state: "🖊️ 检查草稿",
   calc: "🧮 计算",
+  generate_step_diagram: "📐 分步作图",
 };
 
 function addToolCallCard(label, args) {
@@ -566,7 +567,44 @@ function handleUiEvent(ev) {
     AiStatus.tick(`正在识别草稿笔迹（${ev.model || "vision"}）…`, "tool");
   } else if (ev.type === "scratch_recognition_done") {
     AiStatus.tick("草稿识别完成，AI 分析中…", "thinking");
+  } else if (ev.type === "diagram_generated") {
+    showDiagramCard(ev.url, ev.title);
   }
+}
+
+// 在聊天里插入一个 JSXGraph 分步作图卡片（内嵌 iframe + 新窗口打开）
+function showDiagramCard(url, title) {
+  const card = document.createElement("div");
+  card.className = "msg msg-ai diagram-card";
+
+  const head = document.createElement("div");
+  head.className = "diagram-head";
+  const icon = document.createElement("span");
+  icon.textContent = "📐 ";
+  const titleEl = document.createElement("span");
+  titleEl.className = "diagram-title";
+  titleEl.textContent = title || "分步作图";
+  head.appendChild(icon);
+  head.appendChild(titleEl);
+
+  const openLink = document.createElement("a");
+  openLink.className = "diagram-open";
+  openLink.href = url;
+  openLink.target = "_blank";
+  openLink.rel = "noopener";
+  openLink.textContent = "在新窗口打开 ↗";
+  head.appendChild(openLink);
+
+  const frame = document.createElement("iframe");
+  frame.className = "diagram-frame";
+  frame.src = url;
+  frame.title = title || "分步作图";
+  frame.sandbox = "allow-scripts allow-same-origin";
+
+  card.appendChild(head);
+  card.appendChild(frame);
+  elChatLog.appendChild(card);
+  scrollChat();
 }
 
 // ========== 本地答题校验 ==========

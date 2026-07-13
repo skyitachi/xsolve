@@ -1,11 +1,25 @@
 // MCP 工具集（tutor 工具服务器）
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { getAllProblems, getProblem, insertProblem, updateProblemFigure } from './db.js';
 import { runVisionHttp } from './vision.js';
 import { CLAUDE_MODEL, SCRATCH_VISION_PROMPT } from './config.js';
 import { compareAnswer, safeCalc, mcpOk, mcpErr } from './utils.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const TEMPLATE_PATH = path.resolve(__dirname, 'assets', 'step-diagram-template.html');
+const DIAGRAMS_DIR = path.resolve(__dirname, '..', 'diagrams');
+
+// 转义 HTML 文本（用于把模型给的标题安全塞进 <title>/<h2>）
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"]/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
+  }[c]));
+}
 
 // 视觉模型展示名（用于工具描述和响应）
 const VISION_MODEL_DISPLAY = process.env.VISION_MODEL || CLAUDE_MODEL || 'claude-sonnet-4 (自动选择)';
@@ -238,7 +252,65 @@ export function buildTutorMcp(session) {
         } catch (e) {
           return mcpErr('invalid expression: ' + e.message);
         }
-      })
+      }),
+
+      // ========== JSXGraph 分步作图（家长模式）==========
+      tool('generate_step_diagram',
+        '生成一个 JSXGraph 分步作图网页：把一道题的解题过程拆成若干步，每点「下一步」揭示该步新增的图元（点/线段/圆/函数曲线等）并同步显示中文说明。家长要求"按步骤画出来/分步演示/可视化解题过程"时调用。返回可在聊天中打开的网页 URL。',
+        {
+          title: z.string().describe('网页标题（中文），例如「用 JSXGraph 按步骤画等边三角形」'),
+          boundingbox: z.array(z.number()).length(4)
+            .describe('JSXGraph 画板可视范围，顺序必须是 [xmin, ymax, xmax, ymin]（注意第2位是y轴最大值）'),
+          steps: z.number().int().min(1).describe('总步数，需与 setup 里 steps 数组长度一致'),
+          show_axis: z.boolean().optional()
+            .describe('是否显示默认坐标轴。默认 false（不画）——几何作图/尺规作图一般不需要坐标轴；画函数图像/坐标系题目时传 true。'),
+          setup: z.string().describe(
+            'JSXGraph 预建元素的 JS 代码字符串：用 board.create(...) 预建所有元素（初始 visible:false），' +
+            '并定义 const steps = [{ els:[...], text:"第 n 步：说明" }, ...]。' +
+            '关键约束：keepaspectratio 已由模板内置无需写；交点用代数算并 () => A.X() 绑定，不要用 intersection 索引。'
+          )
+        },
+        async (args) => {
+          // 轻量校验：setup 必须含 board.create 和 steps 数组定义
+          if (!/board\.create\s*\(/.test(args.setup)) {
+            return mcpErr('setup 里未检测到 board.create(...)，请按模板写预建元素。');
+          }
+          if (!/\bsteps\s*=\s*\[/.test(args.setup)) {
+            return mcpErr('setup 里未检测到 steps 数组定义，请定义 const steps = [{ els, text }, ...]。');
+          }
+          let template;
+          try {
+            template = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
+          } catch (e) {
+            return mcpErr('读取模板失败: ' + (e.message || String(e)));
+          }
+          // 占位符替换（split/join 替换全部出现位置）
+          const replacements = {
+            __TITLE__: escapeHtml(args.title),
+            __BOUNDINGBOX__: JSON.stringify(args.boundingbox),
+            __N__: String(args.steps),
+            __AXIS__: args.show_axis ? 'true' : 'false',
+            __SETUP__: args.setup
+          };
+          let html = template;
+          for (const [k, v] of Object.entries(replacements)) {
+            html = html.split(k).join(String(v));
+          }
+          // 写入 diagrams 目录
+          try {
+            fs.mkdirSync(DIAGRAMS_DIR, { recursive: true });
+            const id = crypto.randomBytes(6).toString('hex');
+            const fileName = `diagram_${id}.html`;
+            const filePath = path.join(DIAGRAMS_DIR, fileName);
+            fs.writeFileSync(filePath, html, 'utf-8');
+            const url = `/diagrams/${fileName}`;
+            session.emit('ui_event', { type: 'diagram_generated', url, title: args.title });
+            return mcpOk({ ok: true, url, title: args.title, steps: args.steps, path: filePath });
+          } catch (e) {
+            return mcpErr('写入作图文件失败: ' + (e.message || String(e)));
+          }
+        }
+      )
     ]
   });
 }

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>鸡兔同笼——画图分步解</title>
+<script src="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraphcore.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraph.css" type="text/css">
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; margin: 16px; color:#222; }
+  #box { width: 100%; max-width: 620px; height: 420px; border:1px solid #e0e0e0; border-radius:8px; }
+  .step-info { margin: 12px 0; padding: 10px 14px; background:#f5f7fa; border-left:4px solid #4c6ef5; border-radius:6px; min-height: 20px; }
+  #progress { color:#666; font-size:13px; margin-bottom:8px; }
+  button { padding:8px 18px; margin-right:8px; cursor:pointer; border:none; border-radius:6px; background:#4c6ef5; color:#fff; font-size:14px; }
+  button:disabled { background:#c5cae9; cursor:not-allowed; }
+  button.ghost { background:#fff; color:#4c6ef5; border:1px solid #4c6ef5; }
+</style>
+</head>
+<body>
+<h2>鸡兔同笼——画图分步解</h2>
+<div id="progress">进度：0 / 6 步</div>
+<div id="box" class="jxgbox"></div>
+<div class="step-info" id="info">点击「下一步」开始作图</div>
+<button id="next">下一步 ▶</button>
+<button id="reset" class="ghost">重置 ↺</button>
+
+<script>
+if (typeof JXG === 'undefined') {
+  document.getElementById('info').textContent = '⚠️ JSXGraph 加载失败：请检查网络是否能访问 cdn.jsdelivr.net（CDN 被拦截时按钮会无反应）。';
+} else {
+const board = JXG.JSXGraph.initBoard('box', {
+  boundingbox: [-2,12,32,-4],          // [xmin, ymax, xmax, ymin]
+  axis: false, showCopyright: false,  // 是否显示默认坐标轴（默认 false，不画）
+  keepaspectratio: true                  // 关键：1 单位 x = 1 单位 y（像素），保证图形不被拉变形
+});
+
+// ===== 在此用 board.create(...) 预建所有元素（初始 visible:false），并定义 steps 数组 =====
+// 每个 step: { els: [元素, ...], text: '第 n 步说明' }
+
+// 标题
+const title = board.create('text', [15, 11, '鸡兔同笼:30 个头,84 只脚'], {fontSize:20, anchorX:'middle', visible:false});
+
+// ====== 第1步:画 30 个头(用圆圈表示) ======
+const heads = [];
+for (let i = 0; i < 30; i++) {
+  const x = i + 0.5;
+  heads.push(board.create('circle', [[x, 9.5], 0.35], {strokeColor:'#333', fillColor:'#ffe4b5', fillOpacity:1, visible:false, fixed:true}));
+}
+const t1 = board.create('text', [15, 8.5, '一共 30 个头 → 30 只动物'], {fontSize:16, anchorX:'middle', visible:false});
+
+// ====== 第2步:假设全是鸡,每只画 2 只脚 ======
+const legs2 = [];
+for (let i = 0; i < 30; i++) {
+  const x = i + 0.5;
+  legs2.push(board.create('segment', [[x-0.15, 9.15], [x-0.15, 8.4]], {strokeColor:'#c60', strokeWidth:2, visible:false, fixed:true}));
+  legs2.push(board.create('segment', [[x+0.15, 9.15], [x+0.15, 8.4]], {strokeColor:'#c60', strokeWidth:2, visible:false, fixed:true}));
+}
+const t2 = board.create('text', [15, 7.5, '假设全是鸡 🐔:每只 2 只脚,共 30×2 = 60 只脚'], {fontSize:16, anchorX:'middle', color:'blue', visible:false});
+
+// ====== 第3步:比较 60 和 84,少了 24 只脚 ======
+const barBg1 = board.create('polygon', [[0, 5.5],[30, 5.5],[30, 6.2],[0, 6.2]], {fillColor:'#87ceeb', fillOpacity:0.7, borders:{strokeColor:'#333'}, visible:false, fixed:true});
+const barLbl1 = board.create('text', [15, 5.85, '假设的脚数:60'], {fontSize:14, anchorX:'middle', visible:false});
+
+const barBg2Full = board.create('polygon', [[0, 4.3],[30, 4.3],[30, 5.0],[0, 5.0]], {fillColor:'#87ceeb', fillOpacity:0.7, borders:{strokeColor:'#333'}, visible:false, fixed:true});
+const barBg2Extra = board.create('polygon', [[30, 4.3],[42, 4.3],[42, 5.0],[30, 5.0]], {fillColor:'#ffb3b3', fillOpacity:0.9, borders:{strokeColor:'#c00'}, visible:false, fixed:true});
+// 上面 extra 超出画布,换成缩放:改成把两根柱子按同一比例画
+// 简单起见,重画一根:实际84只脚
+const t3 = board.create('text', [15, 3.5, '实际有 84 只脚,少算了 84 − 60 = 24 只脚'], {fontSize:16, anchorX:'middle', color:'red', visible:false});
+const t3b = board.create('text', [36, 4.65, '← 少的 24 只'], {fontSize:13, color:'red', visible:false});
+
+// ====== 第4步:每换一只兔多 2 只脚 ======
+const t4 = board.create('text', [15, 2.5, '把 1 只鸡换成 1 只兔 🐰,脚就多 2 只'], {fontSize:16, anchorX:'middle', visible:false});
+const chickIcon = board.create('text', [10, 1.3, '🐔 (2脚)'], {fontSize:18, anchorX:'middle', visible:false});
+const arrow = board.create('arrow', [[13, 1.3],[17, 1.3]], {strokeColor:'green', strokeWidth:2, visible:false});
+const rabbitIcon = board.create('text', [20, 1.3, '🐰 (4脚)'], {fontSize:18, anchorX:'middle', visible:false});
+const plus2 = board.create('text', [15, 2, '+2 只脚'], {fontSize:14, anchorX:'middle', color:'green', visible:false});
+
+// ====== 第5步:算兔子数 ======
+const t5 = board.create('text', [15, -0.3, '兔子只数 = 24 ÷ 2 = 12 (只) 🐰'], {fontSize:18, anchorX:'middle', color:'purple', visible:false});
+
+// ====== 第6步:算鸡数 ======
+const t6 = board.create('text', [15, -1.5, '鸡的只数 = 30 − 12 = 18 (只) 🐔'], {fontSize:18, anchorX:'middle', color:'purple', visible:false});
+const ans = board.create('text', [15, -2.8, '答:鸡 18 只,兔 12 只 ✅'], {fontSize:20, anchorX:'middle', color:'#c00', visible:false});
+
+const steps = [
+  { els:[title, ...heads, t1], text:"第 1 步:笼子里共 30 个头,画 30 个圆圈代表 30 只动物。" },
+  { els:[...legs2, t2], text:"第 2 步:假设全是鸡,每只 2 只脚。总脚数 = 30 × 2 = 60 只。" },
+  { els:[barBg1, barLbl1, barBg2Full, barBg2Extra, t3, t3b], text:"第 3 步:实际有 84 只脚,比假设的 60 多 24 只(红色部分)。" },
+  { els:[t4, chickIcon, arrow, rabbitIcon, plus2], text:"第 4 步:每把 1 只鸡换成 1 只兔,脚数增加 2 只。" },
+  { els:[t5], text:"第 5 步:一共要多 24 只脚,所以兔子有 24 ÷ 2 = 12 只。" },
+  { els:[t6, ans], text:"第 6 步:鸡 = 30 − 12 = 18 只。答:鸡 18 只,兔 12 只。" }
+];
+
+
+// ===== 以下为通用揭示 / 重置逻辑，一般无需改动 =====
+let cur = 0;
+const info = document.getElementById('info');
+const prog = document.getElementById('progress');
+const nextBtn = document.getElementById('next');
+const resetBtn = document.getElementById('reset');
+function applyStep() {
+  if (cur >= steps.length) return;
+  steps[cur].els.forEach(e => e.setAttribute({visible:true}));
+  info.textContent = steps[cur].text;
+  cur++;
+  prog.textContent = '进度：' + cur + ' / ' + steps.length + ' 步';
+  if (cur >= steps.length) nextBtn.disabled = true;
+}
+function reset() {
+  steps.forEach(s => s.els.forEach(e => e.setAttribute({visible:false})));
+  cur = 0; nextBtn.disabled = false;
+  prog.textContent = '进度：0 / ' + steps.length + ' 步';
+  info.textContent = '点击「下一步」开始作图';
+}
+nextBtn.addEventListener('click', applyStep);
+resetBtn.addEventListener('click', reset);
+}
+</script>
+</body>
+</html>
