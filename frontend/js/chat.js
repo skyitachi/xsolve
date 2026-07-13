@@ -532,6 +532,7 @@ function handleStreamEvent(ev, toolCards, st) {
       AiStatus.toolStart(prettyToolName(cb.name));
     } else if (cb.type === "thinking") {
       st.blocks[ev.index] = { type: "thinking" };
+      AiStatus.tick("深度思考中…", "thinking");
     }
   } else if (ev.type === "content_block_delta") {
     const block = st.blocks && st.blocks[ev.index];

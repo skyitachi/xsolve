@@ -67,11 +67,14 @@ export function handleTurn(req, res) {
     if (event === 'sdk_message' &&
         data.type === 'stream_event' &&
         data.event?.type === 'content_block_delta') {
+
+      // thinking_delta 不需要发送到前端（前端不展示思考内容），直接丢弃以节省带宽
+      if (data.event.delta?.type === 'thinking_delta') {
+        return;
+      }
+
       deltaBuffer.push({ index: data.event.index, delta: data.event.delta });
       scheduleFlush();
-      // 仍然需要累积工具调用数据（但不通过 SSE 发送原始 delta）
-      const blockIdx = data.event.index;
-      // 工具调用的 input_json_delta 需要累积用于持久化，但不需要单独发送
       return;
     }
 
