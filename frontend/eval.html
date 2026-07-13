@@ -143,7 +143,7 @@ tbody tr:hover { background: #fafafe; }
   </header>
 
   <div class="filter-bar">
-    <select id="roleFilter">
+    <select id="roleFilter" onchange="loadDashboard()">
       <option value="">全部角色</option>
       <option value="student">学生</option>
       <option value="parent">家长</option>
@@ -287,8 +287,15 @@ async function loadDashboard() {
   // Prompt version comparison table
   const pvData = data.scores_by_prompt_version || {};
   const pvTokens = (data.tokens_by_prompt_version || []).reduce((acc, t) => {
-    const key = t.prompt_version ? `v${t.prompt_version}` : 'unversioned';
-    acc[key] = t;
+    const rolePrefix = t.prompt_role || 'unknown';
+    const key = t.prompt_version ? `${rolePrefix}_v${t.prompt_version}` : `${rolePrefix}_unversioned`;
+    if (!acc[key]) acc[key] = { ...t, total_tokens: (t.total_input_tokens||0) + (t.total_output_tokens||0) };
+    else {
+      acc[key].total_input_tokens += t.total_input_tokens || 0;
+      acc[key].total_output_tokens += t.total_output_tokens || 0;
+      acc[key].total_tokens += (t.total_input_tokens||0) + (t.total_output_tokens||0);
+      acc[key].turn_count += t.turn_count || 0;
+    }
     return acc;
   }, {});
   const pvKeys = Object.keys(pvData);
@@ -299,6 +306,8 @@ async function loadDashboard() {
     const pvRows = pvKeys.map(key => {
       const pv = pvData[key];
       const tk = pvTokens[key] || {};
+      const roleLabel = pv.prompt_role === 'student' ? '学生' : pv.prompt_role === 'parent' ? '家长' : pv.prompt_role || '';
+      const versionLabel = pv.prompt_version ? `v${pv.prompt_version}` : '未版本化';
       const dimsHtml = Object.entries(DIMENSIONS).map(([dk, dl]) => {
         const v = pv.dims[dk];
         if (!v) return `<td>-</td>`;
@@ -310,8 +319,8 @@ async function loadDashboard() {
       return `
         <tr>
           <td>
-            <span class="pv-version">${key}</span>
-            ${pv.prompt_role ? `<span class="pv-role">${pv.prompt_role === 'student' ? '学生' : pv.prompt_role === 'parent' ? '家长' : pv.prompt_role}</span>` : ''}
+            <span class="pv-version">${versionLabel}</span>
+            ${roleLabel ? `<span class="pv-role">${roleLabel}</span>` : ''}
             <div class="pv-tokens">${pv.count} 条评分 · Token: ${fmtTokens(tk.total_tokens || 0)} (${tk.turn_count || 0} turns)</div>
           </td>
           ${dimsHtml}

@@ -388,7 +388,8 @@ function getEvalDashboard(role) {
     }, {}),
     llm_judge_count: llmJudgeScores.reduce((sum, s) => sum + s.count, 0),
     scores_by_prompt_version: scoresByPromptVersion.reduce((acc, row) => {
-      const key = row.prompt_version ? `v${row.prompt_version}` : 'unversioned';
+      const rolePrefix = row.prompt_role || 'unknown';
+      const key = row.prompt_version ? `${rolePrefix}_v${row.prompt_version}` : `${rolePrefix}_unversioned`;
       if (!acc[key]) acc[key] = { prompt_version: row.prompt_version, prompt_role: row.prompt_role, dims: {}, count: 0 };
       acc[key].dims[row.dimension] = Math.round(row.avg_value * 100) / 100;
       acc[key].count += row.count;
