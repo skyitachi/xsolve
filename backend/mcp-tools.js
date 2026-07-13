@@ -265,15 +265,16 @@ export function buildTutorMcp(session) {
           show_axis: z.boolean().optional()
             .describe('是否显示默认坐标轴。默认 false（不画）——几何作图/尺规作图一般不需要坐标轴；画函数图像/坐标系题目时传 true。'),
           setup: z.string().describe(
-            'JSXGraph 预建元素的 JS 代码字符串：用 board.create(...) 预建所有元素（初始 visible:false），' +
+            'JSXGraph 预建元素的 JS 代码字符串：用辅助函数 pt/seg/circ/txt/poly/arc/func 预建所有元素（初始 visible:false），' +
             '并定义 const steps = [{ els:[...], text:"第 n 步：说明" }, ...]。' +
+            '辅助函数签名：pt(x,y,name,opt?) seg(p1,p2,opt?) circ(c,e,opt?) txt(x,y,s,opt?) poly(pts,opt?) arc(c,p1,p2,opt?) func(f,opt?)。' +
             '关键约束：keepaspectratio 已由模板内置无需写；交点用代数算并 () => A.X() 绑定，不要用 intersection 索引。'
           )
         },
         async (args) => {
-          // 轻量校验：setup 必须含 board.create 和 steps 数组定义
-          if (!/board\.create\s*\(/.test(args.setup)) {
-            return mcpErr('setup 里未检测到 board.create(...)，请按模板写预建元素。');
+          // 轻量校验：setup 必须含 pt(/seg(/circ( 等辅助函数或 board.create，以及 steps 数组定义
+          if (!/board\.create\s*\(|\bpt\s*\(|\bseg\s*\(|\bcirc\s*\(|\btxt\s*\(/.test(args.setup)) {
+            return mcpErr('setup 里未检测到辅助函数(pt/seg/circ/txt等)或 board.create(...)，请按模板写预建元素。');
           }
           if (!/\bsteps\s*=\s*\[/.test(args.setup)) {
             return mcpErr('setup 里未检测到 steps 数组定义，请定义 const steps = [{ els, text }, ...]。');

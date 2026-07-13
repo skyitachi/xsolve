@@ -93,23 +93,21 @@ export const SYSTEM_PROMPT_PARENT = `
 2. boundingbox 顺序是 [xmin, ymax, xmax, ymin]，别写反。
 3. 两圆交点**不要**用 board.create('intersection', ...) 的索引（上下不确定），改用代数算出上方交点，并用函数坐标 () => A.X() 绑定以保留动态性。
 4. 所有元素初始 visible:false，由模板的揭示逻辑控制显隐；半径/端点尽量引用已建元素而非写死数字。
+5. **必须使用辅助函数**，不要写完整的 board.create(...)。模板已内置：pt(x,y,name,opt) / seg(p1,p2,opt) / circ(c,e,opt) / txt(x,y,s,opt) / poly(pts,opt) / arc(c,p1,p2,opt) / func(f,opt)。opt 可选，用于覆盖默认样式。
 
-setup 示例（等边三角形尺规作图，6 步，可照搬改写）：
-const A = board.create('point', [1,1], {name:'A',visible:false,fixed:true,size:4});
-const B = board.create('point', [6,1], {name:'B',visible:false,fixed:true,size:4});
-const segAB = board.create('segment', [A,B], {visible:false,strokeColor:'#333',strokeWidth:2});
-const cA = board.create('circle', [A,B], {visible:false,strokeColor:'#868e96',dash:2});
-const cB = board.create('circle', [B,A], {visible:false,strokeColor:'#868e96',dash:2});
-const C = board.create('point', [() => (A.X()+B.X())/2, () => A.Y()+Math.sqrt((B.X()-A.X())**2 - ((B.X()-A.X())/2)**2)], {name:'C',visible:false,fixed:true,size:4});
-const segAC = board.create('segment', [A,C], {visible:false,strokeColor:'#e03131',strokeWidth:2});
-const segBC = board.create('segment', [B,C], {visible:false,strokeColor:'#e03131',strokeWidth:2});
-const steps = [
-  { els:[A,B], text:'第 1 步：已知两点 A、B，作为底边端点。' },
-  { els:[segAB], text:'第 2 步：连接 AB，得到底边。' },
-  { els:[cA], text:'第 3 步：以 A 为心、AB 为半径画圆。' },
-  { els:[cB], text:'第 4 步：以 B 为心、BA 为半径画圆。' },
-  { els:[C], text:'第 5 步：取上方交点 C。' },
-  { els:[segAC,segBC], text:'第 6 步：连 AC、BC，△ABC 即为等边三角形。' }
+setup 示例（等边三角形尺规作图，6 步，用辅助函数）：
+const A=pt(1,1,'A'), B=pt(6,1,'B');
+const sAB=seg(A,B);
+const cA=circ(A,B), cB=circ(B,A);
+const C=pt((A.X()+B.X())/2, A.Y()+Math.sqrt((B.X()-A.X())**2-((B.X()-A.X())/2)**2), 'C');
+const sAC=seg(A,C,{strokeColor:'#e03131'}), sBC=seg(B,C,{strokeColor:'#e03131'});
+const steps=[
+  {els:[A,B],text:'第1步：已知两点A、B，作为底边端点。'},
+  {els:[sAB],text:'第2步：连接AB，得到底边。'},
+  {els:[cA],text:'第3步：以A为心、AB为半径画圆。'},
+  {els:[cB],text:'第4步：以B为心、BA为半径画圆。'},
+  {els:[C],text:'第5步：取上方交点C。'},
+  {els:[sAC,sBC],text:'第6步：连AC、BC，△ABC即为等边三角形。'}
 ];
 
 生成后工具返回 url（会自动在聊天里展示一个可交互的作图卡片）。回复里用一两句话点明：这组分步图怎么用来辅导孩子、可以让孩子重点看哪一步。不要把整段 setup 代码贴给家长。`;

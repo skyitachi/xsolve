@@ -42,8 +42,45 @@ export function handleTurn(req, res) {
   // 发送 user 事件（告知前端消息已接收）
   sendSSE(res, 'user', { message: userMsg, hasImage: !!imgBody, hasAudio: !!audioBody });
 
+  // ---- SSE 批量缓冲：content_block_delta 事件高频到达，合并后批量发送以减少交互次数 ----
+  let deltaBuffer = [];
+  let flushTimer = null;
+  const FLUSH_INTERVAL = 50; // ms
+
+  function flushDeltas() {
+    flushTimer = null;
+    if (deltaBuffer.length === 0) return;
+    // 将多个 delta 合并为一个批量事件
+    sendSSE(res, 'sdk_message', { type: 'stream_event', event: { type: 'content_block_deltas_batch', deltas: deltaBuffer } });
+    deltaBuffer = [];
+  }
+
+  function scheduleFlush() {
+    if (flushTimer === null) {
+      flushTimer = setTimeout(flushDeltas, FLUSH_INTERVAL);
+    }
+  }
+
   // session 对象使用自定义 subscribe/unsubscribe 模式（非 EventEmitter）
   const unsubscribe = s.subscribe((event, data) => {
+    // 拦截 content_block_delta 事件，批量发送
+    if (event === 'sdk_message' &&
+        data.type === 'stream_event' &&
+        data.event?.type === 'content_block_delta') {
+      deltaBuffer.push({ index: data.event.index, delta: data.event.delta });
+      scheduleFlush();
+      // 仍然需要累积工具调用数据（但不通过 SSE 发送原始 delta）
+      const blockIdx = data.event.index;
+      // 工具调用的 input_json_delta 需要累积用于持久化，但不需要单独发送
+      return;
+    }
+
+    // 非批量事件先 flush 缓冲区
+    if (flushTimer !== null) {
+      clearTimeout(flushTimer);
+      flushDeltas();
+    }
+
     sendSSE(res, event, data);
 
     // 累积 AI 输出和工具调用用于持久化

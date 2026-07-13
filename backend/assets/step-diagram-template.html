@@ -34,7 +34,18 @@ const board = JXG.JSXGraph.initBoard('box', {
   keepaspectratio: true                  // 关键：1 单位 x = 1 单位 y（像素），保证图形不被拉变形
 });
 
-// ===== 在此用 board.create(...) 预建所有元素（初始 visible:false），并定义 steps 数组 =====
+// ===== 辅助函数（内置，直接调用即可，无需写完整 board.create） =====
+function pt(x,y,name,opt={}){return board.create('point',[x,y],Object.assign({name,visible:false,fixed:true,size:4,strokeColor:'#333',fillColor:'#333'},opt))}
+function seg(p1,p2,opt={}){return board.create('segment',[p1,p2],Object.assign({visible:false,strokeColor:'#333',strokeWidth:2},opt))}
+function circ(c,e,opt={}){return board.create('circle',[c,e],Object.assign({visible:false,strokeColor:'#868e96',dash:2},opt))}
+function txt(x,y,s,opt={}){return board.create('text',[x,y,s],Object.assign({visible:false,fontSize:13,anchorX:'mid',color:'#333'},opt))}
+function poly(pts,opt={}){return board.create('polygon',pts,Object.assign({visible:false,fillColor:'#e3f2fd',fillOpacity:0.4,strokeColor:'#333',strokeWidth:1},opt))}
+function arc(c,p1,p2,opt={}){return board.create('arc',[c,p1,p2],Object.assign({visible:false,strokeColor:'#868e96',strokeWidth:2},opt))}
+function perp(p1,line2,opt={}){return board.create('perpendicular',[p1,line2],Object.assign({visible:false,strokeColor:'#e03131',dash:3,strokeWidth:1},opt))}
+function para(p1,line2,opt={}){return board.create('parallelsegment',[p1,line2],Object.assign({visible:false,strokeColor:'#1971c2',strokeWidth:2},opt))}
+function func(f,opt={}){return board.create('functiongraph',[f],Object.assign({visible:false,strokeColor:'#e03131',strokeWidth:2},opt))}
+
+// ===== 在此用辅助函数预建所有元素（初始 visible:false），并定义 steps 数组 =====
 // 每个 step: { els: [元素, ...], text: '第 n 步说明' }
 __SETUP__
 

@@ -515,6 +515,38 @@ function handleStreamEvent(ev, toolCards, st) {
       const card = toolCards[block.cardId];
       if (card) card.querySelector(".tool-args").textContent = block.jsonBuf;
     }
+  } else if (ev.type === "content_block_deltas_batch") {
+    // 批量 delta：一次处理多个 content_block_delta，减少 DOM 操作和 scrollChat 调用
+    const deltas = ev.deltas || [];
+    let hasText = false;
+    for (const item of deltas) {
+      const block = st.blocks && st.blocks[item.index];
+      if (!block) continue;
+      const d = item.delta || {};
+      if (block.type === "text" && d.type === "text_delta" && d.text) {
+        block.rawBuf += d.text;
+        hasText = true;
+      } else if (
+        block.type === "tool_use" &&
+        d.type === "input_json_delta" &&
+        d.partial_json
+      ) {
+        block.jsonBuf += d.partial_json;
+        const card = toolCards[block.cardId];
+        if (card) card.querySelector(".tool-args").textContent = block.jsonBuf;
+      }
+    }
+    // 只渲染一次 + 滚动一次，而非每个 delta 都渲染
+    if (hasText && st.activeTextDiv) {
+      for (const k in st.blocks) {
+        const b = st.blocks[k];
+        if (b && b.type === "text" && b.div === st.activeTextDiv) {
+          renderAiBlock(b, false);
+          break;
+        }
+      }
+      scrollChat();
+    }
   } else if (ev.type === "content_block_stop") {
     const block = st.blocks && st.blocks[ev.index];
     if (block && block.type === "text" && block.div) {
