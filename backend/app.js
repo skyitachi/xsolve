@@ -26,6 +26,7 @@ import {
 import { handleTurn } from './controllers/turnController.js';
 import {
   evalDashboard,
+  evalTurns,
   getTurnScores,
   getSessionScores,
   triggerJudge,
@@ -90,6 +91,7 @@ export function createApp() {
 
   // ========== 评估 ==========
   app.get('/api/eval/dashboard', evalDashboard);
+  app.get('/api/eval/turns', evalTurns);
   app.get('/api/eval/scores/turn/:turnId', getTurnScores);
   app.get('/api/eval/scores/session/:sessionId', getSessionScores);
   app.post('/api/eval/judge/:turnId', triggerJudge);

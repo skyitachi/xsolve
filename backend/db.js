@@ -414,6 +414,39 @@ function getEvalDashboard(role) {
   };
 }
 
+export function getEvalTurns(page = 1, pageSize = 20, role) {
+  getDb();
+  const offset = (page - 1) * pageSize;
+
+  const total = db.prepare(
+    `SELECT COUNT(*) as c FROM chat_turns ${role ? 'WHERE role = ?' : ''}`
+  ).get(...(role ? [role] : [])).c;
+
+  const turns = db.prepare(`
+    SELECT t.id, t.session_id, t.role, t.user_message, t.ai_message,
+           t.tool_calls_json, t.duration_ms, t.error, t.created_at,
+           t.input_tokens, t.output_tokens,
+           t.prompt_version_id, pv.version as prompt_version,
+           (SELECT GROUP_CONCAT(es.dimension || ':' || es.value || ':' || COALESCE(es.comment,''), '||')
+            FROM eval_scores es WHERE es.turn_id = t.id AND es.scorer = 'llm-judge') as llm_scores,
+           (SELECT GROUP_CONCAT(es.dimension || ':' || es.value, '||')
+            FROM eval_scores es WHERE es.turn_id = t.id AND es.scorer = 'rule') as rule_scores
+    FROM chat_turns t
+    LEFT JOIN prompt_versions pv ON t.prompt_version_id = pv.id
+    ${role ? 'WHERE t.role = ?' : ''}
+    ORDER BY t.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(...(role ? [role] : []), pageSize, offset);
+
+  return {
+    turns,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize) || 1,
+  };
+}
+
 // ========== Prompt Version CRUD ==========
 
 function insertPromptVersion({ role, content, description }) {

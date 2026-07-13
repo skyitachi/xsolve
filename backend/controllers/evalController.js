@@ -3,6 +3,7 @@ import {
   getEvalScoresByTurn,
   getEvalScoresBySession,
   getEvalDashboard,
+  getEvalTurns,
   getChatTurns,
 } from '../db.js';
 import { judgeTurn } from '../eval/llm-judge.js';
@@ -11,6 +12,15 @@ import { judgeTurn } from '../eval/llm-judge.js';
 export function evalDashboard(req, res) {
   const role = req.query.role;
   const data = getEvalDashboard(role);
+  res.json(data);
+}
+
+// GET /api/eval/turns?page=1&pageSize=20&role=student
+export function evalTurns(req, res) {
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const pageSize = Math.max(1, Math.min(100, parseInt(req.query.pageSize) || 20));
+  const role = req.query.role;
+  const data = getEvalTurns(page, pageSize, role);
   res.json(data);
 }
 

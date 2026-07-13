@@ -81,6 +81,24 @@ tbody tr:hover { background: #fafafe; }
 .empty { text-align: center; padding: 3rem; color: #6b6b80; }
 .loading { text-align: center; padding: 2rem; color: #6b6b80; }
 
+/* Pagination */
+.pagination {
+  display: flex; justify-content: center; align-items: center; gap: 0.5rem;
+  margin-top: 1rem; flex-wrap: wrap;
+}
+.pagination button {
+  padding: 6px 12px; border: 1px solid #ddd; border-radius: 6px;
+  background: #fff; cursor: pointer; font-size: 13px; color: #4b3fe3;
+  min-width: 36px; transition: all 0.15s;
+}
+.pagination button:hover:not(:disabled) { background: #f0edff; border-color: #4b3fe3; }
+.pagination button.active { background: #4b3fe3; color: #fff; border-color: #4b3fe3; }
+.pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+.pagination .page-info { font-size: 13px; color: #6b6b80; margin: 0 0.5rem; }
+.pagination select {
+  padding: 4px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; background: #fff;
+}
+
 /* Mobile turn cards */
 .turn-cards { display: none; }
 .turn-card {
@@ -165,7 +183,7 @@ tbody tr:hover { background: #fafafe; }
     <div id="pvTableWrap" class="pv-table-wrap"><div class="loading">加载中...</div></div>
   </div>
 
-  <h2>Turn 列表（最近 50 条）</h2>
+  <h2>Turn 列表 <span id="turnPageInfo" style="font-size:13px;color:#6b6b80;font-weight:400;"></span></h2>
   <div class="turn-table-wrap">
     <table>
       <thead>
@@ -190,6 +208,7 @@ tbody tr:hover { background: #fafafe; }
   <div id="turnCards" class="turn-cards">
     <div class="loading">加载中...</div>
   </div>
+  <div id="pagination" class="pagination"></div>
 </div>
 
 <script>
@@ -229,8 +248,13 @@ function parseScores(str) {
   return result;
 }
 
+let lastRole = '';
 async function loadDashboard() {
   const role = document.getElementById('roleFilter').value;
+  if (role !== lastRole) {
+    turnPage = 1;
+    lastRole = role;
+  }
   const resp = await fetch(`/api/eval/dashboard${role ? '?role=' + role : ''}`);
   const data = await resp.json();
 
@@ -343,14 +367,35 @@ async function loadDashboard() {
     `;
   }
 
-  // Turn table
-  if (!data.recent_turns || data.recent_turns.length === 0) {
+  // Turn table is loaded separately via loadTurns()
+  loadTurns();
+}
+
+// ========== Turn pagination state ==========
+let turnPage = 1;
+let turnPageSize = 20;
+
+async function loadTurns(page) {
+  if (page !== undefined) turnPage = page;
+  const role = document.getElementById('roleFilter').value;
+  const params = new URLSearchParams({ page: turnPage, pageSize: turnPageSize });
+  if (role) params.set('role', role);
+
+  const resp = await fetch(`/api/eval/turns?${params}`);
+  const data = await resp.json();
+  const turns = data.turns || [];
+
+  document.getElementById('turnPageInfo').textContent =
+    `（共 ${data.total} 条，第 ${data.page}/${data.totalPages} 页）`;
+
+  if (turns.length === 0) {
     document.getElementById('turnBody').innerHTML = '<tr><td colspan="10" class="empty">暂无 Turn 数据，发送一条消息试试</td></tr>';
     document.getElementById('turnCards').innerHTML = '<div class="empty">暂无 Turn 数据，发送一条消息试试</div>';
+    document.getElementById('pagination').innerHTML = '';
     return;
   }
 
-  const rows = data.recent_turns.map((t, i) => {
+  const rows = turns.map((t, i) => {
     const llmScores = parseScores(t.llm_scores);
     const toolCount = JSON.parse(t.tool_calls_json || '[]').length;
     const totalToken = (t.input_tokens || 0) + (t.output_tokens || 0);
@@ -414,7 +459,7 @@ async function loadDashboard() {
   document.getElementById('turnBody').innerHTML = rows;
 
   // Render mobile cards
-  const cardsHtml = data.recent_turns.map((t, i) => {
+  const cardsHtml = turns.map((t, i) => {
     const llmScores = parseScores(t.llm_scores);
     const toolCount = JSON.parse(t.tool_calls_json || '[]').length;
     const totalToken = (t.input_tokens || 0) + (t.output_tokens || 0);
@@ -466,6 +511,49 @@ async function loadDashboard() {
     `;
   }).join('');
   document.getElementById('turnCards').innerHTML = cardsHtml;
+
+  // Render pagination controls
+  renderPagination(data);
+}
+
+function renderPagination(data) {
+  const el = document.getElementById('pagination');
+  const { page, totalPages, total } = data;
+
+  if (totalPages <= 1) {
+    el.innerHTML = '';
+    return;
+  }
+
+  // Build page buttons with ellipsis
+  let pages = [];
+  const showRange = 2; // show 2 pages before/after current
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || (i >= page - showRange && i <= page + showRange)) {
+      pages.push(i);
+    } else if (pages[pages.length - 1] !== '...') {
+      pages.push('...');
+    }
+  }
+
+  let html = '';
+  html += `<button onclick="loadTurns(${page - 1})" ${page <= 1 ? 'disabled' : ''}>‹ 上一页</button>`;
+  for (const p of pages) {
+    if (p === '...') {
+      html += `<span class="page-info">...</span>`;
+    } else {
+      html += `<button onclick="loadTurns(${p})" class="${p === page ? 'active' : ''}">${p}</button>`;
+    }
+  }
+  html += `<button onclick="loadTurns(${page + 1})" ${page >= totalPages ? 'disabled' : ''}>下一页 ›</button>`;
+  html += `<span class="page-info">${total} 条</span>`;
+  html += `<select onchange="turnPageSize=parseInt(this.value);turnPage=1;loadTurns()" style="margin-left:0.5rem;">`;
+  for (const s of [10, 20, 50, 100]) {
+    html += `<option value="${s}" ${s === turnPageSize ? 'selected' : ''}>${s}/页</option>`;
+  }
+  html += `</select>`;
+
+  el.innerHTML = html;
 }
 
 function toggleDetail(i) {
@@ -482,8 +570,11 @@ function toggleCardDetail(i) {
 
 // Initial load
 loadDashboard();
-// Auto refresh every 30s
-setInterval(loadDashboard, 30000);
+// Auto refresh every 30s (dashboard + current turn page)
+setInterval(function() {
+  loadDashboard();
+  loadTurns();
+}, 30000);
 </script>
 </body>
 </html>
