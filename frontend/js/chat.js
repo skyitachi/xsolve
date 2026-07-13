@@ -576,6 +576,7 @@ function handleUiEvent(ev) {
 function showDiagramCard(url, title) {
   const card = document.createElement("div");
   card.className = "msg msg-ai diagram-card";
+  card.style.maxWidth = "640px";
 
   const head = document.createElement("div");
   head.className = "diagram-head";
@@ -601,11 +602,7 @@ function showDiagramCard(url, title) {
   frame.title = title || "分步作图";
   frame.sandbox = "allow-scripts allow-same-origin";
 
-  // ---- 外层容器（可拖拽改变大小），iframe 自适应填满 ----
-  var frameWrap = document.createElement("div");
-  frameWrap.className = "diagram-frame-wrap";
-  frameWrap.appendChild(frame);
-
+  // ---- card 本身可拖拽改变大小，iframe 自适应填满 ----
   var minW = 280, maxW = 1200;
   var minH = 220, maxH = 1200;
 
@@ -622,8 +619,8 @@ function showDiagramCard(url, title) {
       e.stopPropagation();
       var startX = e.touches ? e.touches[0].clientX : e.clientX;
       var startY = e.touches ? e.touches[0].clientY : e.clientY;
-      var startW = frameWrap.offsetWidth;
-      var startH = frameWrap.offsetHeight;
+      var startW = card.offsetWidth;
+      var startH = card.offsetHeight;
       h.classList.add("dragging");
 
       function onMove(ev) {
@@ -632,11 +629,12 @@ function showDiagramCard(url, title) {
         var cy = ev.touches ? ev.touches[0].clientY : ev.clientY;
         if (dir === "e" || dir === "se") {
           var newW = Math.max(minW, Math.min(maxW, startW + cx - startX));
-          frameWrap.style.width = newW + "px";
+          card.style.width = newW + "px";
+          card.style.maxWidth = newW + "px";
         }
         if (dir === "s" || dir === "se") {
           var newH = Math.max(minH, Math.min(maxH, startH + cy - startY));
-          frameWrap.style.height = newH + "px";
+          card.style.height = newH + "px";
         }
       }
 
@@ -662,12 +660,12 @@ function showDiagramCard(url, title) {
   var handleR = makeHandle("e");
   var handleB = makeHandle("s");
   var handleSE = makeHandle("se");
-  frameWrap.appendChild(handleR);
-  frameWrap.appendChild(handleB);
-  frameWrap.appendChild(handleSE);
 
   card.appendChild(head);
-  card.appendChild(frameWrap);
+  card.appendChild(frame);
+  card.appendChild(handleR);
+  card.appendChild(handleB);
+  card.appendChild(handleSE);
   elChatLog.appendChild(card);
   scrollChat();
 }

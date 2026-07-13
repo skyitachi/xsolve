@@ -769,17 +769,26 @@ dialog h3 { margin: 0 0 8px 0; }
 
 /* ===== JSXGraph 分步作图卡片 ===== */
 .diagram-card {
-  padding: 10px 12px;
-  border: 1px solid #d6e0ff;
-  background: #f7f9ff;
-  border-radius: 10px;
-}
+    position: relative;
+    padding: 10px 12px;
+    border: 1px solid #d6e0ff;
+    background: #f7f9ff;
+    border-radius: 10px;
+    width: 100%;
+    min-width: 280px;
+    min-height: 220px;
+    height: 520px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
 .diagram-head {
   display: flex;
   align-items: center;
   gap: 6px;
   margin-bottom: 8px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 .diagram-title { font-weight: 600; color: #3b4a6b; }
 .diagram-open {
@@ -790,20 +799,15 @@ dialog h3 { margin: 0 0 8px 0; }
 }
 .diagram-open:hover { text-decoration: underline; }
 .diagram-frame {
+  flex: 1;
   width: 100%;
-  height: 100%;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   background: #fff;
-}
-.diagram-frame-wrap {
-  position: relative;
-  width: 100%;
-  max-width: 640px;
-  height: 520px;
+  min-height: 0;
 }
 
-/* ---- 三向拖拽手柄（全部相对于 frameWrap 定位） ---- */
+/* ---- 三向拖拽手柄（全部相对于 card 定位） ---- */
 .diagram-resize-handle {
   position: absolute;
   user-select: none;
@@ -910,5 +914,5 @@ dialog h3 { margin: 0 0 8px 0; }
 }
 
 @media (max-width: 768px) {
-  .diagram-frame-wrap { height: 460px; }
+  .diagram-card { height: 460px; }
 }
