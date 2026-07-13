@@ -778,9 +778,10 @@ dialog h3 { margin: 0 0 8px 0; }
     min-width: 280px;
     min-height: 220px;
     height: 520px;
-    overflow: hidden;
+    overflow: visible;
     display: flex;
     flex-direction: column;
+    margin-bottom: 16px;
   }
 .diagram-head {
   display: flex;
@@ -805,6 +806,7 @@ dialog h3 { margin: 0 0 8px 0; }
   border-radius: 8px;
   background: #fff;
   min-height: 0;
+  overflow: hidden;
 }
 
 /* ---- 三向拖拽手柄（全部相对于 card 定位） ---- */
