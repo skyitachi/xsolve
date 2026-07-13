@@ -819,8 +819,8 @@ dialog h3 { margin: 0 0 8px 0; }
 /* 右边缘：竖条 */
 .diagram-resize-handle.rz-e {
   top: 0;
-  right: -4px;
-  width: 8px;
+  right: -6px;
+  width: 12px;
   height: 100%;
   cursor: ew-resize;
 }
@@ -843,10 +843,10 @@ dialog h3 { margin: 0 0 8px 0; }
 
 /* 底边缘：横条 */
 .diagram-resize-handle.rz-s {
-  bottom: -10px;
+  bottom: -6px;
   left: 0;
   width: 100%;
-  height: 20px;
+  height: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -869,8 +869,8 @@ dialog h3 { margin: 0 0 8px 0; }
 
 /* 右下角：方块 */
 .diagram-resize-handle.rz-se {
-  bottom: -8px;
-  right: -8px;
+  bottom: -6px;
+  right: -6px;
   width: 16px;
   height: 16px;
   cursor: nwse-resize;
