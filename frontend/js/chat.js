@@ -644,7 +644,6 @@ function handleUiEvent(ev) {
 function showDiagramCard(url, title) {
   const card = document.createElement("div");
   card.className = "msg msg-ai diagram-card";
-  card.style.maxWidth = "640px";
 
   const head = document.createElement("div");
   head.className = "diagram-head";
@@ -672,7 +671,7 @@ function showDiagramCard(url, title) {
 
   // ---- card 本身可拖拽改变大小，iframe 自适应填满 ----
   var minW = 280, maxW = 1200;
-  var minH = 220, maxH = 1200;
+  var minH = 300, maxH = 1200;
 
   function makeHandle(dir) {
     var h = document.createElement("div");

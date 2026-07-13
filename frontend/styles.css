@@ -777,10 +777,11 @@ dialog h3 { margin: 0 0 8px 0; }
     border: 1px solid #d6e0ff;
     background: #f7f9ff;
     border-radius: 10px;
-    width: 100%;
+    width: 96%;
+    max-width: 96%;
     min-width: 280px;
-    min-height: 220px;
-    height: 520px;
+    height: 600px;
+    flex-shrink: 0;
     overflow: visible;
     display: flex;
     flex-direction: column;
@@ -924,5 +925,5 @@ dialog h3 { margin: 0 0 8px 0; }
 }
 
 @media (max-width: 768px) {
-  .diagram-card { height: 460px; }
+  .diagram-card { height: 500px; }
 }
