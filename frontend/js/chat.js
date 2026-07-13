@@ -644,12 +644,14 @@ function showDiagramCard(url, title) {
         document.removeEventListener("touchmove", onMove);
         document.removeEventListener("mouseup", onEnd);
         document.removeEventListener("touchend", onEnd);
+        document.removeEventListener("mouseleave", onEnd);
       }
 
       document.addEventListener("mousemove", onMove);
       document.addEventListener("touchmove", onMove, { passive: false });
       document.addEventListener("mouseup", onEnd);
       document.addEventListener("touchend", onEnd);
+      document.addEventListener("mouseleave", onEnd);
     }
 
     h.addEventListener("mousedown", start);
