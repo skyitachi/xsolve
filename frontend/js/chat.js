@@ -572,7 +572,7 @@ function handleUiEvent(ev) {
   }
 }
 
-// 在聊天里插入一个 JSXGraph 分步作图卡片（内嵌 iframe + 新窗口打开）
+// 在聊天里插入一个 JSXGraph 分步作图卡片（内嵌 iframe + 新窗口打开 + 拖拽调整大小）
 function showDiagramCard(url, title) {
   const card = document.createElement("div");
   card.className = "msg msg-ai diagram-card";
@@ -601,8 +601,48 @@ function showDiagramCard(url, title) {
   frame.title = title || "分步作图";
   frame.sandbox = "allow-scripts allow-same-origin";
 
+  // 拖拽调整大小的手柄（底部边缘）
+  const handle = document.createElement("div");
+  handle.className = "diagram-resize-handle";
+  const handleHint = document.createElement("span");
+  handleHint.className = "diagram-resize-hint";
+  handleHint.textContent = "⇅ 拖拽调整高度";
+  handle.appendChild(handleHint);
+
+  function startResize(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var startY = e.touches ? e.touches[0].clientY : e.clientY;
+    var startH = frame.offsetHeight;
+    handle.classList.add("dragging");
+
+    function onMove(ev) {
+      ev.preventDefault();
+      var clientY = ev.touches ? ev.touches[0].clientY : ev.clientY;
+      var newH = Math.max(220, Math.min(1200, startH + clientY - startY));
+      frame.style.height = newH + "px";
+    }
+
+    function onEnd() {
+      handle.classList.remove("dragging");
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("mouseup", onEnd);
+      document.removeEventListener("touchend", onEnd);
+    }
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("mouseup", onEnd);
+    document.addEventListener("touchend", onEnd);
+  }
+
+  handle.addEventListener("mousedown", startResize);
+  handle.addEventListener("touchstart", startResize, { passive: false });
+
   card.appendChild(head);
   card.appendChild(frame);
+  card.appendChild(handle);
   elChatLog.appendChild(card);
   scrollChat();
 }
