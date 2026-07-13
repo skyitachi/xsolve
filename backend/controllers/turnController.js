@@ -84,6 +84,13 @@ export function handleTurn(req, res) {
       flushDeltas();
     }
 
+    // 过滤掉不需要发送到前端的系统消息（thinking_tokens 等思考过程元数据）
+    if (event === 'sdk_message' &&
+        data.type === 'system' &&
+        data.subtype === 'thinking_tokens') {
+      return;
+    }
+
     sendSSE(res, event, data);
 
     // 累积 AI 输出和工具调用用于持久化
