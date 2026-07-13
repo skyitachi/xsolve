@@ -111,6 +111,8 @@ export function handleTurn(req, res) {
       }
     } else if (event === 'error') {
       turnError = data.message || 'unknown error';
+    } else if (event === 'aborted') {
+      turnError = 'user_cancelled';
     }
 
     // 收到最终结果或错误后，发送 done 并关闭连接
@@ -121,6 +123,11 @@ export function handleTurn(req, res) {
       setImmediate(() => { try { res.end(); } catch { /* ignore */ } });
     } else if (event === 'error') {
       persistTurn();
+      sendSSE(res, 'done', {});
+      setImmediate(() => { try { res.end(); } catch { /* ignore */ } });
+    } else if (event === 'aborted') {
+      persistTurn();
+      sendSSE(res, 'aborted', { reason: 'user_cancelled' });
       sendSSE(res, 'done', {});
       setImmediate(() => { try { res.end(); } catch { /* ignore */ } });
     }

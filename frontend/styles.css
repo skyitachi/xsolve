@@ -329,6 +329,8 @@ html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, Bl
   padding: 6px 14px; cursor: pointer; font-size: 14px;
 }
 .chat-input button:disabled { background: #a5b4fc; cursor: not-allowed; }
+#chat-cancel { background: #dc2626; }
+#chat-cancel:hover { background: #b91c1c; }
 
 dialog { border: none; border-radius: 12px; padding: 20px; min-width: 360px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
 dialog input, dialog select { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }

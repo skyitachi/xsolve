@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { STATIC_ROOT } from './config.js';
-import { sessions, createSession, destroySession, clearSessionHistory, resetSession } from './session.js';
+import { sessions, createSession, destroySession, clearSessionHistory, resetSession, abortTurn } from './session.js';
 import {
   getProblemsForClient, getProblem, getAllProblems,
   insertProblem, updateProblemFigure, deleteProblem
@@ -84,6 +84,15 @@ export async function handleRequest(req, res) {
     const id = pathname.split('/')[3];
     const s = sessions.get(id);
     if (s) await destroySession(s);
+    return send(res, 200, { ok: true });
+  }
+
+  // 中止当前 AI 回复（用户取消）
+  if (req.method === 'POST' && pathname.match(/^\/api\/session\/[^/]+\/abort$/)) {
+    const id = pathname.split('/')[3];
+    const s = sessions.get(id);
+    if (!s) return send(res, 404, { error: 'session not found' });
+    await abortTurn(s);
     return send(res, 200, { ok: true });
   }
 

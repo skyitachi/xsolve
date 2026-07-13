@@ -290,6 +290,22 @@ async function newChatOverride() {
 }
 
 // ========== SSE 流式处理 ==========
+var _abortController = null;
+
+async function cancelTurn() {
+  if (!state.turnInFlight) return;
+  // 1. 前端中止 fetch reader
+  if (_abortController) {
+    try { _abortController.abort(); } catch {}
+  }
+  // 2. 后端中止 SDK 查询
+  if (state.sessionId) {
+    try {
+      await fetch(`/api/session/${state.sessionId}/abort`, { method: "POST" });
+    } catch {}
+  }
+}
+
 async function runTurn(userText, opts = {}) {
   if (state.turnInFlight) {
     addSystemMsg("⏳ AI正在处理中，请稍候再发送...");
@@ -300,8 +316,12 @@ async function runTurn(userText, opts = {}) {
     return;
   }
   state.turnInFlight = true;
+  elChatSend.style.display = "none";
+  $("#chat-cancel").style.display = "";
   elChatSend.disabled = true;
   let streamDone = false;
+  let streamAborted = false;
+  _abortController = new AbortController();
   try {
     const hasMedia = opts.image || opts.audio;
     AiStatus.begin(hasMedia ? "正在上传媒体…" : "思考中…");
@@ -319,6 +339,7 @@ async function runTurn(userText, opts = {}) {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(bodyPayload),
+      signal: _abortController.signal,
     });
     if (!resp.ok || !resp.body) {
       let errText = `HTTP ${resp.status} ${resp.statusText || ""}`;
@@ -337,21 +358,32 @@ async function runTurn(userText, opts = {}) {
     }
     if (opts.image) AiStatus.tick("模型识别图片中…", "thinking");
     else if (opts.audio) AiStatus.tick("模型识别语音中…", "thinking");
-    await readSSE(resp.body, () => { streamDone = true; });
-    if (!streamDone) {
+    await readSSE(resp.body, () => { streamDone = true; }, () => { streamAborted = true; });
+    if (streamAborted) {
+      addSystemMsg("⏹️ 已取消当前回复。");
+      AiStatus.done();
+    } else if (!streamDone) {
       addErrorMsg("连接异常中断：AI 未返回完整结果，请重试。");
       AiStatus.error("连接中断");
     }
   } catch (e) {
-    addErrorMsg(`网络/系统错误：\n${e.message || String(e)}`);
-    AiStatus.error(e.message || "网络错误");
+    if (e.name === 'AbortError') {
+      addSystemMsg("⏹️ 已取消当前回复。");
+      AiStatus.done();
+    } else {
+      addErrorMsg(`网络/系统错误：\n${e.message || String(e)}`);
+      AiStatus.error(e.message || "网络错误");
+    }
   } finally {
     state.turnInFlight = false;
     elChatSend.disabled = false;
+    elChatSend.style.display = "";
+    $("#chat-cancel").style.display = "none";
+    _abortController = null;
   }
 }
 
-async function readSSE(stream, onDone) {
+async function readSSE(stream, onDone, onAborted) {
   const reader = stream.getReader();
   const decoder = new TextDecoder("utf-8");
   let buf = "";
@@ -377,6 +409,7 @@ async function readSSE(stream, onDone) {
         payload = JSON.parse(data);
       } catch {}
       handleEvent(event, payload, toolCards, partialState);
+      if (event === "aborted" && onAborted) onAborted();
       if (event === "done" && onDone) onDone();
     }
   }
@@ -392,6 +425,8 @@ function handleEvent(event, payload, toolCards, partialState) {
       break;
     case "ui_event":
       handleUiEvent(payload);
+      break;
+    case "aborted":
       break;
     case "error":
       addErrorMsg(payload.message || "未知错误");

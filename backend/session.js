@@ -311,6 +311,64 @@ export async function clearSessionHistory(s) {
 }
 
 /**
+ * 中止当前正在进行的 turn（不销毁 session，保留历史）
+ * 停止当前 SDK 查询进程，重启一个新的查询进程。
+ * @param {object} s - session 对象
+ */
+export async function abortTurn(s) {
+  if (!s || s.closed) return;
+
+  // 1. 通知订阅者：被用户中止
+  s.emit('aborted', { reason: 'user_cancelled' });
+
+  // 2. 停止旧 SDK 进程
+  try { s.queue.close(); } catch { /* ignore */ }
+  try { s.query && s.query.close && s.query.close(); } catch { /* ignore */ }
+
+  // 3. 重建队列和查询（保留历史，不清空）
+  s.queue = createInputQueue();
+  s.query = null;
+
+  const tutorMcp = buildTutorMcp(s);
+  const promptInfo = resolvePrompt(s.mode);
+  s.promptVersionId = promptInfo.versionId;
+
+  s.query = query({
+    prompt: s.queue.iterable(),
+    options: {
+      systemPrompt: promptInfo.content,
+      mcpServers: { tutor: tutorMcp },
+      tools: [],
+      allowedTools: ALLOWED_TOOLS,
+      permissionMode: 'bypassPermissions',
+      persistSession: false,
+      includePartialMessages: true,
+      stderr: (data) => {
+        const text = (typeof data === 'string' ? data : data.toString()).trimEnd();
+        if (text) console.error('[claude-code]', text);
+      },
+      ...(CLAUDE_MODEL ? { model: CLAUDE_MODEL } : {}),
+      env: { ...process.env, CLAUDE_AGENT_SDK_CLIENT_APP: 'selflearning/0.1.0' }
+    }
+  });
+
+  // 4. 重启后台循环
+  s.runPromise = (async () => {
+    try {
+      for await (const msg of s.query) {
+        if (s.closed) break;
+        s.emit('sdk_message', msg);
+      }
+    } catch (e) {
+      const errMsg = e.message || String(e);
+      console.error('[sdk error after abort]', e);
+      s.emit('error', { message: errMsg });
+      s.emit('done', {});
+    }
+  })();
+}
+
+/**
  * 重置会话：销毁旧 session 并创建一个新 session（新 ID）
  * 用于"新建对话覆盖老 session"场景
  * @param {string} oldId - 旧 session ID

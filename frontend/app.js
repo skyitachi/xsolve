@@ -69,6 +69,12 @@ function initApp() {
     runTurn(text);
   });
 
+  // 停止按钮
+  var elChatCancel = $("#chat-cancel");
+  elChatCancel.addEventListener("click", () => {
+    cancelTurn();
+  });
+
   // Enter 发送消息；Shift+Enter 换行
   elChatInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
