@@ -80,6 +80,7 @@ function addAiMsg(text = "") {
 }
 
 function scrollChat() {
+  if (window._diagramDragging) return;
   elChatLog.scrollTop = elChatLog.scrollHeight;
 }
 
@@ -617,6 +618,7 @@ function showDiagramCard(url, title) {
     function start(e) {
       e.preventDefault();
       e.stopPropagation();
+      window._diagramDragging = true;
       var startX = e.touches ? e.touches[0].clientX : e.clientX;
       var startY = e.touches ? e.touches[0].clientY : e.clientY;
       var startW = card.offsetWidth;
@@ -640,6 +642,7 @@ function showDiagramCard(url, title) {
 
       function onEnd() {
         h.classList.remove("dragging");
+        window._diagramDragging = false;
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("touchmove", onMove);
         document.removeEventListener("mouseup", onEnd);
