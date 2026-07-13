@@ -80,7 +80,7 @@ function addAiMsg(text = "") {
 }
 
 function scrollChat() {
-  if (window._diagramDragging) return;
+  if (window._diagramDragging || window._panelResizing) return;
   elChatLog.scrollTop = elChatLog.scrollHeight;
 }
 

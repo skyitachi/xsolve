@@ -26,15 +26,64 @@ html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, Bl
 
 .layout {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: var(--col1, 1.4fr) var(--resizer-v-w, 6px) var(--col2, 1fr);
+  grid-template-rows: var(--row1, 1fr) var(--resizer-h-h, 6px) var(--row2, 1fr);
+  gap: 0;
   padding: 12px;
   height: calc(100vh - 52px);
 }
 .panel-problem { grid-column: 1; grid-row: 1; }
-.panel-work    { grid-column: 1; grid-row: 2; }
-.panel-ai      { grid-column: 2; grid-row: 1 / span 2; }
+.panel-work    { grid-column: 1; grid-row: 3; }
+.panel-ai      { grid-column: 3; grid-row: 1 / span 3; }
+
+/* 面板分割条 */
+.panel-resizer {
+  position: relative;
+  z-index: 5;
+  background: transparent;
+}
+.resizer-h {
+  grid-column: 1;
+  grid-row: 2;
+  cursor: row-resize;
+  height: 6px;
+  margin: -3px 0;
+}
+.resizer-v {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  cursor: col-resize;
+  width: 6px;
+  margin: 0 -3px;
+}
+.panel-resizer::after {
+  content: '';
+  position: absolute;
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+.resizer-h::after {
+  left: 30%; right: 30%;
+  top: 50%; height: 3px;
+  transform: translateY(-50%);
+  background: #d1d5db;
+}
+.resizer-v::after {
+  top: 30%; bottom: 30%;
+  left: 50%; width: 3px;
+  transform: translateX(-50%);
+  background: #d1d5db;
+}
+.resizer-h:hover::after,
+.resizer-h.dragging::after {
+  background: #6366f1;
+  height: 4px;
+}
+.resizer-v:hover::after,
+.resizer-v.dragging::after {
+  background: #6366f1;
+  width: 4px;
+}
 
 .panel {
   background: white;
@@ -43,6 +92,7 @@ html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, Bl
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
 }
 .panel-title {
@@ -553,9 +603,10 @@ dialog h3 { margin: 0 0 8px 0; }
 }
 
 @media (max-width: 1100px) {
-  .layout { grid-template-columns: 1fr; grid-template-rows: auto auto auto; height: auto; }
-  .panel-problem, .panel-work, .panel-ai { grid-column: 1; grid-row: auto; }
+  .layout { grid-template-columns: 1fr !important; grid-template-rows: auto auto auto !important; height: auto; }
+  .panel-problem, .panel-work, .panel-ai { grid-column: 1 !important; grid-row: auto !important; }
   .panel { min-height: 360px; }
+  .panel-resizer { display: none !important; }
 }
 
 /* ===== 桌面端隐藏移动端元素 ===== */
