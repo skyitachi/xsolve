@@ -328,9 +328,46 @@ function getEvalDashboard(role) {
     GROUP BY es.dimension
   `).all(...(role ? [role] : []));
 
+  // 按 prompt 版本分组的维度均分（关注每次更新 prompt 后评分变化）
+  const scoresByPromptVersion = db.prepare(`
+    SELECT es.dimension, pv.version as prompt_version, pv.role as prompt_role,
+           AVG(es.value) as avg_value, COUNT(*) as count
+    FROM eval_scores es
+    LEFT JOIN prompt_versions pv ON es.prompt_version_id = pv.id
+    ${role ? 'WHERE es.role = ? AND' : 'WHERE'} es.scorer = 'llm-judge'
+    GROUP BY es.prompt_version_id, es.dimension
+    ORDER BY pv.role, pv.version
+  `).all(...(role ? [role] : []));
+
+  // Token 聚合数据
+  const tokenStats = db.prepare(`
+    SELECT
+      SUM(input_tokens) as total_input_tokens,
+      SUM(output_tokens) as total_output_tokens,
+      AVG(input_tokens) as avg_input_tokens,
+      AVG(output_tokens) as avg_output_tokens,
+      COUNT(*) as turn_count
+    FROM chat_turns
+    ${role ? 'WHERE role = ?' : ''}
+  `).get(...(role ? [role] : []));
+
+  // 按 prompt 版本分组的 token 消耗
+  const tokensByPromptVersion = db.prepare(`
+    SELECT pv.version as prompt_version, pv.role as prompt_role,
+           SUM(t.input_tokens) as total_input_tokens,
+           SUM(t.output_tokens) as total_output_tokens,
+           COUNT(*) as turn_count
+    FROM chat_turns t
+    LEFT JOIN prompt_versions pv ON t.prompt_version_id = pv.id
+    ${role ? 'WHERE t.role = ?' : ''}
+    GROUP BY t.prompt_version_id
+    ORDER BY pv.role, pv.version
+  `).all(...(role ? [role] : []));
+
   const recentTurns = db.prepare(`
     SELECT t.id, t.session_id, t.role, t.user_message, t.ai_message,
            t.tool_calls_json, t.duration_ms, t.error, t.created_at,
+           t.input_tokens, t.output_tokens,
            t.prompt_version_id, pv.version as prompt_version,
            (SELECT GROUP_CONCAT(es.dimension || ':' || es.value || ':' || COALESCE(es.comment,''), '||')
             FROM eval_scores es WHERE es.turn_id = t.id AND es.scorer = 'llm-judge') as llm_scores,
@@ -350,6 +387,28 @@ function getEvalDashboard(role) {
       return acc;
     }, {}),
     llm_judge_count: llmJudgeScores.reduce((sum, s) => sum + s.count, 0),
+    scores_by_prompt_version: scoresByPromptVersion.reduce((acc, row) => {
+      const key = row.prompt_version ? `v${row.prompt_version}` : 'unversioned';
+      if (!acc[key]) acc[key] = { prompt_version: row.prompt_version, prompt_role: row.prompt_role, dims: {}, count: 0 };
+      acc[key].dims[row.dimension] = Math.round(row.avg_value * 100) / 100;
+      acc[key].count += row.count;
+      return acc;
+    }, {}),
+    token_stats: {
+      total_input_tokens: tokenStats?.total_input_tokens || 0,
+      total_output_tokens: tokenStats?.total_output_tokens || 0,
+      avg_input_tokens: tokenStats?.avg_input_tokens ? Math.round(tokenStats.avg_input_tokens) : 0,
+      avg_output_tokens: tokenStats?.avg_output_tokens ? Math.round(tokenStats.avg_output_tokens) : 0,
+      turn_count: tokenStats?.turn_count || 0,
+    },
+    tokens_by_prompt_version: tokensByPromptVersion.map(row => ({
+      prompt_version: row.prompt_version,
+      prompt_role: row.prompt_role,
+      total_input_tokens: row.total_input_tokens || 0,
+      total_output_tokens: row.total_output_tokens || 0,
+      total_tokens: (row.total_input_tokens || 0) + (row.total_output_tokens || 0),
+      turn_count: row.turn_count,
+    })),
     recent_turns: recentTurns,
   };
 }

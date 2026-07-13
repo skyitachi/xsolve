@@ -30,6 +30,8 @@ h2 { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
 .summary-card .label { font-size: 12px; color: #6b6b80; margin-bottom: 0.5rem; }
 .summary-card .value { font-size: 1.75rem; font-weight: 700; color: #1a1a2e; }
 .summary-card .sub { font-size: 12px; color: #6b6b80; margin-top: 0.25rem; }
+.summary-card .token-breakdown { margin-top: 0.5rem; font-size: 12px; color: #6b6b80; }
+.summary-card .token-breakdown span { display: inline-block; margin-right: 0.5rem; }
 
 /* Dimension scores */
 .dim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
@@ -41,6 +43,16 @@ h2 { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
 .dim-card .dim-score { font-size: 1.3rem; font-weight: 700; }
 .dim-card .dim-bar { height: 4px; background: #e8e8ee; border-radius: 2px; margin-top: 0.5rem; overflow: hidden; }
 .dim-card .dim-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+/* Prompt version comparison table */
+.pv-table-wrap { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 1.5rem; overflow-x: auto; }
+.pv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.pv-table th, .pv-table td { padding: 8px 12px; text-align: center; border: 1px solid #eee; }
+.pv-table th { background: #f0f0f3; font-weight: 600; white-space: nowrap; }
+.pv-table td:first-child { text-align: left; font-weight: 600; }
+.pv-table .pv-version { font-size: 12px; background: #e8e0ff; color: #4b3fe3; padding: 2px 8px; border-radius: 10px; font-weight: 600; display: inline-block; }
+.pv-table .pv-role { font-size: 11px; color: #6b6b80; }
+.pv-table .pv-tokens { font-size: 11px; color: #6b6b80; margin-top: 2px; }
 
 /* Turn table */
 .turn-table-wrap { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
@@ -148,6 +160,11 @@ tbody tr:hover { background: #fafafe; }
     <div id="dimGrid" class="dim-grid"><div class="loading">加载中...</div></div>
   </div>
 
+  <div id="pvSection">
+    <h2>Prompt 版本评分对比</h2>
+    <div id="pvTableWrap" class="pv-table-wrap"><div class="loading">加载中...</div></div>
+  </div>
+
   <h2>Turn 列表（最近 50 条）</h2>
   <div class="turn-table-wrap">
     <table>
@@ -159,13 +176,14 @@ tbody tr:hover { background: #fafafe; }
           <th>AI 回复</th>
           <th>Prompt</th>
           <th>工具</th>
+          <th>Token</th>
           <th>耗时</th>
           <th>Judge 评分</th>
           <th></th>
         </tr>
       </thead>
       <tbody id="turnBody">
-        <tr><td colspan="9" class="loading">加载中...</td></tr>
+        <tr><td colspan="10" class="loading">加载中...</td></tr>
       </tbody>
     </table>
   </div>
@@ -195,6 +213,12 @@ function fmtTime(ts) {
   return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
+function fmtTokens(n) {
+  if (!n || n === 0) return '-';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+  return String(n);
+}
+
 function parseScores(str) {
   if (!str) return {};
   const result = {};
@@ -217,6 +241,9 @@ async function loadDashboard() {
     ? (dims.reduce((s, d) => s + data.llm_judge_avg[d], 0) / dims.length).toFixed(2)
     : '-';
 
+  const ts = data.token_stats || {};
+  const totalTokens = (ts.total_input_tokens || 0) + (ts.total_output_tokens || 0);
+
   document.getElementById('summarySection').innerHTML = `
     <div class="summary-card">
       <div class="label">总 Turn 数</div>
@@ -230,6 +257,15 @@ async function loadDashboard() {
     <div class="summary-card">
       <div class="label">LLM Judge 总均分</div>
       <div class="value">${overallAvg}<span style="font-size:1rem;color:#6b6b80">/5</span></div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Token 总消耗</div>
+      <div class="value">${fmtTokens(totalTokens)}</div>
+      <div class="token-breakdown">
+        <span>输入 ${fmtTokens(ts.total_input_tokens)}</span>
+        <span>输出 ${fmtTokens(ts.total_output_tokens)}</span>
+      </div>
+      <div class="sub">均 ${fmtTokens(ts.avg_input_tokens + ts.avg_output_tokens)}/turn</div>
     </div>
   `;
 
@@ -248,17 +284,67 @@ async function loadDashboard() {
   }).join('');
   document.getElementById('dimGrid').innerHTML = dimHtml;
 
+  // Prompt version comparison table
+  const pvData = data.scores_by_prompt_version || {};
+  const pvTokens = (data.tokens_by_prompt_version || []).reduce((acc, t) => {
+    const key = t.prompt_version ? `v${t.prompt_version}` : 'unversioned';
+    acc[key] = t;
+    return acc;
+  }, {});
+  const pvKeys = Object.keys(pvData);
+
+  if (pvKeys.length === 0) {
+    document.getElementById('pvTableWrap').innerHTML = '<div class="empty">暂无按版本分组的评分数据</div>';
+  } else {
+    const pvRows = pvKeys.map(key => {
+      const pv = pvData[key];
+      const tk = pvTokens[key] || {};
+      const dimsHtml = Object.entries(DIMENSIONS).map(([dk, dl]) => {
+        const v = pv.dims[dk];
+        if (!v) return `<td>-</td>`;
+        return `<td><span class="score-badge ${scoreClass(v)}">${v.toFixed(1)}</span></td>`;
+      }).join('');
+      const overallPv = Object.keys(pv.dims).length > 0
+        ? (Object.values(pv.dims).reduce((s,v) => s+v, 0) / Object.values(pv.dims).length).toFixed(2)
+        : '-';
+      return `
+        <tr>
+          <td>
+            <span class="pv-version">${key}</span>
+            ${pv.prompt_role ? `<span class="pv-role">${pv.prompt_role === 'student' ? '学生' : pv.prompt_role === 'parent' ? '家长' : pv.prompt_role}</span>` : ''}
+            <div class="pv-tokens">${pv.count} 条评分 · Token: ${fmtTokens(tk.total_tokens || 0)} (${tk.turn_count || 0} turns)</div>
+          </td>
+          ${dimsHtml}
+          <td><strong>${overallPv}</strong></td>
+        </tr>
+      `;
+    }).join('');
+
+    document.getElementById('pvTableWrap').innerHTML = `
+      <table class="pv-table">
+        <thead>
+          <tr>
+            <th>版本</th>
+            ${Object.values(DIMENSIONS).map(l => `<th>${l}</th>`).join('')}
+            <th>总均分</th>
+          </tr>
+        </thead>
+        <tbody>${pvRows}</tbody>
+      </table>
+    `;
+  }
+
   // Turn table
   if (!data.recent_turns || data.recent_turns.length === 0) {
-    document.getElementById('turnBody').innerHTML = '<tr><td colspan="9" class="empty">暂无 Turn 数据，发送一条消息试试</td></tr>';
+    document.getElementById('turnBody').innerHTML = '<tr><td colspan="10" class="empty">暂无 Turn 数据，发送一条消息试试</td></tr>';
     document.getElementById('turnCards').innerHTML = '<div class="empty">暂无 Turn 数据，发送一条消息试试</div>';
     return;
   }
 
   const rows = data.recent_turns.map((t, i) => {
     const llmScores = parseScores(t.llm_scores);
-    const ruleScores = parseScores(t.rule_scores);
     const toolCount = JSON.parse(t.tool_calls_json || '[]').length;
+    const totalToken = (t.input_tokens || 0) + (t.output_tokens || 0);
 
     const scoreBadges = Object.entries(DIMENSIONS).map(([key, label]) => {
       const s = llmScores[key];
@@ -274,12 +360,13 @@ async function loadDashboard() {
         <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(t.ai_message||'').slice(0,40)}</td>
         <td style="text-align:center">${t.prompt_version ? `<span style="font-size:12px;background:#e8e0ff;color:#4b3fe3;padding:1px 8px;border-radius:10px;font-weight:600;">v${t.prompt_version}</span>` : '<span style="color:#aaa">-</span>'}</td>
         <td>${toolCount > 0 ? toolCount + '次' : '-'}</td>
+        <td style="font-size:11px;color:#6b6b80;white-space:nowrap">${totalToken > 0 ? fmtTokens(totalToken) : '-'}${totalToken > 0 ? '<br><span style="color:#aaa">↑'+fmtTokens(t.input_tokens)+' ↓'+fmtTokens(t.output_tokens)+'</span>' : ''}</td>
         <td>${t.duration_ms ? (t.duration_ms/1000).toFixed(1)+'s' : '-'}</td>
         <td>${scoreBadges || '<span class="score-badge score-na">未评估</span>'}</td>
         <td><span class="toggle-detail" onclick="toggleDetail(${i})">展开</span></td>
       </tr>
       <tr class="detail-row" id="detail-${i}">
-        <td colspan="9">
+        <td colspan="10">
           <div class="detail-content">
             <div class="detail-section">
               <div class="ds-label">用户输入</div>
@@ -288,6 +375,12 @@ async function loadDashboard() {
             <div class="detail-section">
               <div class="ds-label">AI 回复</div>
               <div class="ds-value" style="white-space:pre-wrap">${(t.ai_message||'').replace(/</g,'&lt;')}</div>
+            </div>
+            <div class="detail-section">
+              <div class="ds-label">Token 用量</div>
+              <div class="ds-value">
+                输入: <strong>${t.input_tokens || 0}</strong> · 输出: <strong>${t.output_tokens || 0}</strong> · 合计: <strong>${totalToken}</strong>
+              </div>
             </div>
             <div class="detail-section">
               <div class="ds-label">工具调用</div>
@@ -315,6 +408,7 @@ async function loadDashboard() {
   const cardsHtml = data.recent_turns.map((t, i) => {
     const llmScores = parseScores(t.llm_scores);
     const toolCount = JSON.parse(t.tool_calls_json || '[]').length;
+    const totalToken = (t.input_tokens || 0) + (t.output_tokens || 0);
     const scoreBadges = Object.entries(DIMENSIONS).map(([key, label]) => {
       const s = llmScores[key];
       if (!s) return `<span class="score-badge score-na">${label}: -</span>`;
@@ -324,7 +418,7 @@ async function loadDashboard() {
       <div class="turn-card">
         <div class="turn-card-head">
           <span class="turn-card-role">${t.role === 'student' ? '👨‍🎓 学生' : '👨‍👩‍👧 家长'}</span>
-          <span class="turn-card-meta">${fmtTime(t.created_at)} · ${t.prompt_version ? 'Prompt v'+t.prompt_version : ''} · ${t.duration_ms ? (t.duration_ms/1000).toFixed(1)+'s' : '-'} · ${toolCount > 0 ? toolCount+'工具' : '无工具'}</span>
+          <span class="turn-card-meta">${fmtTime(t.created_at)} · ${t.prompt_version ? 'v'+t.prompt_version : ''} · ${t.duration_ms ? (t.duration_ms/1000).toFixed(1)+'s' : '-'} · ${toolCount > 0 ? toolCount+'工具' : '无工具'} · ${totalToken > 0 ? fmtTokens(totalToken)+' tokens' : ''}</span>
         </div>
         <div class="turn-card-msg"><span class="msg-label">用户:</span>${(t.user_message||'').slice(0,50).replace(/</g,'&lt;')}</div>
         <div class="turn-card-msg"><span class="msg-label">AI:</span>${(t.ai_message||'').slice(0,50).replace(/</g,'&lt;')}</div>
@@ -338,6 +432,10 @@ async function loadDashboard() {
           <div class="detail-section">
             <div class="ds-label">AI 回复</div>
             <div class="ds-value" style="white-space:pre-wrap">${(t.ai_message||'').replace(/</g,'&lt;')}</div>
+          </div>
+          <div class="detail-section">
+            <div class="ds-label">Token 用量</div>
+            <div class="ds-value">输入: <strong>${t.input_tokens || 0}</strong> · 输出: <strong>${t.output_tokens || 0}</strong> · 合计: <strong>${totalToken}</strong></div>
           </div>
           <div class="detail-section">
             <div class="ds-label">工具调用</div>
