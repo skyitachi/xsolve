@@ -691,6 +691,7 @@ function showDiagramCard(url, title) {
       var startW = card.offsetWidth;
       var startH = card.offsetHeight;
       h.classList.add("dragging");
+      card.classList.add("dragging");
 
       function onMove(ev) {
         ev.preventDefault();
@@ -709,6 +710,7 @@ function showDiagramCard(url, title) {
 
       function onEnd() {
         h.classList.remove("dragging");
+        card.classList.remove("dragging");
         window._diagramDragging = false;
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("touchmove", onMove);
