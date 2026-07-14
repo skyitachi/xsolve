@@ -22,6 +22,7 @@ import {
   listSessions,
   getSessionHistory,
   archiveSession,
+  patchSession,
 } from './controllers/sessionController.js';
 import { handleTurn } from './controllers/turnController.js';
 import {
@@ -77,6 +78,7 @@ export function createApp() {
   app.post('/api/session/:id/clear', clearSession);
   app.post('/api/session/:id/reset', resetSessionHandler);
   app.post('/api/session/:id/archive', archiveSession);
+  app.patch('/api/session/:id', patchSession);
 
   // ========== 草稿同步 ==========
   app.post('/api/session/:id/scratch', syncScratch);

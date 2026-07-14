@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
-import { getAllProblems, getProblem, insertProblem, updateProblemFigure } from './db.js';
+import { getAllProblems, getProblem, insertProblem, updateProblemFigure, updateChatSession } from './db.js';
 import { runVisionHttp } from './vision.js';
 import { CLAUDE_MODEL, SCRATCH_VISION_PROMPT } from './config.js';
 import { compareAnswer, safeCalc, mcpOk, mcpErr } from './utils.js';
@@ -71,6 +71,7 @@ export function buildTutorMcp(session) {
         }
         if (!p) return mcpErr('problem not found: ' + args.problem_id);
         session.currentProblemId = p.id;
+        updateChatSession(session.id, { current_problem_id: p.id });
         session.emit('ui_event', { type: 'set_problem', problem_id: p.id });
         return mcpOk({ ok: true, switched_to: p.id, topic: p.topic });
       }),

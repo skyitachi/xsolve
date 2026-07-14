@@ -219,13 +219,26 @@ async function refreshProblemsAfterChange(currentId, deletedId) {
 }
 
 // ========== 题目导航：上一题/下一题 ==========
+// 切换题目后同步到后端 session，使刷新页面后仍显示当前题目
+function syncCurrentProblem() {
+  const p = state.problems[state.idx];
+  if (!p || !state.sessionId) return;
+  fetch(`/api/session/${state.sessionId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ currentProblemId: p.id }),
+  }).catch(() => { /* 非关键路径，静默失败 */ });
+}
+
 $("#prev-problem").addEventListener("click", () => {
   state.idx = (state.idx - 1 + state.problems.length) % state.problems.length;
   renderProblem();
+  syncCurrentProblem();
 });
 $("#next-problem").addEventListener("click", () => {
   state.idx = (state.idx + 1) % state.problems.length;
   renderProblem();
+  syncCurrentProblem();
 });
 
 // ========== 删除题目按钮 ==========

@@ -120,6 +120,18 @@ export function archiveSession(req, res) {
   res.json({ ok: true });
 }
 
+// PATCH /api/session/:id — 更新 session 状态（如 currentProblemId）
+export function patchSession(req, res) {
+  const id = req.params.id;
+  const body = req.body || {};
+  const s = sessions.get(id);
+  if (body.currentProblemId !== undefined) {
+    if (s) s.currentProblemId = body.currentProblemId;
+    updateChatSession(id, { current_problem_id: body.currentProblemId });
+  }
+  res.json({ ok: true });
+}
+
 // DELETE /api/session/:id (覆写：同时删 DB)
 export async function deleteSessionWithDb(req, res) {
   const id = req.params.id;

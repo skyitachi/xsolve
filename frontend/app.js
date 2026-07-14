@@ -38,6 +38,14 @@ function initApp() {
         if (savedSid) {
           const restored = await restoreSession(savedSid);
           if (restored) {
+            // 用 session 中记录的 currentProblemId 恢复到用户上次查看的题目
+            if (restored.currentProblemId) {
+              const idx = state.problems.findIndex((p) => p.id === restored.currentProblemId);
+              if (idx >= 0) {
+                state.idx = idx;
+                renderProblem();
+              }
+            }
             await loadSessionHistory(restored.id);
             addSystemMsg(
               mode === "parent"
@@ -276,6 +284,14 @@ function initApp() {
       try {
         const restored = await restoreSession(savedSid);
         if (restored) {
+          // 用 session 中记录的 currentProblemId 恢复到用户上次查看的题目
+          if (restored.currentProblemId) {
+            const idx = state.problems.findIndex((p) => p.id === restored.currentProblemId);
+            if (idx >= 0) {
+              state.idx = idx;
+              renderProblem();
+            }
+          }
           // 加载历史对话
           await loadSessionHistory(restored.id);
           addSystemMsg("🔄 已恢复上次对话（session 保留中）。");

@@ -5,7 +5,7 @@ import { STATIC_ROOT } from './config.js';
 import { sessions, createSession, destroySession, clearSessionHistory, resetSession, abortTurn } from './session.js';
 import {
   getProblemsForClient, getProblem, getAllProblems,
-  insertProblem, updateProblemFigure, deleteProblem
+  insertProblem, updateProblemFigure, deleteProblem, updateChatSession
 } from './db.js';
 import { send, sendSSE, readJsonBody } from './utils.js';
 
@@ -196,6 +196,7 @@ export async function handleRequest(req, res) {
           console.log(`[db] saved AI problem: ${p.id} (${p.topic})`);
         }
         s.currentProblemId = p.id;
+        updateChatSession(s.id, { current_problem_id: p.id });
       }
     }
     try {
