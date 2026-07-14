@@ -114,6 +114,13 @@ function initSchema() {
   } catch {
     db.exec("ALTER TABLE eval_scores ADD COLUMN prompt_version_id TEXT");
   }
+
+  // Migration: add sdk_session_id to chat_sessions if not exists
+  try {
+    db.prepare("SELECT sdk_session_id FROM chat_sessions LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE chat_sessions ADD COLUMN sdk_session_id TEXT");
+  }
 }
 
 function seedBuiltinProblems() {
@@ -236,13 +243,14 @@ function listChatSessions(role) {
   return rows;
 }
 
-function updateChatSession(id, { title, current_problem_id, is_archived }) {
+function updateChatSession(id, { title, current_problem_id, is_archived, sdk_session_id }) {
   getDb();
   const sets = [];
   const vals = [];
   if (title !== undefined) { sets.push('title = ?'); vals.push(title); }
   if (current_problem_id !== undefined) { sets.push('current_problem_id = ?'); vals.push(current_problem_id); }
   if (is_archived !== undefined) { sets.push('is_archived = ?'); vals.push(is_archived ? 1 : 0); }
+  if (sdk_session_id !== undefined) { sets.push('sdk_session_id = ?'); vals.push(sdk_session_id); }
   sets.push("updated_at = strftime('%s','now')");
   vals.push(id);
   db.prepare(`UPDATE chat_sessions SET ${sets.join(', ')} WHERE id = ?`).run(...vals);

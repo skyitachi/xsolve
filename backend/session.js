@@ -32,6 +32,14 @@ function resolvePrompt(mode) {
   return { content: buildSystemPrompt(mode), versionId: null, version: 0 };
 }
 
+// 从 SDK result 消息中捕获 session_id 并持久化到 DB（供后续 resume 用）
+function captureSdkSessionId(session, msg) {
+  if (msg.type === 'result' && msg.session_id && !session.sdkSessionId) {
+    session.sdkSessionId = msg.session_id;
+    try { updateChatSession(session.id, { sdk_session_id: msg.session_id }); } catch { /* ignore */ }
+  }
+}
+
 /**
  * 创建一个 SDK 驱动的 session
  * @param {object} opts - { mode: 'student'|'parent' }
@@ -60,6 +68,7 @@ export function createSession(opts = {}) {
     query: null,
     runPromise: null,
     closed: false,
+    sdkSessionId: null,
     emit(event, data) {
       for (const sub of subscribers) sub(event, data);
     },
@@ -82,7 +91,6 @@ export function createSession(opts = {}) {
       allowedTools: ALLOWED_TOOLS,
       permissionMode: 'bypassPermissions',
       settingSources: ['project'],        // 不读 ~/.claude/settings.json，避免其 ANTHROPIC_AUTH_TOKEN 干扰 .env
-      persistSession: false,
       includePartialMessages: true,
       // 捕获 Claude Code 子进程的 stderr，避免真实错误被 SDK 默认吞掉（默认为 "ignore"）
       stderr: (data) => {
@@ -99,6 +107,7 @@ export function createSession(opts = {}) {
     try {
       for await (const msg of session.query) {
         if (session.closed) break;
+        captureSdkSessionId(session, msg);
         session.emit('sdk_message', msg);
       }
       // 正常结束后发 done（安全网：确保即使 result 消息未到达，订阅者也能收到 done）
@@ -130,7 +139,8 @@ export function createSession(opts = {}) {
 
 /**
  * 从 DB 恢复一个 session（服务重启后用）
- * 读取历史 turns，创建新的 SDK 进程，将历史消息注入
+ * 使用 SDK 的 resume 机制加载之前的对话上下文，
+ * 而非手动注入历史消息（手动注入会导致 SDK 重新生成所有回复）。
  * @param {string} id - session ID
  * @returns {object|null} session 对象，或 null（DB 中不存在）
  */
@@ -149,6 +159,7 @@ export function restoreSession(id) {
     mode,
     createdAt: dbRow.created_at * 1000,
     currentProblemId: dbRow.current_problem_id,
+    sdkSessionId: dbRow.sdk_session_id || null,
     history: [],
     scratchStrokes: 0,
     scratchImage: null,
@@ -172,6 +183,12 @@ export function restoreSession(id) {
   const promptInfo = resolvePrompt(mode);
   session.promptVersionId = promptInfo.versionId;
 
+  // 使用 SDK resume 机制恢复对话上下文
+  // SDK 会从持久化存储中加载之前的对话历史，无需手动注入
+  const resumeOpts = session.sdkSessionId
+    ? { resume: session.sdkSessionId }
+    : {};
+
   session.query = query({
     prompt: session.queue.iterable(),
     options: {
@@ -181,13 +198,13 @@ export function restoreSession(id) {
       allowedTools: ALLOWED_TOOLS,
       permissionMode: 'bypassPermissions',
       settingSources: ['project'],        // 不读 ~/.claude/settings.json，避免其 ANTHROPIC_AUTH_TOKEN 干扰 .env
-      persistSession: false,
       includePartialMessages: true,
       stderr: (data) => {
         const text = (typeof data === 'string' ? data : data.toString()).trimEnd();
         if (text) console.error('[claude-code]', text);
       },
       ...(CLAUDE_MODEL ? { model: CLAUDE_MODEL } : {}),
+      ...resumeOpts,
       env: CHILD_ENV
     }
   });
@@ -197,6 +214,7 @@ export function restoreSession(id) {
     try {
       for await (const msg of session.query) {
         if (session.closed) break;
+        captureSdkSessionId(session, msg);
         session.emit('sdk_message', msg);
       }
       // 正常结束后发 done（安全网：确保即使 result 消息未到达，订阅者也能收到 done）
@@ -219,22 +237,6 @@ export function restoreSession(id) {
   })();
 
   sessions.set(id, session);
-
-  // 将历史 turns 注入 SDK 上下文（作为已完成的对话，不触发新的 query）
-  const turns = getChatTurns(id);
-  for (const turn of turns) {
-    if (turn.user_message) {
-      session.queue.push({
-        type: 'user',
-        message: { role: 'user', content: turn.user_message },
-        parent_tool_use_id: null,
-        session_id: id,
-      });
-    }
-    // AI 消息不需要 push，SDK 会自己生成
-    // 历史仅用于前端渲染和 LLM Judge，SDK 上下文通过 user 消息重建
-  }
-
   return session;
 }
 
@@ -274,6 +276,7 @@ export async function clearSessionHistory(s) {
   s.queue = createInputQueue();
   s.query = null;
   s.closed = false;
+  s.sdkSessionId = null;  // 清空历史时重置 SDK session，不 resume 旧对话
 
   // 3. 重新构建 MCP 工具集和 SDK query
   const tutorMcp = buildTutorMcp(s);
@@ -289,7 +292,6 @@ export async function clearSessionHistory(s) {
       allowedTools: ALLOWED_TOOLS,
       permissionMode: 'bypassPermissions',
       settingSources: ['project'],        // 不读 ~/.claude/settings.json，避免其 ANTHROPIC_AUTH_TOKEN 干扰 .env
-      persistSession: false,
       includePartialMessages: true,
       stderr: (data) => {
         const text = (typeof data === 'string' ? data : data.toString()).trimEnd();
@@ -305,6 +307,7 @@ export async function clearSessionHistory(s) {
     try {
       for await (const msg of s.query) {
         if (s.closed) break;
+        captureSdkSessionId(s, msg);
         s.emit('sdk_message', msg);
       }
       s.emit('done', {});
@@ -360,7 +363,6 @@ export async function abortTurn(s) {
       allowedTools: ALLOWED_TOOLS,
       permissionMode: 'bypassPermissions',
       settingSources: ['project'],        // 不读 ~/.claude/settings.json，避免其 ANTHROPIC_AUTH_TOKEN 干扰 .env
-      persistSession: false,
       includePartialMessages: true,
       stderr: (data) => {
         const text = (typeof data === 'string' ? data : data.toString()).trimEnd();
@@ -376,6 +378,7 @@ export async function abortTurn(s) {
     try {
       for await (const msg of s.query) {
         if (s.closed) break;
+        captureSdkSessionId(s, msg);
         s.emit('sdk_message', msg);
       }
       s.emit('done', {});
