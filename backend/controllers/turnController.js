@@ -46,7 +46,8 @@ export function handleTurn(req, res) {
   // ---- SSE 批量缓冲：content_block_delta 事件高频到达，合并后批量发送以减少交互次数 ----
   let deltaBuffer = [];
   let flushTimer = null;
-  const FLUSH_INTERVAL = 50; // ms
+  const FLUSH_INTERVAL = 16; // ms（对齐 60fps，降低流式延迟）
+  const FLUSH_THRESHOLD = 6; // 缓冲区达到此数量时立即 flush，不等定时器
 
   function flushDeltas() {
     flushTimer = null;
@@ -57,6 +58,15 @@ export function handleTurn(req, res) {
   }
 
   function scheduleFlush() {
+    // 缓冲区足够大时立即 flush，减少长文本的流式延迟
+    if (deltaBuffer.length >= FLUSH_THRESHOLD) {
+      if (flushTimer !== null) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      flushDeltas();
+      return;
+    }
     if (flushTimer === null) {
       flushTimer = setTimeout(flushDeltas, FLUSH_INTERVAL);
     }

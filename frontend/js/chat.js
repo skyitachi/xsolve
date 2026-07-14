@@ -69,6 +69,43 @@ function renderAiBlock(block, isFinal) {
   }
 }
 
+// ========== 流式渲染优化 ==========
+// 问题：每次 content_block_delta 都调用 renderAiBlock → renderMarkdown → marked.parse()，
+// 对完整累积文本做 Markdown 解析，文本越长越慢，导致流式输出卡顿。
+// 优化：流式期间用 requestAnimationFrame 节流 + 轻量级渲染（仅 HTML 转义+换行），
+//       流式结束时再做一次完整 Markdown + KaTeX 渲染。
+var _streamRAF = null;
+var _streamBlock = null;
+
+function streamRenderLight(block) {
+  if (!block || !block.div) return;
+  var raw = block.rawBuf || "";
+  // 轻量渲染：转义 HTML + 换行转 <br>，比 marked.parse() 快几个数量级
+  var html = escapeHtml(raw).replace(/\n/g, "<br>");
+  block.div.innerHTML = html + '<span class="stream-cursor">\u258D</span>';
+  block.div.classList.add("streaming");
+}
+
+function scheduleStreamRender(block) {
+  _streamBlock = block;
+  if (_streamRAF !== null) return; // 已有待渲染帧，不重复调度
+  _streamRAF = requestAnimationFrame(function () {
+    _streamRAF = null;
+    if (_streamBlock) {
+      streamRenderLight(_streamBlock);
+      scrollChat();
+    }
+  });
+}
+
+function cancelStreamRender() {
+  if (_streamRAF !== null) {
+    cancelAnimationFrame(_streamRAF);
+    _streamRAF = null;
+  }
+  _streamBlock = null;
+}
+
 function addAiMsg(text = "") {
   const div = document.createElement("div");
   div.className = "msg msg-ai md-content";
@@ -388,7 +425,7 @@ async function readSSE(stream, onDone, onAborted) {
   const decoder = new TextDecoder("utf-8");
   let buf = "";
   const toolCards = {};
-  const partialState = { blocks: {}, activeTextDiv: null };
+  const partialState = { blocks: {}, activeTextDiv: null, textFinalized: false };
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -427,13 +464,16 @@ function handleEvent(event, payload, toolCards, partialState) {
       handleUiEvent(payload);
       break;
     case "aborted":
+      cancelStreamRender();
       break;
     case "error":
+      cancelStreamRender();
       addErrorMsg(payload.message || "未知错误");
       AiStatus.error(payload.message || "未知");
       state.pendingNewSession = false;
       break;
     case "done":
+      cancelStreamRender();
       AiStatus.done();
       if (state.pendingNewSession) {
         state.pendingNewSession = false;
@@ -491,12 +531,21 @@ function handleSdkMessage(msg, toolCards, partialState) {
       }
     }
   } else if (msg.type === "result") {
-    // 如果文本已通过 stream_event 渲染，只需补渲染数学公式
-    if (partialState.activeTextDiv) {
-      renderMathInMsg(partialState.activeTextDiv);
+    cancelStreamRender();
+    if (partialState.activeTextDiv && !partialState.textFinalized) {
+      // 流式期间用了轻量渲染（无 Markdown），现在做最终完整渲染
+      for (const k in partialState.blocks) {
+        const b = partialState.blocks[k];
+        if (b && b.type === "text" && b.div === partialState.activeTextDiv) {
+          renderAiBlock(b, true);
+          scrollChat();
+          break;
+        }
+      }
+    } else if (partialState.activeTextDiv && partialState.textFinalized) {
+      // content_block_stop 已完成完整渲染，无需重复处理
     } else if (typeof msg.result === "string" && msg.result.trim()) {
       // 文本未被流式传输（SDK 多轮工具调用后只在 result 中返回文本）
-      // 从 result 字段创建新 div 渲染
       const div = document.createElement("div");
       div.className = "msg msg-ai md-content";
       elChatLog.appendChild(div);
@@ -525,6 +574,7 @@ function handleStreamEvent(ev, toolCards, st) {
   if (ev.type === "message_start") {
     st.blocks = {};
     st.activeTextDiv = null;
+    st.textFinalized = false;
   } else if (ev.type === "content_block_start") {
     const cb = ev.content_block || {};
     if (cb.type === "text") {
@@ -554,8 +604,7 @@ function handleStreamEvent(ev, toolCards, st) {
     const d = ev.delta || {};
     if (block.type === "text" && d.type === "text_delta" && d.text) {
       block.rawBuf += d.text;
-      renderAiBlock(block, false);
-      scrollChat();
+      scheduleStreamRender(block);
     } else if (
       block.type === "tool_use" &&
       d.type === "input_json_delta" &&
@@ -566,16 +615,16 @@ function handleStreamEvent(ev, toolCards, st) {
       if (card) card.querySelector(".tool-args").textContent = block.jsonBuf;
     }
   } else if (ev.type === "content_block_deltas_batch") {
-    // 批量 delta：一次处理多个 content_block_delta，减少 DOM 操作和 scrollChat 调用
+    // 批量 delta：一次处理多个 content_block_delta，减少 DOM 操作
     const deltas = ev.deltas || [];
-    let hasText = false;
+    let textBlock = null;
     for (const item of deltas) {
       const block = st.blocks && st.blocks[item.index];
       if (!block) continue;
       const d = item.delta || {};
       if (block.type === "text" && d.type === "text_delta" && d.text) {
         block.rawBuf += d.text;
-        hasText = true;
+        textBlock = block;
       } else if (
         block.type === "tool_use" &&
         d.type === "input_json_delta" &&
@@ -586,22 +635,17 @@ function handleStreamEvent(ev, toolCards, st) {
         if (card) card.querySelector(".tool-args").textContent = block.jsonBuf;
       }
     }
-    // 只渲染一次 + 滚动一次，而非每个 delta 都渲染
-    if (hasText && st.activeTextDiv) {
-      for (const k in st.blocks) {
-        const b = st.blocks[k];
-        if (b && b.type === "text" && b.div === st.activeTextDiv) {
-          renderAiBlock(b, false);
-          break;
-        }
-      }
-      scrollChat();
+    // 用 rAF 节流渲染：同一帧内多次批量到达只渲染一次
+    if (textBlock) {
+      scheduleStreamRender(textBlock);
     }
   } else if (ev.type === "content_block_stop") {
     const block = st.blocks && st.blocks[ev.index];
     if (block && block.type === "text" && block.div) {
+      cancelStreamRender();
       renderAiBlock(block, true);
       scrollChat();
+      st.textFinalized = true;
     }
   }
 }
