@@ -101,6 +101,8 @@ export function createSession(opts = {}) {
         if (session.closed) break;
         session.emit('sdk_message', msg);
       }
+      // 正常结束后发 done（安全网：确保即使 result 消息未到达，订阅者也能收到 done）
+      session.emit('done', {});
     } catch (e) {
       const errMsg = e.message || String(e);
       let detail = errMsg;
@@ -197,6 +199,8 @@ export function restoreSession(id) {
         if (session.closed) break;
         session.emit('sdk_message', msg);
       }
+      // 正常结束后发 done（安全网：确保即使 result 消息未到达，订阅者也能收到 done）
+      session.emit('done', {});
     } catch (e) {
       const errMsg = e.message || String(e);
       let detail = errMsg;
@@ -303,6 +307,7 @@ export async function clearSessionHistory(s) {
         if (s.closed) break;
         s.emit('sdk_message', msg);
       }
+      s.emit('done', {});
     } catch (e) {
       const errMsg = e.message || String(e);
       let detail = errMsg;
@@ -373,6 +378,7 @@ export async function abortTurn(s) {
         if (s.closed) break;
         s.emit('sdk_message', msg);
       }
+      s.emit('done', {});
     } catch (e) {
       const errMsg = e.message || String(e);
       console.error('[sdk error after abort]', e);

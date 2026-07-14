@@ -30,6 +30,7 @@ export function handleTurn(req, res) {
   let inputTokens = 0;
   let outputTokens = 0;
   let turnError = null;
+  let connectionClosed = false;
 
   // SSE headers
   res.writeHead(200, {
@@ -126,18 +127,28 @@ export function handleTurn(req, res) {
     }
 
     // 收到最终结果或错误后，发送 done 并关闭连接
+    if (connectionClosed) return;
+
     if (event === 'sdk_message' && data.type === 'result') {
-      // 持久化 turn 到 DB
+      connectionClosed = true;
       persistTurn();
       sendSSE(res, 'done', {});
       setImmediate(() => { try { res.end(); } catch { /* ignore */ } });
     } else if (event === 'error') {
+      connectionClosed = true;
       persistTurn();
       sendSSE(res, 'done', {});
       setImmediate(() => { try { res.end(); } catch { /* ignore */ } });
     } else if (event === 'aborted') {
+      connectionClosed = true;
       persistTurn();
       sendSSE(res, 'aborted', { reason: 'user_cancelled' });
+      sendSSE(res, 'done', {});
+      setImmediate(() => { try { res.end(); } catch { /* ignore */ } });
+    } else if (event === 'done') {
+      // 安全网：SDK 正常结束但未发 result 消息（session.js for await 循环结束后 emit done）
+      connectionClosed = true;
+      persistTurn();
       sendSSE(res, 'done', {});
       setImmediate(() => { try { res.end(); } catch { /* ignore */ } });
     }

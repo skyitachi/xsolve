@@ -491,7 +491,21 @@ function handleSdkMessage(msg, toolCards, partialState) {
       }
     }
   } else if (msg.type === "result") {
-    if (partialState.activeTextDiv) renderMathInMsg(partialState.activeTextDiv);
+    // 如果文本已通过 stream_event 渲染，只需补渲染数学公式
+    if (partialState.activeTextDiv) {
+      renderMathInMsg(partialState.activeTextDiv);
+    } else if (typeof msg.result === "string" && msg.result.trim()) {
+      // 文本未被流式传输（SDK 多轮工具调用后只在 result 中返回文本）
+      // 从 result 字段创建新 div 渲染
+      const div = document.createElement("div");
+      div.className = "msg msg-ai md-content";
+      elChatLog.appendChild(div);
+      const block = { type: "text", div, rawBuf: msg.result };
+      renderAiBlock(block, true);
+      renderMathInMsg(div);
+      scrollChat();
+      partialState.activeTextDiv = div;
+    }
   } else if (msg.type === "api_retry") {
     AiStatus.tick(
       `模型繁忙，正在重试（第 ${msg.attempt || "?"} 次）…`,
