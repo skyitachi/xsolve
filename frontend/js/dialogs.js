@@ -190,10 +190,10 @@ $("#manual-input-submit").addEventListener("click", async (e) => {
   const hasAudio = !!recordedAudioBase64;
   let prompt;
   if (hasAudio) {
-    prompt = `这是我语音输入的一道数学题，${text ? "同时附上了语音转文字的参考文本：\n\n" + text + "\n\n" : ""}请你仔细听录音，准确理解题面内容（如果参考文本有误，以录音为准；公式用 $...$ 表示），判断主题类型，给出正确答案和 2-3 条递进提示，然后调用 propose_problem 工具向我提议这道新题。注意：你不必自己切换题目；propose_problem 会弹窗让我确认是否替换当前题。`;
+    prompt = `这是我语音输入的一道数学题，${text ? "同时附上了语音转文字的参考文本：\n\n" + text + "\n\n" : ""}请你仔细听录音，准确理解题面内容（如果参考文本有误，以录音为准；公式用 $...$ 表示），判断主题类型，然后调用 propose_problem 工具向我提议这道新题。注意：你只需识别题目并出题，不要在对话里解答题目或给出答案/解题步骤；答案和提示作为 propose_problem 的参数提交即可。你不必自己切换题目；propose_problem 会弹窗让我确认是否替换当前题。`;
     addUserMsg("（语音输入题目）\n" + (text || "（见录音）"));
   } else {
-    prompt = `这是我手动输入的一道题，请仔细理解题面（公式用 $...$ 表示），判断主题类型，给出正确答案和 2-3 条递进提示，然后调用 propose_problem 工具向我提议这道新题。题面如下：\n\n${text}\n\n注意：你不必自己切换题目；propose_problem 会弹窗让我确认是否替换当前题。`;
+    prompt = `这是我手动输入的一道题，请仔细理解题面（公式用 $...$ 表示），判断主题类型，然后调用 propose_problem 工具向我提议这道新题。题面如下：\n\n${text}\n\n注意：你只需识别题目并出题，不要在对话里解答题目或给出答案/解题步骤；答案和提示作为 propose_problem 的参数提交即可。你不必自己切换题目；propose_problem 会弹窗让我确认是否替换当前题。`;
     addUserMsg("（手动输入题目）\n" + text);
   }
   const opts = {};

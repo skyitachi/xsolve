@@ -52,8 +52,8 @@ async function autoRecognizeProblemImage(file) {
   try {
     const blob = await fileToImageBlob(file);
     const prompt =
-      "这是一道题目的图片。请仔细识别图片里的题面（有公式就用 LaTeX $...$ 表示），判断主题类型，给出正确答案和 2-3 条递进提示，然后调用 propose_problem 工具向我提议这道新题。" +
-      '注意：你不必自己切换题目；propose_problem 会弹窗让我确认是否替换当前题。如果原图含有题目相关图形，务必设 figure: {type:"image"}。';
+      "这是一道题目的图片。请仔细识别图片里的题面（有公式就用 LaTeX $...$ 表示），判断主题类型，然后调用 propose_problem 工具向我提议这道新题。" +
+      '注意：你只需识别题目并出题，不要在对话里解答题目或给出答案/解题步骤；答案和提示作为 propose_problem 的参数提交即可（不会在对话里展示）。你不必自己切换题目；propose_problem 会弹窗让我确认是否替换当前题。如果原图含有题目相关图形，务必设 figure: {type:"image"}。';
     addUserMsg("（拖拽上传题目图片，请识别为新题）", blob.dataUrl);
     runTurn(prompt, {
       image: { mediaType: blob.mediaType, data: blob.base64 },
@@ -170,8 +170,8 @@ $("#upload-send").addEventListener("click", () => {
   if (pendingUpload.mode === "problem") {
     prompt =
       caption ||
-      "这是一道题目的图片。请仔细识别图片里的题面（有公式就用 LaTeX $...$ 表示），判断主题类型，给出正确答案和 2-3 条递进提示，然后调用 propose_problem 工具向我提议这道新题。" +
-        "注意：你不必自己切换题目；propose_problem 会弹窗让我确认是否替换当前题。";
+      "这是一道题目的图片。请仔细识别图片里的题面（有公式就用 LaTeX $...$ 表示），判断主题类型，然后调用 propose_problem 工具向我提议这道新题。" +
+        "注意：你只需识别题目并出题，不要在对话里解答题目或给出答案/解题步骤；答案和提示作为 propose_problem 的参数提交即可。你不必自己切换题目；propose_problem 会弹窗让我确认是否替换当前题。";
     addUserMsg(
       caption || "（上传了一张题目图片，请识别为新题）",
       pendingUpload.dataUrl,
