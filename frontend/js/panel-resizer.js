@@ -118,10 +118,45 @@
     if (resizerRows) makeResizer(resizerRows, "h");
     if (resizerCols) makeResizer(resizerCols, "v");
 
-    // 窗口大小变化时，如果像素值超出范围，重置为 fr 单位
+    // 窗口大小变化时，如果保存的像素值与当前可用宽度不匹配，重置为 fr 单位
+    var lastLayoutWidth = layout.getBoundingClientRect().width;
     window.addEventListener("resize", function () {
-      // 只在宽度变化超过阈值时清除保存的像素值
-      // 避免每次小变化都重置
+      var currentWidth = layout.getBoundingClientRect().width;
+      // 宽度变化超过 50px 时检查
+      if (Math.abs(currentWidth - lastLayoutWidth) < 50) return;
+      lastLayoutWidth = currentWidth;
+
+      var col1 = layout.style.getPropertyValue("--col1");
+      var col2 = layout.style.getPropertyValue("--col2");
+      // 只有保存的是像素值时才需要处理
+      if (col1 && col1.includes("px") && col2 && col2.includes("px")) {
+        var col1px = parseInt(col1);
+        var col2px = parseInt(col2);
+        var resizerW = 6;
+        var totalPx = col1px + col2px + resizerW;
+        // 如果保存的总宽度与当前宽度差异超过 15%，重置为默认 fr 比例
+        if (Math.abs(totalPx - currentWidth) / currentWidth > 0.15) {
+          layout.style.removeProperty("--col1");
+          layout.style.removeProperty("--col2");
+          saveSizes();
+        }
+      }
+
+      // 行高同理
+      var row1 = layout.style.getPropertyValue("--row1");
+      var row2 = layout.style.getPropertyValue("--row2");
+      if (row1 && row1.includes("px") && row2 && row2.includes("px")) {
+        var row1px = parseInt(row1);
+        var row2px = parseInt(row2);
+        var resizerH = 6;
+        var totalRowPx = row1px + row2px + resizerH;
+        var currentHeight = layout.getBoundingClientRect().height;
+        if (Math.abs(totalRowPx - currentHeight) / currentHeight > 0.15) {
+          layout.style.removeProperty("--row1");
+          layout.style.removeProperty("--row2");
+          saveSizes();
+        }
+      }
     });
   }
 
