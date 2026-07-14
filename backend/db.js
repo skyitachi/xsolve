@@ -328,6 +328,13 @@ function getEvalDashboard(role) {
     GROUP BY es.dimension
   `).all(...(role ? [role] : []));
 
+  // 已评估的 turn 数（DISTINCT，而非评分记录总数）
+  const evaluatedTurns = db.prepare(`
+    SELECT COUNT(DISTINCT es.turn_id) as c
+    FROM eval_scores es
+    ${role ? 'WHERE es.role = ? AND' : 'WHERE'} es.scorer = 'llm-judge'
+  `).get(...(role ? [role] : [])).c;
+
   // 按 prompt 版本分组的维度均分（关注每次更新 prompt 后评分变化）
   const scoresByPromptVersion = db.prepare(`
     SELECT es.dimension, pv.version as prompt_version, pv.role as prompt_role,
@@ -386,7 +393,7 @@ function getEvalDashboard(role) {
       acc[s.dimension] = Math.round(s.avg_value * 100) / 100;
       return acc;
     }, {}),
-    llm_judge_count: llmJudgeScores.reduce((sum, s) => sum + s.count, 0),
+    llm_judge_count: evaluatedTurns,
     scores_by_prompt_version: scoresByPromptVersion.reduce((acc, row) => {
       const rolePrefix = row.prompt_role || 'unknown';
       const key = row.prompt_version ? `${rolePrefix}_v${row.prompt_version}` : `${rolePrefix}_unversioned`;
