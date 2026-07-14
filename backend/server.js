@@ -8,6 +8,7 @@ import { PORT, VISION_MODEL, CLAUDE_MODEL } from "./config.js";
 import { getVisionApiConfig, resolveApiFormat } from "./vision.js";
 import { sessions, destroySession } from "./session.js";
 import { createApp } from "./app.js";
+import { runStartupChecks } from "./startup-check.js";
 
 // ---------- 启动配置校验 ----------
 function validateConfig() {
@@ -73,7 +74,7 @@ function validateConfig() {
 const app = createApp();
 
 // 启动 HTTP 服务器
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   const cfg = validateConfig();
 
   console.log(`[selflearning] http://localhost:${PORT}`);
@@ -137,6 +138,11 @@ const server = app.listen(PORT, () => {
   if (cfg.errors.length > 0) {
     console.log("[selflearning] ❌ 以上配置错误需要修复后才能正常使用。");
   }
+
+  // 各 AI 模块接入探测（不阻断启动，不通过打 error 日志）
+  await runStartupChecks().catch((e) => {
+    console.error("[startup-check] 检查过程异常:", e.message || e);
+  });
 });
 
 process.on("SIGINT", async () => {

@@ -6,6 +6,16 @@ import { buildTutorMcp } from './mcp-tools.js';
 import { buildSystemPrompt, ALLOWED_TOOLS, CLAUDE_MODEL } from './config.js';
 import { createInputQueue } from './utils.js';
 
+// 子进程环境：继承主进程，但移除 ANTHROPIC_AUTH_TOKEN。
+// 原因：~/.claude/settings.json 若设了 ANTHROPIC_AUTH_TOKEN，SDK 会优先用它（Bearer）而非 .env 的
+// ANTHROPIC_API_KEY（x-api-key），导致打到错误的端点 401。配合 settingSources:['project'] 不读 user settings。
+const CHILD_ENV = (() => {
+  const e = { ...process.env };
+  delete e.ANTHROPIC_AUTH_TOKEN;
+  e.CLAUDE_AGENT_SDK_CLIENT_APP = 'selflearning/0.1.0';
+  return e;
+})();
+
 // 会话注册表
 export const sessions = new Map();
 
@@ -71,6 +81,7 @@ export function createSession(opts = {}) {
       tools: [],
       allowedTools: ALLOWED_TOOLS,
       permissionMode: 'bypassPermissions',
+      settingSources: ['project'],        // 不读 ~/.claude/settings.json，避免其 ANTHROPIC_AUTH_TOKEN 干扰 .env
       persistSession: false,
       includePartialMessages: true,
       // 捕获 Claude Code 子进程的 stderr，避免真实错误被 SDK 默认吞掉（默认为 "ignore"）
@@ -79,7 +90,7 @@ export function createSession(opts = {}) {
         if (text) console.error('[claude-code]', text);
       },
       ...(CLAUDE_MODEL ? { model: CLAUDE_MODEL } : {}),
-      env: { ...process.env, CLAUDE_AGENT_SDK_CLIENT_APP: 'selflearning/0.1.0' }
+      env: CHILD_ENV
     }
   });
 
@@ -167,6 +178,7 @@ export function restoreSession(id) {
       tools: [],
       allowedTools: ALLOWED_TOOLS,
       permissionMode: 'bypassPermissions',
+      settingSources: ['project'],        // 不读 ~/.claude/settings.json，避免其 ANTHROPIC_AUTH_TOKEN 干扰 .env
       persistSession: false,
       includePartialMessages: true,
       stderr: (data) => {
@@ -174,7 +186,7 @@ export function restoreSession(id) {
         if (text) console.error('[claude-code]', text);
       },
       ...(CLAUDE_MODEL ? { model: CLAUDE_MODEL } : {}),
-      env: { ...process.env, CLAUDE_AGENT_SDK_CLIENT_APP: 'selflearning/0.1.0' }
+      env: CHILD_ENV
     }
   });
 
@@ -272,6 +284,7 @@ export async function clearSessionHistory(s) {
       tools: [],
       allowedTools: ALLOWED_TOOLS,
       permissionMode: 'bypassPermissions',
+      settingSources: ['project'],        // 不读 ~/.claude/settings.json，避免其 ANTHROPIC_AUTH_TOKEN 干扰 .env
       persistSession: false,
       includePartialMessages: true,
       stderr: (data) => {
@@ -279,7 +292,7 @@ export async function clearSessionHistory(s) {
         if (text) console.error('[claude-code]', text);
       },
       ...(CLAUDE_MODEL ? { model: CLAUDE_MODEL } : {}),
-      env: { ...process.env, CLAUDE_AGENT_SDK_CLIENT_APP: 'selflearning/0.1.0' }
+      env: CHILD_ENV
     }
   });
 
@@ -341,6 +354,7 @@ export async function abortTurn(s) {
       tools: [],
       allowedTools: ALLOWED_TOOLS,
       permissionMode: 'bypassPermissions',
+      settingSources: ['project'],        // 不读 ~/.claude/settings.json，避免其 ANTHROPIC_AUTH_TOKEN 干扰 .env
       persistSession: false,
       includePartialMessages: true,
       stderr: (data) => {
@@ -348,7 +362,7 @@ export async function abortTurn(s) {
         if (text) console.error('[claude-code]', text);
       },
       ...(CLAUDE_MODEL ? { model: CLAUDE_MODEL } : {}),
-      env: { ...process.env, CLAUDE_AGENT_SDK_CLIENT_APP: 'selflearning/0.1.0' }
+      env: CHILD_ENV
     }
   });
 
