@@ -40,6 +40,7 @@ import {
   deletePrompt,
   listRoles,
 } from './controllers/promptController.js';
+import { getStartupLogs } from './startup-logs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
@@ -58,6 +59,11 @@ export function createApp() {
   // JSXGraph 分步作图产物（由 generate_step_diagram 工具写入）
   fs.mkdirSync(DIAGRAMS_DIR, { recursive: true });
   app.use('/diagrams', express.static(DIAGRAMS_DIR));
+
+  // ========== 启动日志（调试用）==========
+  app.get('/api/logs', (_req, res) => {
+    res.json({ logs: getStartupLogs() });
+  });
 
   // ========== 健康检查 ==========
   app.get('/healthz', healthCheck);

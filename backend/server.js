@@ -10,6 +10,14 @@ import { sessions, destroySession } from "./session.js";
 import { createApp } from "./app.js";
 import { runStartupChecks } from "./startup-check.js";
 
+import { appendLog } from "./startup-logs.js";
+
+// 拦截 console.log / console.error / console.warn
+const _log = console.log, _err = console.error, _warn = console.warn;
+console.log = (...a) => { appendLog('info', a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' ')); _log(...a); };
+console.error = (...a) => { appendLog('error', a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' ')); _err(...a); };
+console.warn = (...a) => { appendLog('warn', a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' ')); _warn(...a); };
+
 // ---------- 启动配置校验 ----------
 function validateConfig() {
   const warnings = [];

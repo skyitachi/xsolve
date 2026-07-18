@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { SEED_PROMPTS } from './prompt-seeds.js';
 import { fileURLToPath } from 'url';
@@ -10,8 +11,16 @@ const DB_PATH = process.env.DB_PATH || path.resolve(__dirname, '..', 'xsolve.db'
 
 let db = null;
 
+function ensureDir(p) {
+  const dir = path.dirname(p);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
 function getDb() {
   if (db) return db;
+  ensureDir(DB_PATH);
   db = new Database(DB_PATH);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');

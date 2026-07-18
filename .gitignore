@@ -114,3 +114,4 @@ images
 .claude
 .workbuddy
 diagrams
+sandbox/.env.docker
