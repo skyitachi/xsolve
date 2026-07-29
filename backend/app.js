@@ -31,6 +31,10 @@ import {
   getTurnScores,
   getSessionScores,
   triggerJudge,
+  getSessionEvalScoresHandler,
+  triggerSessionJudge,
+  sessionEvalSummary,
+  sessionEvalList,
 } from './controllers/evalController.js';
 import {
   listPrompts,
@@ -103,6 +107,12 @@ export function createApp() {
   app.get('/api/eval/scores/turn/:turnId', getTurnScores);
   app.get('/api/eval/scores/session/:sessionId', getSessionScores);
   app.post('/api/eval/judge/:turnId', triggerJudge);
+
+  // session 级评估
+  app.get('/api/eval/session/:sessionId/scores', getSessionEvalScoresHandler);
+  app.post('/api/eval/session/:sessionId/judge', triggerSessionJudge);
+  app.get('/api/eval/session-summary', sessionEvalSummary);
+  app.get('/api/eval/sessions', sessionEvalList);
 
   // ========== Prompt 版本管理 ==========
   app.get('/api/prompts', listPrompts);

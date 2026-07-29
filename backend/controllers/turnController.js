@@ -1,7 +1,11 @@
 // 对话 turn controller（SSE 流式响应）
 import { sessions } from '../session.js';
-import { insertChatTurn, updateChatSession } from '../db.js';
+import { insertChatTurn, updateChatSession, getChatTurns } from '../db.js';
 import { judgeTurn } from '../eval/llm-judge.js';
+import { judgeSession } from '../eval/session-judge.js';
+
+// 每 N 个 turn 自动触发一次 session 级评估
+const SESSION_EVAL_INTERVAL = 5;
 
 // POST /api/session/:id/turn
 export function handleTurn(req, res) {
@@ -204,6 +208,14 @@ export function handleTurn(req, res) {
         }, s.id, s.currentProblemId).catch(err => {
           console.error(`[turn] LLM Judge failed for turn ${turnId}:`, err.message);
         });
+
+        // 每 SESSION_EVAL_INTERVAL 个 turn 自动触发 session 级评估
+        const allTurns = getChatTurns(s.id);
+        if (allTurns.length >= 3 && allTurns.length % SESSION_EVAL_INTERVAL === 0) {
+          judgeSession(s.id).catch(err => {
+            console.error(`[turn] Session Judge failed for session ${s.id}:`, err.message);
+          });
+        }
       }
     } catch (e) {
       console.error('[turn] persist error:', e);

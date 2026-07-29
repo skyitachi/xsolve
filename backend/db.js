@@ -96,6 +96,24 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_eval_scores_session ON eval_scores(session_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_eval_scores_role ON eval_scores(role, created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS session_eval_scores (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'student',
+      scorer TEXT NOT NULL,
+      dimension TEXT NOT NULL,
+      value REAL NOT NULL,
+      data_type TEXT NOT NULL DEFAULT 'numeric',
+      comment TEXT,
+      prompt_version_id TEXT,
+      turn_count INTEGER DEFAULT 0,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+      FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_session_eval_scores_session ON session_eval_scores(session_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_session_eval_scores_role ON session_eval_scores(role, created_at DESC);
+
     CREATE TABLE IF NOT EXISTS prompt_versions (
       id TEXT PRIMARY KEY,
       role TEXT NOT NULL,
@@ -327,6 +345,141 @@ function getEvalScoresByTurn(turn_id) {
 function getEvalScoresBySession(session_id) {
   getDb();
   return db.prepare('SELECT * FROM eval_scores WHERE session_id = ? ORDER BY created_at ASC').all(session_id);
+}
+
+// ========== Session Eval Scores CRUD ==========
+
+function insertSessionEvalScore({ id, session_id, role, scorer, dimension, value, data_type, comment, prompt_version_id, turn_count }) {
+  getDb();
+  const scoreId = id || crypto.randomUUID();
+  db.prepare(`
+    INSERT INTO session_eval_scores (id, session_id, role, scorer, dimension, value, data_type, comment, prompt_version_id, turn_count)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    scoreId, session_id, role || 'student',
+    scorer, dimension, value,
+    data_type || 'numeric', comment || null, prompt_version_id || null,
+    turn_count || 0
+  );
+  return scoreId;
+}
+
+function getSessionEvalScores(session_id) {
+  getDb();
+  return db.prepare('SELECT * FROM session_eval_scores WHERE session_id = ? ORDER BY created_at DESC').all(session_id);
+}
+
+function deleteSessionEvalScores(session_id, scorer) {
+  getDb();
+  if (scorer) {
+    db.prepare('DELETE FROM session_eval_scores WHERE session_id = ? AND scorer = ?').run(session_id, scorer);
+  } else {
+    db.prepare('DELETE FROM session_eval_scores WHERE session_id = ?').run(session_id);
+  }
+}
+
+function getSessionEvalSummary(role) {
+  getDb();
+  const params = role ? [role] : [];
+  const rows = db.prepare(`
+    SELECT ses.dimension, AVG(ses.value) as avg_value, COUNT(*) as count
+    FROM session_eval_scores ses
+    ${role ? 'WHERE ses.role = ? AND' : 'WHERE'} ses.scorer = 'session-judge'
+    GROUP BY ses.dimension
+  `).all(...params);
+
+  const evaluatedSessions = db.prepare(`
+    SELECT COUNT(DISTINCT ses.session_id) as c
+    FROM session_eval_scores ses
+    ${role ? 'WHERE ses.role = ? AND' : 'WHERE'} ses.scorer = 'session-judge'
+  `).get(...params).c;
+
+  return {
+    session_judge_avg: rows.reduce((acc, r) => {
+      acc[r.dimension] = Math.round(r.avg_value * 100) / 100;
+      return acc;
+    }, {}),
+    session_judge_count: evaluatedSessions,
+  };
+}
+
+function getSessionEvalList(role) {
+  getDb();
+  const params = role ? [role] : [];
+  // 获取所有 session 元数据
+  const sessions = db.prepare(`
+    SELECT id, role, title, current_problem_id, created_at, updated_at, is_archived
+    FROM chat_sessions
+    ${role ? 'WHERE role = ?' : ''}
+    ORDER BY updated_at DESC
+  `).all(...params);
+
+  // 获取所有 session_eval_scores，按 session 分组
+  const scoresBySession = {};
+  const scoreRows = db.prepare(`
+    SELECT session_id, scorer, dimension, value, comment, turn_count, created_at
+    FROM session_eval_scores
+    ${role ? 'WHERE role = ?' : ''}
+    ORDER BY created_at DESC
+  `).all(...params);
+
+  for (const row of scoreRows) {
+    if (!scoresBySession[row.session_id]) scoresBySession[row.session_id] = [];
+    scoresBySession[row.session_id].push(row);
+  }
+
+  // 获取每个 session 的 turn 数
+  const turnCounts = {};
+  const turnRows = db.prepare(`
+    SELECT session_id, COUNT(*) as count
+    FROM chat_turns
+    ${role ? 'WHERE role = ?' : ''}
+    GROUP BY session_id
+  `).all(...params);
+  for (const row of turnRows) {
+    turnCounts[row.session_id] = row.count;
+  }
+
+  return sessions.map(s => {
+    const scores = scoresBySession[s.id] || [];
+    // 区分 LLM judge 分数和 rule 统计
+    const judgeScores = {};
+    const ruleStats = {};
+    let judgeTurnCount = 0;
+    let judgeCreatedAt = null;
+    for (const sc of scores) {
+      if (sc.scorer === 'session-judge') {
+        judgeScores[sc.dimension] = { value: sc.value, comment: sc.comment || '' };
+        judgeTurnCount = sc.turn_count;
+        judgeCreatedAt = sc.created_at;
+      } else if (sc.scorer === 'rule') {
+        ruleStats[sc.dimension] = sc.value;
+      }
+    }
+    const hasJudge = Object.keys(judgeScores).length > 0;
+    // 计算总均分
+    const judgeValues = Object.values(judgeScores).map(v => v.value);
+    const overallAvg = judgeValues.length > 0
+      ? Math.round((judgeValues.reduce((s, v) => s + v, 0) / judgeValues.length) * 100) / 100
+      : null;
+
+    return {
+      id: s.id,
+      role: s.role,
+      title: s.title,
+      current_problem_id: s.current_problem_id,
+      created_at: s.created_at,
+      updated_at: s.updated_at,
+      is_archived: s.is_archived,
+      turn_count: turnCounts[s.id] || 0,
+      has_judge: hasJudge,
+      judge_scores: judgeScores,
+      rule_stats: ruleStats,
+      judge_overall: overallAvg,
+      judge_turn_count: judgeTurnCount,
+      judge_created_at: judgeCreatedAt,
+    };
+  });
 }
 
 function getEvalDashboard(role) {
@@ -574,6 +727,11 @@ export {
   getEvalScoresByTurn,
   getEvalScoresBySession,
   getEvalDashboard,
+  insertSessionEvalScore,
+  getSessionEvalScores,
+  deleteSessionEvalScores,
+  getSessionEvalSummary,
+  getSessionEvalList,
   insertPromptVersion,
   activatePromptVersion,
   getActivePromptVersion,

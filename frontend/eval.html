@@ -78,6 +78,40 @@ tbody tr:hover { background: #fafafe; }
 .score-low { background: #fde8e8; color: #c4341a; }
 .score-na { background: #f0f0f3; color: #6b6b80; }
 
+/* Session eval section */
+.session-dim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.session-dim-card {
+  background: #fff; border-radius: 10px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  border-left: 3px solid #0a9e6a;
+}
+.session-dim-card .dim-name { font-size: 12px; color: #6b6b80; margin-bottom: 0.3rem; }
+.session-dim-card .dim-score { font-size: 1.3rem; font-weight: 700; }
+.session-dim-card .dim-bar { height: 4px; background: #e8e8ee; border-radius: 2px; margin-top: 0.5rem; overflow: hidden; }
+.session-dim-card .dim-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+.session-table-wrap { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 1.5rem; overflow-x: auto; }
+.session-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.session-table th, .session-table td { padding: 8px 12px; text-align: center; border: 1px solid #eee; }
+.session-table th { background: #f0f0f3; font-weight: 600; white-space: nowrap; }
+.session-table td:first-child { text-align: left; }
+.session-table tbody tr:hover { background: #fafafe; }
+.session-title { font-weight: 600; color: #1a1a2e; }
+.session-id { font-size: 11px; color: #8b8b9a; font-family: monospace; }
+.session-toggle { cursor: pointer; color: #4b3fe3; }
+.session-detail-row { display: none; }
+.session-detail-row.open { display: table-row; background: #fafafe; }
+.session-detail-content { padding: 1rem; }
+.session-detail-section { margin-bottom: 0.75rem; }
+.session-detail-section .ds-label { font-size: 11px; color: #6b6b80; text-transform: uppercase; margin-bottom: 0.25rem; }
+.session-detail-section .ds-value { font-size: 13px; }
+.trigger-btn {
+  padding: 4px 10px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;
+  background: #0a9e6a; color: #fff; transition: background 0.15s;
+}
+.trigger-btn:hover { background: #088055; }
+.trigger-btn:disabled { background: #ccc; cursor: not-allowed; }
+.trigger-btn.evaluating { background: #efaa17; }
+
 .empty { text-align: center; padding: 3rem; color: #6b6b80; }
 .loading { text-align: center; padding: 2rem; color: #6b6b80; }
 
@@ -131,9 +165,14 @@ tbody tr:hover { background: #fafafe; }
   .dim-card { padding: 0.625rem; }
   .dim-card .dim-score { font-size: 1.1rem; }
 
+  .session-dim-grid { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+  .session-dim-card { padding: 0.625rem; }
+  .session-dim-card .dim-score { font-size: 1.1rem; }
+
   /* Hide table, show cards */
   .turn-table-wrap { display: none; }
   .turn-cards { display: block; }
+  .session-table-wrap { display: none; }
 
   .filter-bar { flex-wrap: wrap; }
   .filter-bar select, .filter-bar button { font-size: 14px; }
@@ -152,7 +191,7 @@ tbody tr:hover { background: #fafafe; }
   <header>
     <div>
       <h1>xsolve 评估面板</h1>
-      <p style="color:#6b6b80;font-size:13px;margin-top:4px;">LLM Judge 自动评分 + Turn 级别质量追踪</p>
+      <p style="color:#6b6b80;font-size:13px;margin-top:4px;">Turn 级 + Session 级 LLM Judge 自动评分与质量追踪</p>
     </div>
     <div style="display:flex;gap:1rem;align-items:center;">
       <a class="back-link" href="/prompts.html">Prompt 管理</a>
@@ -174,8 +213,41 @@ tbody tr:hover { background: #fafafe; }
   </div>
 
   <div id="dimSection">
-    <h2>LLM Judge 维度均分</h2>
+    <h2>Turn 级 LLM Judge 维度均分</h2>
     <div id="dimGrid" class="dim-grid"><div class="loading">加载中...</div></div>
+  </div>
+
+  <div id="sessionDimSection">
+    <h2>Session 级评估维度均分</h2>
+    <div id="sessionDimGrid" class="session-dim-grid"><div class="loading">加载中...</div></div>
+  </div>
+
+  <div id="sessionListSection">
+    <h2>Session 列表 <span id="sessionCountInfo" style="font-size:13px;color:#6b6b80;font-weight:400;"></span></h2>
+    <div class="session-table-wrap">
+      <table class="session-table">
+        <thead>
+          <tr>
+            <th>Session</th>
+            <th>角色</th>
+            <th>Turn 数</th>
+            <th>总均分</th>
+            <th>连贯性</th>
+            <th>适应性</th>
+            <th>目标达成</th>
+            <th>一致性</th>
+            <th>学生参与</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="sessionBody">
+          <tr><td colspan="10" class="loading">加载中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="sessionCards" class="turn-cards" style="display:none;">
+      <div class="loading">加载中...</div>
+    </div>
   </div>
 
   <div id="pvSection">
@@ -218,6 +290,14 @@ const DIMENSIONS = {
   tool_correctness: '工具使用',
   problem_quality: '出题质量',
   tone_interaction: '语气互动',
+};
+
+const SESSION_DIMENSIONS = {
+  continuity: '上下文连贯',
+  adaptation: '策略适应性',
+  session_completeness: '目标达成度',
+  consistency: '一致性',
+  student_engagement: '学生参与度',
 };
 
 function scoreClass(v) {
@@ -369,6 +449,209 @@ async function loadDashboard() {
 
   // Turn table is loaded separately via loadTurns()
   loadTurns();
+  // Load session eval data
+  loadSessionEval();
+}
+
+// ========== Session-level eval ==========
+async function loadSessionEval() {
+  const role = document.getElementById('roleFilter').value;
+  const params = role ? '?role=' + role : '';
+
+  // Fetch session summary and session list in parallel
+  const [summaryResp, listResp] = await Promise.all([
+    fetch(`/api/eval/session-summary${params}`),
+    fetch(`/api/eval/sessions${params}`),
+  ]);
+  const summary = await summaryResp.json();
+  const sessions = await listResp.json();
+
+  // Render session dimension cards
+  const sessionJudgeAvg = summary.session_judge_avg || {};
+  const sessionJudgeCount = summary.session_judge_count || 0;
+  const sessionDimHtml = Object.entries(SESSION_DIMENSIONS).map(([key, label]) => {
+    const val = sessionJudgeAvg[key];
+    const pct = val ? (val / 5 * 100) : 0;
+    const color = val >= 4 ? '#1dc981' : val >= 3 ? '#efaa17' : val ? '#e8463a' : '#e0e0e6';
+    return `
+      <div class="session-dim-card">
+        <div class="dim-name">${label}</div>
+        <div class="dim-score">${val ? val.toFixed(2) : '-'}<span style="font-size:0.85rem;color:#6b6b80">/5</span></div>
+        <div class="dim-bar"><div class="dim-fill" style="width:${pct}%;background:${color}"></div></div>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('sessionDimGrid').innerHTML = sessionDimHtml ||
+    '<div class="empty">暂无 Session 级评估数据</div>';
+
+  // Render session list table
+  const evaluatedCount = sessions.filter(s => s.has_judge).length;
+  document.getElementById('sessionCountInfo').textContent =
+    `（共 ${sessions.length} 个 Session，已评估 ${evaluatedCount} 个）`;
+
+  if (sessions.length === 0) {
+    document.getElementById('sessionBody').innerHTML =
+      '<tr><td colspan="10" class="empty">暂无 Session 数据</td></tr>';
+    document.getElementById('sessionCards').innerHTML =
+      '<div class="empty">暂无 Session 数据</div>';
+    return;
+  }
+
+  // Desktop table rows
+  const rows = sessions.map((s, i) => {
+    const js = s.judge_scores || {};
+    const dimBadges = Object.entries(SESSION_DIMENSIONS).map(([key, label]) => {
+      const sc = js[key];
+      if (!sc) return `<td>-</td>`;
+      return `<td><span class="score-badge ${scoreClass(sc.value)}" title="${(sc.comment||'').replace(/"/g,'&quot;')}">${sc.value}</span></td>`;
+    }).join('');
+    const overall = s.judge_overall !== null ? s.judge_overall.toFixed(2) : '-';
+    const title = s.title || '(未命名)';
+    const canTrigger = s.turn_count >= 3;
+    return `
+      <tr>
+        <td>
+          <div class="session-title">${title.replace(/</g,'&lt;')}</div>
+          <div class="session-id">${s.id.slice(0,16)}</div>
+        </td>
+        <td>${s.role === 'student' ? '学生' : '家长'}</td>
+        <td>${s.turn_count}</td>
+        <td><strong>${overall}</strong></td>
+        ${dimBadges}
+        <td>
+          <button class="trigger-btn ${s.has_judge ? '' : ''}" id="trigger-${i}"
+            onclick="triggerSessionJudge('${s.id}', ${i})"
+            ${canTrigger ? '' : 'disabled title="Turn 数不足（需至少3个）"'}>
+            ${s.has_judge ? '重新评估' : '触发评估'}
+          </button>
+        </td>
+      </tr>
+      <tr class="session-detail-row" id="session-detail-${i}">
+        <td colspan="10">
+          <div class="session-detail-content">
+            <div class="session-detail-section">
+              <div class="ds-label">Session 信息</div>
+              <div class="ds-value">
+                ID: <code>${s.id}</code> ·
+                ${s.role === 'student' ? '学生' : '家长'} ·
+                ${s.turn_count} turns ·
+                创建于 ${fmtTime(s.created_at)} ·
+                更新于 ${fmtTime(s.updated_at)}
+              </div>
+            </div>
+            ${s.has_judge ? `
+              <div class="session-detail-section">
+                <div class="ds-label">Session Judge 评分详情</div>
+                <div class="ds-value">
+                  ${Object.entries(SESSION_DIMENSIONS).map(([key, label]) => {
+                    const sc = js[key];
+                    if (!sc) return `<div>${label}: <span style="color:#6b6b80">未评估</span></div>`;
+                    return `<div>${label}: <strong>${sc.value}</strong>/5 — ${sc.comment || ''}</div>`;
+                  }).join('')}
+                </div>
+              </div>
+              ${Object.keys(s.rule_stats || {}).length > 0 ? `
+                <div class="session-detail-section">
+                  <div class="ds-label">规则统计</div>
+                  <div class="ds-value">
+                    ${s.rule_stats.turn_count ? `Turn 数: <strong>${s.rule_stats.turn_count}</strong> · ` : ''}
+                    ${s.rule_stats.total_duration_s ? `总耗时: <strong>${s.rule_stats.total_duration_s}s</strong> · ` : ''}
+                    ${s.rule_stats.error_rate !== undefined ? `错误率: <strong>${(s.rule_stats.error_rate * 100).toFixed(0)}%</strong>` : ''}
+                  </div>
+                </div>
+              ` : ''}
+              ${s.judge_created_at ? `<div class="session-detail-section"><div class="ds-label">评估时间</div><div class="ds-value">${fmtTime(s.judge_created_at)}（基于 ${s.judge_turn_count} 个 turn）</div></div>` : ''}
+            ` : `
+              <div class="session-detail-section">
+                <div class="ds-label">评估状态</div>
+                <div class="ds-value" style="color:#6b6b80">
+                  ${canTrigger ? '尚未评估，点击"触发评估"开始' : 'Turn 数不足（需至少3个 turn 才能评估）'}
+                </div>
+              </div>
+            `}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  document.getElementById('sessionBody').innerHTML = rows;
+
+  // Mobile session cards
+  const cardsHtml = sessions.map((s, i) => {
+    const js = s.judge_scores || {};
+    const scoreBadges = Object.entries(SESSION_DIMENSIONS).map(([key, label]) => {
+      const sc = js[key];
+      if (!sc) return `<span class="score-badge score-na">${label}: -</span>`;
+      return `<span class="score-badge ${scoreClass(sc.value)}">${label}: ${sc.value}</span>`;
+    }).join('');
+    const overall = s.judge_overall !== null ? s.judge_overall.toFixed(2) : '-';
+    const title = s.title || '(未命名)';
+    const canTrigger = s.turn_count >= 3;
+    return `
+      <div class="turn-card">
+        <div class="turn-card-head">
+          <span class="turn-card-role">${s.role === 'student' ? '👨‍🎓 学生' : '👨‍👩‍👧 家长'} · ${s.turn_count} turns</span>
+          <span class="turn-card-meta">均分 ${overall}</span>
+        </div>
+        <div class="turn-card-msg"><span class="msg-label">标题:</span>${title.replace(/</g,'&lt;').slice(0,40)}</div>
+        <div class="turn-card-scores">${scoreBadges || '<span class="score-badge score-na">未评估</span>'}</div>
+        <div style="margin-top:0.5rem;display:flex;gap:0.5rem;">
+          <button class="trigger-btn" onclick="triggerSessionJudge('${s.id}', ${i})" ${canTrigger ? '' : 'disabled'}>
+            ${s.has_judge ? '重新评估' : '触发评估'}
+          </button>
+          <span class="turn-card-toggle" onclick="toggleSessionCardDetail(${i})">展开详情 ▾</span>
+        </div>
+        <div class="turn-card-detail" id="session-card-detail-${i}">
+          ${s.has_judge ? Object.entries(SESSION_DIMENSIONS).map(([key, label]) => {
+            const sc = js[key];
+            if (!sc) return `<div class="detail-section"><div class="ds-label">${label}</div><div class="ds-value" style="color:#6b6b80">未评估</div></div>`;
+            return `<div class="detail-section"><div class="ds-label">${label}</div><div class="ds-value"><strong>${sc.value}</strong>/5 — ${sc.comment || ''}</div></div>`;
+          }).join('') : `<div class="detail-section"><div class="ds-label">评估状态</div><div class="ds-value" style="color:#6b6b80">${canTrigger ? '尚未评估' : 'Turn 数不足'}</div></div>`}
+          ${Object.keys(s.rule_stats || {}).length > 0 ? `<div class="detail-section"><div class="ds-label">规则统计</div><div class="ds-value">${s.rule_stats.turn_count || 0} turns · ${s.rule_stats.total_duration_s || 0}s · 错误率 ${((s.rule_stats.error_rate || 0) * 100).toFixed(0)}%</div></div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('sessionCards').innerHTML = cardsHtml;
+}
+
+async function triggerSessionJudge(sessionId, idx) {
+  const btn = document.getElementById('trigger-' + idx);
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add('evaluating');
+    btn.textContent = '评估中...';
+  }
+  try {
+    const resp = await fetch(`/api/eval/session/${sessionId}/judge`, { method: 'POST' });
+    const result = await resp.json();
+    if (result.error) {
+      alert('评估失败: ' + result.error);
+    } else {
+      // Reload session eval data to show updated scores
+      loadSessionEval();
+    }
+  } catch (err) {
+    alert('评估失败: ' + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove('evaluating');
+    }
+  }
+}
+
+function toggleSessionDetail(i) {
+  const row = document.getElementById('session-detail-' + i);
+  if (row) row.classList.toggle('open');
+}
+
+function toggleSessionCardDetail(i) {
+  const el = document.getElementById('session-card-detail-' + i);
+  if (!el) return;
+  el.classList.toggle('open');
+  const toggle = el.previousElementSibling?.querySelector('.turn-card-toggle');
+  if (toggle) toggle.textContent = el.classList.contains('open') ? '收起详情 ▴' : '展开详情 ▾';
 }
 
 // ========== Turn pagination state ==========
@@ -574,6 +857,7 @@ loadDashboard();
 setInterval(function() {
   loadDashboard();
   loadTurns();
+  loadSessionEval();
 }, 30000);
 </script>
 </body>
