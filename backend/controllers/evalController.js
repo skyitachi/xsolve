@@ -5,6 +5,8 @@ import {
   getSessionEvalScores,
   getSessionEvalSummary,
   getSessionEvalList,
+  getStudentEvalSummary,
+  getStudentEvalList,
   getEvalDashboard,
   getEvalTurns,
   getChatTurns,
@@ -12,6 +14,7 @@ import {
 } from '../db.js';
 import { judgeTurn } from '../eval/llm-judge.js';
 import { judgeSession } from '../eval/session-judge.js';
+import { evalStudent } from '../eval/student-eval.js';
 
 // GET /api/eval/dashboard?role=student
 export function evalDashboard(req, res) {
@@ -91,4 +94,34 @@ export function sessionEvalList(req, res) {
   const role = req.query.role;
   const data = getSessionEvalList(role);
   res.json(data);
+}
+
+// ========== Student Eval ==========
+
+// GET /api/eval/student/summary?role=student — 学生评估汇总
+export function studentEvalSummary(req, res) {
+  const role = req.query.role;
+  const data = getStudentEvalSummary(role);
+  res.json(data);
+}
+
+// GET /api/eval/student/sessions?role=student — 学生评估 session 列表
+export function studentEvalList(req, res) {
+  const role = req.query.role;
+  const data = getStudentEvalList(role);
+  res.json(data);
+}
+
+// POST /api/eval/student/judge/:sessionId — 手动触发学生评估
+export async function triggerStudentEval(req, res) {
+  const sessionId = req.params.sessionId;
+  const session = getChatSession(sessionId);
+  if (!session) return res.status(404).json({ error: 'session not found' });
+
+  try {
+    const result = await evalStudent(sessionId);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }

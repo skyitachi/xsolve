@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>xsolve 学生能力评估</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, "PingFang SC", system-ui, sans-serif;
+  background: #f5f5f7; color: #1a1a2e; font-size: 14px; line-height: 1.6;
+}
+.container { width: 100%; max-width: 100%; margin: 0; padding: 2rem 1.5rem; }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+h1 { font-size: 1.5rem; font-weight: 700; }
+h2 { font-size: 1.15rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
+.back-link { color: #4b3fe3; text-decoration: none; font-size: 13px; }
+.filter-bar { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.filter-bar select, .filter-bar button {
+  padding: 6px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; background: #fff;
+}
+.filter-bar button { cursor: pointer; background: #4b3fe3; color: #fff; border: none; }
+
+/* Summary cards */
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.summary-card {
+  background: #fff; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.summary-card .label { font-size: 12px; color: #6b6b80; margin-bottom: 0.5rem; }
+.summary-card .value { font-size: 1.75rem; font-weight: 700; color: #1a1a2e; }
+.summary-card .sub { font-size: 12px; color: #6b6b80; margin-top: 0.25rem; }
+
+/* Dimension cards */
+.dim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.dim-card {
+  background: #fff; border-radius: 10px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  border-left: 3px solid #e85d75;
+}
+.dim-card .dim-name { font-size: 12px; color: #6b6b80; margin-bottom: 0.3rem; }
+.dim-card .dim-score { font-size: 1.3rem; font-weight: 700; }
+.dim-card .dim-bar { height: 4px; background: #e8e8ee; border-radius: 2px; margin-top: 0.5rem; overflow: hidden; }
+.dim-card .dim-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+.dim-card .dim-comment { font-size: 11px; color: #6b6b80; margin-top: 0.4rem; line-height: 1.4; }
+
+/* Topic accuracy */
+.topic-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.topic-card {
+  background: #fff; border-radius: 10px; padding: 0.875rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  text-align: center;
+}
+.topic-card .topic-name { font-size: 13px; font-weight: 600; margin-bottom: 0.4rem; }
+.topic-card .topic-value { font-size: 1.4rem; font-weight: 700; }
+.topic-card .topic-bar { height: 6px; background: #e8e8ee; border-radius: 3px; margin-top: 0.5rem; overflow: hidden; }
+.topic-card .topic-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+/* Error type distribution */
+.error-dist { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.error-chip {
+  background: #fff; border-radius: 8px; padding: 0.625rem 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.error-chip .error-label { font-size: 13px; font-weight: 600; }
+.error-chip .error-count { font-size: 1.1rem; font-weight: 700; }
+.error-chip .error-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* Session table */
+.session-table-wrap { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 1.5rem; overflow-x: auto; }
+.session-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.session-table th, .session-table td { padding: 8px 12px; text-align: center; border: 1px solid #eee; }
+.session-table th { background: #f0f0f3; font-weight: 600; white-space: nowrap; }
+.session-table td:first-child { text-align: left; }
+.session-table tbody tr:hover { background: #fafafe; }
+.session-title { font-weight: 600; color: #1a1a2e; }
+.session-id { font-size: 11px; color: #8b8b9a; font-family: monospace; }
+.session-detail-row { display: none; }
+.session-detail-row.open { display: table-row; background: #fafafe; }
+.session-detail-content { padding: 1rem; }
+.session-detail-section { margin-bottom: 0.75rem; }
+.session-detail-section .ds-label { font-size: 11px; color: #6b6b80; text-transform: uppercase; margin-bottom: 0.25rem; }
+.session-detail-section .ds-value { font-size: 13px; }
+
+/* Score badges */
+.score-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; margin: 1px; }
+.score-high { background: #e8f9f0; color: #0a7c43; }
+.score-mid { background: #fff4e0; color: #c47600; }
+.score-low { background: #fde8e8; color: #c4341a; }
+.score-na { background: #f0f0f3; color: #6b6b80; }
+
+.trigger-btn {
+  padding: 4px 10px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer;
+  background: #e85d75; color: #fff; transition: background 0.15s;
+}
+.trigger-btn:hover { background: #c44a60; }
+.trigger-btn:disabled { background: #ccc; cursor: not-allowed; }
+.trigger-btn.evaluating { background: #efaa17; }
+
+.empty { text-align: center; padding: 3rem; color: #6b6b80; }
+.loading { text-align: center; padding: 2rem; color: #6b6b80; }
+
+/* Mobile cards */
+.session-cards { display: none; }
+.session-card {
+  background: #fff; border-radius: 10px; padding: 0.875rem; margin-bottom: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.session-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.session-card-meta { font-size: 12px; color: #8b8b9a; }
+.session-card-role { font-weight: 600; font-size: 13px; }
+.session-card-msg { font-size: 12px; color: #4a4a5e; margin: 0.25rem 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-card-scores { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 0.5rem; }
+.session-card-toggle { color: #e85d75; font-size: 12px; cursor: pointer; margin-top: 0.5rem; }
+.session-card-detail { display: none; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #eee; }
+.session-card-detail.open { display: block; }
+
+@media (max-width: 768px) {
+  .container { padding: 1rem 0.75rem; }
+  header { flex-direction: column; align-items: flex-start; gap: 0.5rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.25rem; }
+  h2 { font-size: 1rem; margin: 1rem 0 0.5rem; }
+  .summary-grid { grid-template-columns: 1fr; gap: 0.5rem; }
+  .summary-card { padding: 0.875rem; }
+  .summary-card .value { font-size: 1.4rem; }
+  .dim-grid { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+  .dim-card { padding: 0.625rem; }
+  .dim-card .dim-score { font-size: 1.1rem; }
+  .topic-grid { grid-template-columns: repeat(2, 1fr); }
+  .session-table-wrap { display: none; }
+  .session-cards { display: block; }
+  .filter-bar { flex-wrap: wrap; }
+  .filter-bar select, .filter-bar button { font-size: 14px; }
+}
+
+@media (max-width: 480px) {
+  .container { padding: 0.75rem 0.5rem; }
+  h1 { font-size: 1.1rem; }
+  .dim-grid { grid-template-columns: 1fr; }
+  .topic-grid { grid-template-columns: 1fr; }
+  .summary-card .value { font-size: 1.25rem; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div>
+      <h1>学生能力评估</h1>
+      <p style="color:#6b6b80;font-size:13px;margin-top:4px;">基于答题行为与对话数据的学生能力追踪</p>
+    </div>
+    <div style="display:flex;gap:1rem;align-items:center;">
+      <a class="back-link" href="/eval.html">AI 质量评估</a>
+      <a class="back-link" href="/index.html">返回主应用</a>
+    </div>
+  </header>
+
+  <div class="filter-bar">
+    <select id="roleFilter" onchange="loadAll()">
+      <option value="student">学生</option>
+      <option value="parent">家长</option>
+      <option value="">全部</option>
+    </select>
+    <button onclick="loadAll()">刷新</button>
+  </div>
+
+  <div id="summarySection" class="summary-grid">
+    <div class="summary-card"><div class="label">加载中...</div></div>
+  </div>
+
+  <h2>能力维度均分</h2>
+  <div id="dimGrid" class="dim-grid"><div class="loading">加载中...</div></div>
+
+  <h2>知识点正确率</h2>
+  <div id="topicGrid" class="topic-grid"><div class="loading">加载中...</div></div>
+
+  <h2>错误类型分布</h2>
+  <div id="errorDist" class="error-dist"><div class="loading">加载中...</div></div>
+
+  <h2>Session 列表 <span id="sessionCountInfo" style="font-size:13px;color:#6b6b80;font-weight:400;"></span></h2>
+  <div class="session-table-wrap">
+    <table class="session-table">
+      <thead>
+        <tr>
+          <th>Session</th>
+          <th>角色</th>
+          <th>Turn 数</th>
+          <th>总均分</th>
+          <th>正确率</th>
+          <th>独立性</th>
+          <th>思维质量</th>
+          <th>参与度</th>
+          <th>错误类型</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="sessionBody">
+        <tr><td colspan="10" class="loading">加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div id="sessionCards" class="session-cards">
+    <div class="loading">加载中...</div>
+  </div>
+</div>
+
+<script>
+const STUDENT_DIMENSIONS = {
+  accuracy: '知识掌握度',
+  independence: '答题独立性',
+  thinking_quality: '思维过程质量',
+  engagement: '学习参与度',
+};
+
+const ERROR_TYPES = {
+  calculation: { label: '计算错误', color: '#efaa17' },
+  concept: { label: '概念错误', color: '#e8463a' },
+  comprehension: { label: '审题错误', color: '#e85d75' },
+  method: { label: '方法错误', color: '#8b5cf6' },
+  none: { label: '未答错', color: '#0a9e6a' },
+};
+
+function scoreClass(v) {
+  if (v === null || v === undefined) return 'score-na';
+  if (v >= 4) return 'score-high';
+  if (v >= 3) return 'score-mid';
+  return 'score-low';
+}
+
+function fmtTime(ts) {
+  if (!ts) return '-';
+  const d = new Date(ts * 1000);
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+async function loadAll() {
+  const role = document.getElementById('roleFilter').value;
+  const params = role ? '?role=' + role : '';
+
+  const [summaryResp, listResp] = await Promise.all([
+    fetch(`/api/eval/student/summary${params}`),
+    fetch(`/api/eval/student/sessions${params}`),
+  ]);
+  const summary = await summaryResp.json();
+  const sessions = await listResp.json();
+
+  renderSummary(summary);
+  renderDimensions(summary);
+  renderTopics(summary);
+  renderErrorDist(summary);
+  renderSessions(sessions);
+}
+
+function renderSummary(summary) {
+  const dimAvg = summary.dimension_avg || {};
+  const evaluated = summary.evaluated_sessions || 0;
+  const dims = Object.keys(STUDENT_DIMENSIONS);
+  const numericVals = dims.map(d => dimAvg[d]).filter(v => v !== undefined);
+  const overallAvg = numericVals.length > 0
+    ? (numericVals.reduce((s, v) => s + v, 0) / numericVals.length).toFixed(2)
+    : '-';
+
+  document.getElementById('summarySection').innerHTML = `
+    <div class="summary-card">
+      <div class="label">已评估 Session 数</div>
+      <div class="value">${evaluated}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">综合能力均分</div>
+      <div class="value">${overallAvg}<span style="font-size:1rem;color:#6b6b80">/5</span></div>
+    </div>
+    <div class="summary-card">
+      <div class="label">平均正确率</div>
+      <div class="value">${dimAvg.accuracy ? dimAvg.accuracy.toFixed(2) : '-'}<span style="font-size:1rem;color:#6b6b80">/5</span></div>
+    </div>
+    <div class="summary-card">
+      <div class="label">平均独立性</div>
+      <div class="value">${dimAvg.independence ? dimAvg.independence.toFixed(2) : '-'}<span style="font-size:1rem;color:#6b6b80">/5</span></div>
+    </div>
+  `;
+}
+
+function renderDimensions(summary) {
+  const dimAvg = summary.dimension_avg || {};
+  const html = Object.entries(STUDENT_DIMENSIONS).map(([key, label]) => {
+    const val = dimAvg[key];
+    const pct = val ? (val / 5 * 100) : 0;
+    const color = val >= 4 ? '#1dc981' : val >= 3 ? '#efaa17' : val ? '#e8463a' : '#e0e0e6';
+    return `
+      <div class="dim-card">
+        <div class="dim-name">${label}</div>
+        <div class="dim-score">${val ? val.toFixed(2) : '-'}<span style="font-size:0.85rem;color:#6b6b80">/5</span></div>
+        <div class="dim-bar"><div class="dim-fill" style="width:${pct}%;background:${color}"></div></div>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('dimGrid').innerHTML = html ||
+    '<div class="empty">暂无学生评估数据，点击下方"触发评估"开始</div>';
+}
+
+function renderTopics(summary) {
+  const topicAccuracy = summary.topic_accuracy || {};
+  const topics = Object.entries(topicAccuracy);
+  if (topics.length === 0) {
+    document.getElementById('topicGrid').innerHTML = '<div class="empty">暂无按知识点统计的正确率数据</div>';
+    return;
+  }
+  const html = topics.map(([topic, accuracy]) => {
+    const pct = Math.round(accuracy * 100);
+    const color = accuracy >= 0.8 ? '#1dc981' : accuracy >= 0.5 ? '#efaa17' : '#e8463a';
+    return `
+      <div class="topic-card">
+        <div class="topic-name">${topic}</div>
+        <div class="topic-value">${pct}%</div>
+        <div class="topic-bar"><div class="topic-fill" style="width:${pct}%;background:${color}"></div></div>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('topicGrid').innerHTML = html;
+}
+
+function renderErrorDist(summary) {
+  const dist = summary.error_type_distribution || {};
+  const entries = Object.entries(dist);
+  if (entries.length === 0) {
+    document.getElementById('errorDist').innerHTML = '<div class="empty">暂无错误类型数据</div>';
+    return;
+  }
+  const html = entries.map(([type, count]) => {
+    const info = ERROR_TYPES[type] || { label: type, color: '#6b6b80' };
+    return `
+      <div class="error-chip">
+        <div class="error-dot" style="background:${info.color}"></div>
+        <div>
+          <div class="error-label">${info.label}</div>
+          <div class="error-count">${count}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('errorDist').innerHTML = html;
+}
+
+function renderSessions(sessions) {
+  const evaluatedCount = sessions.filter(s => s.has_eval).length;
+  document.getElementById('sessionCountInfo').textContent =
+    `（共 ${sessions.length} 个，已评估 ${evaluatedCount} 个）`;
+
+  if (sessions.length === 0) {
+    document.getElementById('sessionBody').innerHTML =
+      '<tr><td colspan="10" class="empty">暂无 Session 数据</td></tr>';
+    document.getElementById('sessionCards').innerHTML = '<div class="empty">暂无 Session 数据</div>';
+    return;
+  }
+
+  // Desktop table
+  const rows = sessions.map((s, i) => {
+    const es = s.eval_scores || {};
+    const dims = Object.entries(STUDENT_DIMENSIONS).map(([key, label]) => {
+      const sc = es[key];
+      if (!sc) return `<td>-</td>`;
+      return `<td><span class="score-badge ${scoreClass(sc.value)}" title="${(sc.comment||'').replace(/"/g,'&quot;')}">${sc.value}</span></td>`;
+    }).join('');
+
+    let errorTypeHtml = '-';
+    if (es.error_type) {
+      const etype = Array.isArray(es.error_type) ? es.error_type[0]?.comment : es.error_type?.comment;
+      const info = ERROR_TYPES[etype] || { label: etype || '-', color: '#6b6b80' };
+      errorTypeHtml = `<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${info.color}20;color:${info.color}">${info.label}</span>`;
+    }
+
+    const overall = s.eval_overall !== null ? s.eval_overall.toFixed(2) : '-';
+    const title = s.title || '(未命名)';
+    const canTrigger = s.turn_count >= 2;
+    return `
+      <tr>
+        <td>
+          <div class="session-title">${title.replace(/</g,'&lt;')}</div>
+          <div class="session-id">${s.id.slice(0,16)}</div>
+        </td>
+        <td>${s.role === 'student' ? '学生' : '家长'}</td>
+        <td>${s.turn_count}</td>
+        <td><strong>${overall}</strong></td>
+        ${dims}
+        <td>${errorTypeHtml}</td>
+        <td>
+          <button class="trigger-btn" id="strig-${i}"
+            onclick="triggerEval('${s.id}', ${i})"
+            ${canTrigger ? '' : 'disabled title="Turn 数不足"'}>
+            ${s.has_eval ? '重新评估' : '触发评估'}
+          </button>
+        </td>
+      </tr>
+      <tr class="session-detail-row" id="sdetail-${i}">
+        <td colspan="10">
+          <div class="session-detail-content">
+            ${s.has_eval ? `
+              <div class="session-detail-section">
+                <div class="ds-label">评估详情</div>
+                <div class="ds-value">
+                  ${Object.entries(STUDENT_DIMENSIONS).map(([key, label]) => {
+                    const sc = es[key];
+                    if (!sc) return `<div>${label}: <span style="color:#6b6b80">未评估</span></div>`;
+                    return `<div>${label}: <strong>${sc.value}</strong>/5 — ${sc.comment || ''}</div>`;
+                  }).join('')}
+                </div>
+              </div>
+              ${es.hint_requests ? `<div class="session-detail-section"><div class="ds-label">规则统计</div><div class="ds-value">提示请求: <strong>${es.hint_requests.value}</strong> 次 · 主动提问: <strong>${es.active_questions?.value || 0}</strong> 次 · 总耗时: <strong>${es.total_duration_s?.value || 0}</strong>s</div></div>` : ''}
+              ${s.eval_created_at ? `<div class="session-detail-section"><div class="ds-label">评估时间</div><div class="ds-value">${fmtTime(s.eval_created_at)}（基于 ${s.eval_turn_count} 个 turn）</div></div>` : ''}
+            ` : `
+              <div class="session-detail-section"><div class="ds-label">评估状态</div><div class="ds-value" style="color:#6b6b80">${canTrigger ? '尚未评估，点击"触发评估"开始' : 'Turn 数不足（需至少2个）'}</div></div>
+            `}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  document.getElementById('sessionBody').innerHTML = rows;
+
+  // Mobile cards
+  const cardsHtml = sessions.map((s, i) => {
+    const es = s.eval_scores || {};
+    const scoreBadges = Object.entries(STUDENT_DIMENSIONS).map(([key, label]) => {
+      const sc = es[key];
+      if (!sc) return `<span class="score-badge score-na">${label}: -</span>`;
+      return `<span class="score-badge ${scoreClass(sc.value)}">${label}: ${sc.value}</span>`;
+    }).join('');
+    const overall = s.eval_overall !== null ? s.eval_overall.toFixed(2) : '-';
+    const title = s.title || '(未命名)';
+    const canTrigger = s.turn_count >= 2;
+    let errorChip = '';
+    if (es.error_type) {
+      const etype = Array.isArray(es.error_type) ? es.error_type[0]?.comment : es.error_type?.comment;
+      const info = ERROR_TYPES[etype] || { label: etype || '-' };
+      errorChip = `<span class="score-badge" style="background:#f0f0f3;color:#6b6b80">${info.label}</span>`;
+    }
+    return `
+      <div class="session-card">
+        <div class="session-card-head">
+          <span class="session-card-role">${s.role === 'student' ? '👨‍🎓 学生' : '👨‍👩‍👧 家长'} · ${s.turn_count} turns</span>
+          <span class="session-card-meta">均分 ${overall}</span>
+        </div>
+        <div class="session-card-msg">${title.replace(/</g,'&lt;').slice(0,40)}</div>
+        <div class="session-card-scores">${scoreBadges} ${errorChip}</div>
+        <div style="margin-top:0.5rem;display:flex;gap:0.5rem;align-items:center;">
+          <button class="trigger-btn" onclick="triggerEval('${s.id}', ${i})" ${canTrigger ? '' : 'disabled'}>
+            ${s.has_eval ? '重新评估' : '触发评估'}
+          </button>
+          <span class="session-card-toggle" onclick="toggleSCard(${i})">展开详情 ▾</span>
+        </div>
+        <div class="session-card-detail" id="scard-${i}">
+          ${s.has_eval ? Object.entries(STUDENT_DIMENSIONS).map(([key, label]) => {
+            const sc = es[key];
+            if (!sc) return `<div class="session-detail-section"><div class="ds-label">${label}</div><div class="ds-value" style="color:#6b6b80">未评估</div></div>`;
+            return `<div class="session-detail-section"><div class="ds-label">${label}</div><div class="ds-value"><strong>${sc.value}</strong>/5 — ${sc.comment || ''}</div></div>`;
+          }).join('') : '<div class="session-detail-section"><div class="ds-label">状态</div><div class="ds-value" style="color:#6b6b80">未评估</div></div>'}
+          ${es.hint_requests ? `<div class="session-detail-section"><div class="ds-label">规则统计</div><div class="ds-value">提示 ${es.hint_requests.value} 次 · 主动提问 ${es.active_questions?.value || 0} 次 · ${es.total_duration_s?.value || 0}s</div></div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('sessionCards').innerHTML = cardsHtml;
+}
+
+async function triggerEval(sessionId, idx) {
+  const btn = document.getElementById('strig-' + idx);
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add('evaluating');
+    btn.textContent = '评估中...';
+  }
+  try {
+    const resp = await fetch(`/api/eval/student/judge/${sessionId}`, { method: 'POST' });
+    const result = await resp.json();
+    if (result.error) {
+      alert('评估失败: ' + result.error);
+    } else {
+      loadAll();
+    }
+  } catch (err) {
+    alert('评估失败: ' + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove('evaluating');
+    }
+  }
+}
+
+function toggleSCard(i) {
+  const el = document.getElementById('scard-' + i);
+  if (!el) return;
+  el.classList.toggle('open');
+  const toggle = el.previousElementSibling?.querySelector('.session-card-toggle');
+  if (toggle) toggle.textContent = el.classList.contains('open') ? '收起详情 ▴' : '展开详情 ▾';
+}
+
+// Initial load
+loadAll();
+setInterval(loadAll, 30000);
+</script>
+</body>
+</html>

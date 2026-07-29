@@ -3,6 +3,7 @@ import { sessions } from '../session.js';
 import { insertChatTurn, updateChatSession, getChatTurns } from '../db.js';
 import { judgeTurn } from '../eval/llm-judge.js';
 import { judgeSession } from '../eval/session-judge.js';
+import { evalStudent } from '../eval/student-eval.js';
 
 // 每 N 个 turn 自动触发一次 session 级评估
 const SESSION_EVAL_INTERVAL = 5;
@@ -214,6 +215,10 @@ export function handleTurn(req, res) {
         if (allTurns.length >= 3 && allTurns.length % SESSION_EVAL_INTERVAL === 0) {
           judgeSession(s.id).catch(err => {
             console.error(`[turn] Session Judge failed for session ${s.id}:`, err.message);
+          });
+          // 同时触发学生能力评估
+          evalStudent(s.id).catch(err => {
+            console.error(`[turn] Student Eval failed for session ${s.id}:`, err.message);
           });
         }
       }

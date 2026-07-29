@@ -482,6 +482,150 @@ function getSessionEvalList(role) {
   });
 }
 
+// ========== Student Eval Queries ==========
+
+function getStudentEvalSummary(role) {
+  getDb();
+  const params = role ? [role] : [];
+
+  // session_eval_scores 中 scorer='student-eval' 的维度均分
+  const dimRows = db.prepare(`
+    SELECT dimension, AVG(value) as avg_value, COUNT(*) as count
+    FROM session_eval_scores
+    ${role ? 'WHERE role = ? AND' : 'WHERE'} scorer = 'student-eval'
+    GROUP BY dimension
+  `).all(...params);
+
+  const evaluatedSessions = db.prepare(`
+    SELECT COUNT(DISTINCT session_id) as c
+    FROM session_eval_scores
+    ${role ? 'WHERE role = ? AND' : 'WHERE'} scorer = 'student-eval'
+  `).get(...params).c;
+
+  // 按 topic 统计正确率（从 session_eval_scores 中 dimension='accuracy_by_topic' 的 comment 提取）
+  const topicRows = db.prepare(`
+    SELECT comment, value
+    FROM session_eval_scores
+    ${role ? 'WHERE role = ? AND' : 'WHERE'} scorer = 'student-eval' AND dimension = 'accuracy_by_topic'
+  `).all(...params);
+
+  const topicStats = {};
+  for (const row of topicRows) {
+    // comment 格式: "topic_name" 或 "topic:topic_name"
+    const topic = row.comment || 'unknown';
+    if (!topicStats[topic]) topicStats[topic] = { correct: 0, total: 0 };
+    // value 存的是正确数 (0/1)，需要聚合
+    // 实际上这里存的是 per-session 的正确率，需要加权
+    // 简化处理：直接取平均值
+    if (!topicStats[topic].values) topicStats[topic].values = [];
+    topicStats[topic].values.push(row.value);
+  }
+
+  const topicAccuracy = {};
+  for (const [topic, stats] of Object.entries(topicStats)) {
+    if (stats.values && stats.values.length > 0) {
+      topicAccuracy[topic] = Math.round((stats.values.reduce((s, v) => s + v, 0) / stats.values.length) * 100) / 100;
+    }
+  }
+
+  // 错误类型分布
+  const errorTypeRows = db.prepare(`
+    SELECT comment as error_type, COUNT(*) as count
+    FROM session_eval_scores
+    ${role ? 'WHERE role = ? AND' : 'WHERE'} scorer = 'student-eval' AND dimension = 'error_type'
+    GROUP BY comment
+  `).all(...params);
+
+  return {
+    dimension_avg: dimRows.reduce((acc, r) => {
+      acc[r.dimension] = Math.round(r.avg_value * 100) / 100;
+      return acc;
+    }, {}),
+    evaluated_sessions: evaluatedSessions,
+    topic_accuracy: topicAccuracy,
+    error_type_distribution: errorTypeRows.reduce((acc, r) => {
+      acc[r.error_type || 'unknown'] = r.count;
+      return acc;
+    }, {}),
+  };
+}
+
+function getStudentEvalList(role) {
+  getDb();
+  const params = role ? [role] : [];
+
+  const sessions = db.prepare(`
+    SELECT id, role, title, current_problem_id, created_at, updated_at
+    FROM chat_sessions
+    WHERE is_archived = 0 ${role ? 'AND role = ?' : ''}
+    ORDER BY updated_at DESC
+  `).all(...(role ? [role] : []));
+
+  const scoreRows = db.prepare(`
+    SELECT session_id, dimension, value, comment, turn_count, created_at
+    FROM session_eval_scores
+    ${role ? 'WHERE role = ? AND' : 'WHERE'} scorer = 'student-eval'
+    ORDER BY created_at DESC
+  `).all(...params);
+
+  const scoresBySession = {};
+  for (const row of scoreRows) {
+    if (!scoresBySession[row.session_id]) scoresBySession[row.session_id] = [];
+    scoresBySession[row.session_id].push(row);
+  }
+
+  const turnCounts = {};
+  const turnRows = db.prepare(`
+    SELECT session_id, COUNT(*) as count
+    FROM chat_turns
+    ${role ? 'WHERE role = ?' : ''}
+    GROUP BY session_id
+  `).all(...params);
+  for (const row of turnRows) {
+    turnCounts[row.session_id] = row.count;
+  }
+
+  return sessions.map(s => {
+    const scores = scoresBySession[s.id] || [];
+    const evalScores = {};
+    let evalTurnCount = 0;
+    let evalCreatedAt = null;
+    for (const sc of scores) {
+      if (sc.dimension === 'accuracy_by_topic' || sc.dimension === 'error_type') {
+        // 这些是分类维度，存为列表
+        if (!evalScores[sc.dimension]) evalScores[sc.dimension] = [];
+        evalScores[sc.dimension].push({ value: sc.value, comment: sc.comment });
+      } else {
+        evalScores[sc.dimension] = { value: sc.value, comment: sc.comment };
+      }
+      evalTurnCount = sc.turn_count;
+      evalCreatedAt = sc.created_at;
+    }
+    const hasEval = Object.keys(evalScores).length > 0;
+    // 计算总均分（排除分类维度）
+    const numericDims = ['accuracy', 'independence', 'thinking_quality', 'engagement'];
+    const numericValues = numericDims.map(d => evalScores[d]?.value).filter(v => v !== undefined);
+    const overallAvg = numericValues.length > 0
+      ? Math.round((numericValues.reduce((s, v) => s + v, 0) / numericValues.length) * 100) / 100
+      : null;
+
+    return {
+      id: s.id,
+      role: s.role,
+      title: s.title,
+      current_problem_id: s.current_problem_id,
+      created_at: s.created_at,
+      updated_at: s.updated_at,
+      turn_count: turnCounts[s.id] || 0,
+      has_eval: hasEval,
+      eval_scores: evalScores,
+      eval_overall: overallAvg,
+      eval_turn_count: evalTurnCount,
+      eval_created_at: evalCreatedAt,
+    };
+  });
+}
+
 function getEvalDashboard(role) {
   getDb();
   const roleFilter = role ? 'WHERE s.role = ?' : '';
@@ -732,6 +876,8 @@ export {
   deleteSessionEvalScores,
   getSessionEvalSummary,
   getSessionEvalList,
+  getStudentEvalSummary,
+  getStudentEvalList,
   insertPromptVersion,
   activatePromptVersion,
   getActivePromptVersion,

@@ -35,6 +35,9 @@ import {
   triggerSessionJudge,
   sessionEvalSummary,
   sessionEvalList,
+  studentEvalSummary,
+  studentEvalList,
+  triggerStudentEval,
 } from './controllers/evalController.js';
 import {
   listPrompts,
@@ -113,6 +116,11 @@ export function createApp() {
   app.post('/api/eval/session/:sessionId/judge', triggerSessionJudge);
   app.get('/api/eval/session-summary', sessionEvalSummary);
   app.get('/api/eval/sessions', sessionEvalList);
+
+  // 学生评估
+  app.get('/api/eval/student/summary', studentEvalSummary);
+  app.get('/api/eval/student/sessions', studentEvalList);
+  app.post('/api/eval/student/judge/:sessionId', triggerStudentEval);
 
   // ========== Prompt 版本管理 ==========
   app.get('/api/prompts', listPrompts);
