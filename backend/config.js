@@ -20,6 +20,10 @@ export const CLAUDE_MODEL = process.env.CLAUDE_MODEL || null;
 export const VISION_MODEL = process.env.VISION_MODEL || null;
 export const VISION_MAX_TURNS = parseInt(process.env.VISION_MAX_TURNS || '2', 10);
 
+// 惰性读取（运行时可通过管理页修改 process.env 后即时生效）
+export function getClaudeModel() { return process.env.CLAUDE_MODEL || null; }
+export function getVisionModel() { return process.env.VISION_MODEL || null; }
+
 // ---------- 系统提示词 ----------
 export const SYSTEM_PROMPT_BASE = `你是一位耐心、鼓励的小学数学 AI 助教，借助 Claude Code 的工具能力辅导一位小学生（4-6 年级，学而思大白本风格）做数学题。
 

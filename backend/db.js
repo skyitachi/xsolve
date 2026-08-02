@@ -126,6 +126,12 @@ function initSchema() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_prompt_versions_role ON prompt_versions(role, is_active DESC, version DESC);
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL DEFAULT '',
+      updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
   `);
 
   // Migration: add prompt_version_id to chat_turns if not exists
@@ -834,6 +840,35 @@ function deletePromptVersion(id) {
   return { ok: true, role: row.role };
 }
 
+// ========== Settings（运行时配置，管理页可改）==========
+
+// 读取全部设置项，返回 [{ key, value, updated_at }]
+function getAllSettings() {
+  getDb();
+  return db.prepare('SELECT key, value, updated_at FROM settings ORDER BY key').all();
+}
+
+// 读取单个设置项，不存在返回 null
+function getSetting(key) {
+  getDb();
+  return db.prepare('SELECT value FROM settings WHERE key = ?').get(key)?.value ?? null;
+}
+
+// 新增或更新设置项
+function upsertSetting(key, value) {
+  getDb();
+  db.prepare(`
+    INSERT INTO settings (key, value, updated_at) VALUES (?, ?, strftime('%s','now'))
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = strftime('%s','now')
+  `).run(key, value);
+}
+
+// 删除设置项（恢复使用 .env / 环境变量）
+function deleteSetting(key) {
+  getDb();
+  db.prepare('DELETE FROM settings WHERE key = ?').run(key);
+}
+
 // ========== Prompt Seed ==========
 
 function seedPromptVersions() {
@@ -886,4 +921,8 @@ export {
   listPromptRoles,
   deletePromptVersion,
   seedPromptVersions,
+  getAllSettings,
+  getSetting,
+  upsertSetting,
+  deleteSetting,
 };

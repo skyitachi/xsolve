@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { VISION_MODEL, CLAUDE_MODEL, VISION_SUBAGENT_PROMPT } from './config.js';
+import { VISION_SUBAGENT_PROMPT } from './config.js';
 
 // API 配置读取（环境变量 + ~/.claude/settings.json）
 // 视觉子代理的 API_KEY / BASE_URL 可与主对话模型分开配置：
@@ -64,7 +64,7 @@ function resolveVisionModel(apiFormat, baseUrl) {
   const isOfficialAnthropic = /anthropic\.com$/i.test(new URL(baseUrl).hostname);
 
   if (apiFormat === 'anthropic') {
-    if (CLAUDE_MODEL) return CLAUDE_MODEL;
+    if (process.env.CLAUDE_MODEL) return process.env.CLAUDE_MODEL;
     if (isOfficialAnthropic) return 'claude-sonnet-4-20250514';
     return null;
   }

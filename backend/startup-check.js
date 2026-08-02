@@ -12,12 +12,13 @@ import './env.js'; // 确保单独调用时也加载了 .env
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { CLAUDE_MODEL } from './config.js';
 import { getVisionApiConfig, resolveApiFormat } from './vision.js';
 import { getDb, getActivePromptVersion } from './db.js';
 
 const TIMEOUT_MS = 20000;
-const JUDGE_MODEL = process.env.JUDGE_MODEL || CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+function getJudgeModel() {
+  return process.env.JUDGE_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+}
 
 // 主对话 / Judge 的 API 配置（同 eval/llm-judge.js 的 getApiConfig）
 function getChatApiConfig() {
@@ -56,7 +57,7 @@ function resolveJudgeFormat(baseUrl) {
 function resolveVisionModelSafe(format, baseUrl) {
   if (process.env.VISION_MODEL) return process.env.VISION_MODEL;
   if (format === 'anthropic') {
-    if (CLAUDE_MODEL) return CLAUDE_MODEL;
+    if (process.env.CLAUDE_MODEL) return process.env.CLAUDE_MODEL;
     if (isOfficialAnthropic(baseUrl)) return 'claude-sonnet-4-20250514';
     return null;
   }
@@ -175,7 +176,7 @@ export async function runStartupChecks() {
 
   // 3. 主对话代理（SDK 走 Anthropic 协议，固定 anthropic 格式探测）
   const chat = getChatApiConfig();
-  const chatModel = CLAUDE_MODEL || (isOfficialAnthropic(chat.baseUrl) ? 'claude-sonnet-4-20250514' : null);
+  const chatModel = process.env.CLAUDE_MODEL || (isOfficialAnthropic(chat.baseUrl) ? 'claude-sonnet-4-20250514' : null);
   results.push(await pingChat({
     label: '主对话代理 (SDK/Anthropic)',
     baseUrl: chat.baseUrl, apiKey: chat.apiKey, model: chatModel, format: 'anthropic',
@@ -194,7 +195,7 @@ export async function runStartupChecks() {
   const jfmt = resolveJudgeFormat(chat.baseUrl);
   results.push(await pingChat({
     label: 'LLM Judge (Eval)',
-    baseUrl: chat.baseUrl, apiKey: chat.apiKey, model: JUDGE_MODEL, format: jfmt,
+    baseUrl: chat.baseUrl, apiKey: chat.apiKey, model: getJudgeModel(), format: jfmt,
   }));
 
   // 汇总打印

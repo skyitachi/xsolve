@@ -5,14 +5,15 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { CLAUDE_MODEL } from '../config.js';
 import { resolveApiFormat } from '../vision.js';
 import {
   getChatTurns, getChatSession, getProblem,
   insertSessionEvalScore, deleteSessionEvalScores,
 } from '../db.js';
 
-const JUDGE_MODEL = process.env.JUDGE_MODEL || CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+function getJudgeModel() {
+  return process.env.JUDGE_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+}
 const MIN_TURNS_FOR_EVAL = 2;
 
 function getApiConfig() {
@@ -144,7 +145,7 @@ async function callLLM(userPrompt, systemPrompt) {
       'anthropic-version': '2023-06-01',
     };
     payload = {
-      model: JUDGE_MODEL,
+      model: getJudgeModel(),
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
@@ -156,7 +157,7 @@ async function callLLM(userPrompt, systemPrompt) {
       'authorization': `Bearer ${apiKey}`,
     };
     payload = {
-      model: JUDGE_MODEL,
+      model: getJudgeModel(),
       max_tokens: 1024,
       messages: [
         { role: 'system', content: systemPrompt },
@@ -165,7 +166,7 @@ async function callLLM(userPrompt, systemPrompt) {
     };
   }
 
-  console.log(`[student-eval] POST ${url} model=${JUDGE_MODEL} format=${effectiveFormat}`);
+  console.log(`[student-eval] POST ${url} model=${getJudgeModel()} format=${effectiveFormat}`);
 
   const resp = await fetch(url, {
     method: 'POST',

@@ -4,11 +4,15 @@ import "./env.js"; // 必须最先导入：加载 .env 文件到 process.env
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { PORT, VISION_MODEL, CLAUDE_MODEL } from "./config.js";
+import { PORT } from "./config.js";
 import { getVisionApiConfig, resolveApiFormat } from "./vision.js";
 import { sessions, destroySession } from "./session.js";
 import { createApp } from "./app.js";
 import { runStartupChecks } from "./startup-check.js";
+import { initSettings } from "./settings.js";
+
+// 把管理页保存的配置（DB settings 表）覆盖到 process.env，须在创建 app / 惰性读取前执行
+initSettings();
 
 import { appendLog } from "./startup-logs.js";
 
@@ -51,7 +55,7 @@ function validateConfig() {
   }
 
   // 2. 自定义 base_url 时建议指定模型（不阻断启动，但给出警告）
-  if (isCustomBase && !CLAUDE_MODEL && !process.env.VISION_MODEL) {
+  if (isCustomBase && !process.env.CLAUDE_MODEL && !process.env.VISION_MODEL) {
     warnings.push(
       "检测到自定义 ANTHROPIC_BASE_URL，但未设置 CLAUDE_MODEL。\n" +
         "  SDK 将使用默认 Claude 模型名，在你的代理上可能不存在。\n" +
@@ -93,14 +97,14 @@ const server = app.listen(PORT, async () => {
     `[selflearning] api base: ${cfg.baseUrl}${cfg.isCustomBase ? " (custom proxy)" : " (default)"}`,
   );
 
-  if (CLAUDE_MODEL) {
-    console.log(`[selflearning] chat model: ${CLAUDE_MODEL}`);
+  if (process.env.CLAUDE_MODEL) {
+    console.log(`[selflearning] chat model: ${process.env.CLAUDE_MODEL}`);
   } else {
     console.log(`[selflearning] chat model: SDK default (claude-sonnet-4-6)`);
   }
 
   // 视觉模型信息
-  let visionModelDisplay = VISION_MODEL;
+  let visionModelDisplay = process.env.VISION_MODEL || null;
   const visionCfg = getVisionApiConfig();
   const visionBase = visionCfg.baseUrl;
   const visionSeparate =
@@ -117,8 +121,8 @@ const server = app.listen(PORT, async () => {
 
   if (!process.env.VISION_MODEL) {
     if (visionFormat === "anthropic") {
-      if (CLAUDE_MODEL) {
-        visionModelDisplay = `${CLAUDE_MODEL} (复用主对话模型)`;
+      if (process.env.CLAUDE_MODEL) {
+        visionModelDisplay = `${process.env.CLAUDE_MODEL} (复用主对话模型)`;
       } else if (isAnthropicOfficial) {
         visionModelDisplay = "claude-sonnet-4-20250514 (自动选择)";
       } else {

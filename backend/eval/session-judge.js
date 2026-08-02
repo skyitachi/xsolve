@@ -3,7 +3,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { CLAUDE_MODEL } from '../config.js';
 import { resolveApiFormat } from '../vision.js';
 import {
   getChatTurns, getChatSession, getProblem,
@@ -11,7 +10,9 @@ import {
   insertSessionEvalScore, deleteSessionEvalScores,
 } from '../db.js';
 
-const JUDGE_MODEL = process.env.JUDGE_MODEL || CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+function getJudgeModel() {
+  return process.env.JUDGE_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+}
 
 // Session-level 评估的最小 turn 数（太少没有评估意义）
 const MIN_TURNS_FOR_SESSION_EVAL = 3;
@@ -136,7 +137,7 @@ ${conversationSummary}
       'anthropic-version': '2023-06-01',
     };
     payload = {
-      model: JUDGE_MODEL,
+      model: getJudgeModel(),
       max_tokens: 1024,
       system: SESSION_JUDGE_PROMPT,
       messages: [{ role: 'user', content: userPrompt }],
@@ -148,7 +149,7 @@ ${conversationSummary}
       'authorization': `Bearer ${apiKey}`,
     };
     payload = {
-      model: JUDGE_MODEL,
+      model: getJudgeModel(),
       max_tokens: 1024,
       messages: [
         { role: 'system', content: SESSION_JUDGE_PROMPT },
@@ -157,7 +158,7 @@ ${conversationSummary}
     };
   }
 
-  console.log(`[session-judge] POST ${url} model=${JUDGE_MODEL} format=${effectiveFormat} session=${sessionId} turns=${turns.length}`);
+  console.log(`[session-judge] POST ${url} model=${getJudgeModel()} format=${effectiveFormat} session=${sessionId} turns=${turns.length}`);
 
   const resp = await fetch(url, {
     method: 'POST',

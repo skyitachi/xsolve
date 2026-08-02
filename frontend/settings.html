@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>xsolve 模型配置</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, "PingFang SC", system-ui, sans-serif;
+  background: #f5f5f7; color: #1a1a2e; font-size: 14px; line-height: 1.6;
+}
+.container { width: 100%; max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem; }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.5rem; }
+h1 { font-size: 1.4rem; font-weight: 700; }
+.back-link { color: #4b3fe3; text-decoration: none; font-size: 13px; }
+
+/* 提示框 */
+.notice {
+  background: #fff8e6; border: 1px solid #f0dfa8; border-radius: 10px;
+  padding: 0.9rem 1rem; font-size: 13px; color: #6b5416; margin-bottom: 1.5rem;
+}
+.notice strong { color: #8a6d1a; }
+
+/* 表单卡片 */
+.card {
+  background: #fff; border-radius: 12px; padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 1rem;
+}
+.field { margin-bottom: 1.25rem; }
+.field:last-child { margin-bottom: 0; }
+.field label { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; font-size: 13.5px; margin-bottom: 0.4rem; }
+.field .hint { font-weight: 400; font-size: 12px; color: #8b8b9a; }
+.field input[type="text"], .field input[type="password"] {
+  width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #ddd; border-radius: 8px;
+  font-size: 13.5px; font-family: "SF Mono", "Fira Code", Menlo, monospace;
+}
+.field input:focus { outline: none; border-color: #4b3fe3; box-shadow: 0 0 0 3px rgba(75,63,227,0.12); }
+.input-row { display: flex; gap: 0.5rem; align-items: stretch; }
+.input-row input { flex: 1; }
+.input-row .btn { white-space: nowrap; }
+
+/* 来源徽章 + 当前值 */
+.src-badge {
+  display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 600;
+}
+.src-badge.db { background: #e8f9f0; color: #0a7c43; }
+.src-badge.env { background: #eef0ff; color: #4b3fe3; }
+.current-val { font-size: 12px; color: #8b8b9a; margin-top: 0.35rem; word-break: break-all; }
+
+/* 按钮 */
+.btn {
+  padding: 8px 16px; border: none; border-radius: 8px; font-size: 13px; cursor: pointer;
+  transition: all 0.2s; font-weight: 500;
+}
+.btn-primary { background: #4b3fe3; color: #fff; }
+.btn-primary:hover { background: #3a2fd0; }
+.btn-primary:disabled { background: #b9b3f0; cursor: not-allowed; }
+.btn-secondary { background: #fff; color: #4b3fe3; border: 1px solid #4b3fe3; }
+.btn-secondary:hover { background: #f0effa; }
+.btn-secondary:disabled { background: #eee; color: #aaa; border-color: #ddd; cursor: not-allowed; }
+.btn-danger-ghost { background: #fff; color: #c4341a; border: 1px solid #c4341a; font-size: 12px; padding: 5px 10px; }
+.btn-danger-ghost:hover { background: #fde8e8; }
+
+/* 结果区 */
+#result { margin-top: 1rem; border-radius: 10px; padding: 0.9rem 1rem; font-size: 13px; display: none; white-space: pre-wrap; word-break: break-all; }
+#result.ok { display: block; background: #e8f9f0; color: #0a7c43; border: 1px solid #b7e8d2; }
+#result.err { display: block; background: #fdecec; color: #a11c1c; border: 1px solid #f3c1c1; }
+
+/* 底部操作栏 */
+.actions { display: flex; gap: 0.75rem; align-items: center; margin-top: 1rem; flex-wrap: wrap; }
+.actions .spacer { flex: 1; }
+
+@media (max-width: 480px) {
+  .container { padding: 1.25rem 0.9rem; }
+  .card { padding: 1.1rem; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🔑 模型配置</h1>
+    <a class="back-link" href="/">← 返回做题页面</a>
+  </header>
+
+  <div class="notice">
+    <strong>生效规则：</strong>保存后配置存入数据库，<strong>优先于 .env</strong>；把某字段清空再保存 = 删除该项，回退使用 .env 里的值。
+    保存后<strong>新建会话</strong>（刷新做题页面）即生效；正在进行的对话仍用旧配置。
+  </div>
+
+  <div class="card">
+    <div class="field">
+      <label>API Base URL</label>
+      <input type="text" id="base-url" placeholder="https://api.anthropic.com" autocomplete="off" spellcheck="false" />
+      <div class="current-val" id="base-url-current"></div>
+    </div>
+
+    <div class="field">
+      <label>API Key <span class="hint">（留空 = 不修改）</span></label>
+      <div class="input-row">
+        <input type="password" id="api-key" placeholder="sk-ant-... / sk-..." autocomplete="off" spellcheck="false" />
+        <button class="btn btn-secondary btn-sm" id="toggle-key" type="button">显示</button>
+      </div>
+      <div class="current-val" id="api-key-current"></div>
+    </div>
+
+    <div class="field">
+      <label>对话模型 CLAUDE_MODEL <span class="hint">（不填则用 SDK 默认）</span></label>
+      <input type="text" id="claude-model" placeholder="claude-sonnet-4-20250514" autocomplete="off" spellcheck="false" />
+      <div class="current-val" id="claude-model-current"></div>
+    </div>
+
+    <div class="field">
+      <label>视觉模型 VISION_MODEL <span class="hint">（不填则复用对话模型）</span></label>
+      <input type="text" id="vision-model" placeholder="如 Qwen/Qwen2.5-VL-7B-Instruct" autocomplete="off" spellcheck="false" />
+      <div class="current-val" id="vision-model-current"></div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-secondary" id="btn-test">🧪 测试连接</button>
+    <button class="btn btn-primary" id="btn-save">💾 保存配置</button>
+    <div class="spacer"></div>
+    <button class="btn btn-danger-ghost" id="btn-revert-key" type="button">清除已保存的 API Key（回退 .env）</button>
+  </div>
+
+  <div id="result"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let current = null; // GET /api/settings 返回的当前配置
+
+function showResult(ok, msg) {
+  const el = $('result');
+  el.className = ok ? 'ok' : 'err';
+  el.textContent = msg;
+}
+
+function srcBadge(source) {
+  return source === 'db'
+    ? '<span class="src-badge db">已保存(DB)</span>'
+    : '<span class="src-badge env">来自 .env</span>';
+}
+
+async function loadSettings() {
+  try {
+    const res = await fetch('/api/settings');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    current = await res.json();
+  } catch (e) {
+    showResult(false, '加载配置失败：' + e.message);
+    return;
+  }
+
+  $('base-url').value = current.baseUrl || '';
+  $('api-key').value = '';
+  $('claude-model').value = current.claudeModel || '';
+  $('vision-model').value = current.visionModel || '';
+
+  $('base-url-current').innerHTML = srcBadge(current.baseUrlSource) + ' 当前：' + (current.baseUrl || '（未设置，默认 https://api.anthropic.com）');
+  $('api-key-current').innerHTML = (current.apiKeySet
+    ? srcBadge(current.apiKeySource) + ' 当前：<code>' + current.apiKeyMasked + '</code>'
+    : '<span class="src-badge env">未设置</span> 当前无 API Key');
+  $('claude-model-current').innerHTML = srcBadge(current.claudeModelSource) + ' 当前：' + (current.claudeModel || '（未设置）');
+  $('vision-model-current').innerHTML = srcBadge(current.visionModelSource) + ' 当前：' + (current.visionModel || '（未设置，复用对话模型）');
+}
+
+function collectPatch() {
+  const patch = {};
+  // 三个文本字段：始终提交（清空 = 回退 .env）
+  patch.baseUrl = $('base-url').value.trim();
+  patch.claudeModel = $('claude-model').value.trim();
+  patch.visionModel = $('vision-model').value.trim();
+  // API Key：仅当输入了新值才提交；空 = 不修改
+  const key = $('api-key').value.trim();
+  if (key) patch.apiKey = key;
+  return patch;
+}
+
+async function saveSettings() {
+  const btn = $('btn-save');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(collectPatch()),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    showResult(true, '✅ 配置已保存。刷新做题页面后新会话生效。\n' + JSON.stringify(data.settings, null, 2));
+    await loadSettings();
+  } catch (e) {
+    showResult(false, '保存失败：' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function testSettings() {
+  const btn = $('btn-test');
+  btn.disabled = true;
+  showResult(false, '⏳ 正在测试连接，请稍候…');
+  try {
+    const res = await fetch('/api/settings/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey: $('api-key').value.trim(),
+        baseUrl: $('base-url').value.trim(),
+        model: $('claude-model').value.trim() || $('vision-model').value.trim(),
+      }),
+    });
+    const data = await res.json();
+    showResult(!!data.ok, (data.ok ? '✅ ' : '❌ ') + (data.message || ''));
+  } catch (e) {
+    showResult(false, '测试失败：' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function revertKey() {
+  if (!confirm('确定清除已保存的 API Key 并回退到 .env 吗？')) return;
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: '' }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    showResult(true, '✅ 已清除 API Key，回退使用 .env / 环境变量中的 Key。');
+    await loadSettings();
+  } catch (e) {
+    showResult(false, '操作失败：' + e.message);
+  }
+}
+
+$('btn-save').addEventListener('click', saveSettings);
+$('btn-test').addEventListener('click', testSettings);
+$('btn-revert-key').addEventListener('click', revertKey);
+$('toggle-key').addEventListener('click', () => {
+  const input = $('api-key');
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  $('toggle-key').textContent = show ? '隐藏' : '显示';
+});
+
+loadSettings();
+</script>
+</body>
+</html>

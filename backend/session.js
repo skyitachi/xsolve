@@ -3,18 +3,19 @@ import crypto from 'node:crypto';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { getDb, getAllProblems, insertChatSession, getChatSession, getChatTurns, updateChatSession, getActivePromptVersion } from './db.js';
 import { buildTutorMcp } from './mcp-tools.js';
-import { buildSystemPrompt, ALLOWED_TOOLS, CLAUDE_MODEL } from './config.js';
+import { buildSystemPrompt, ALLOWED_TOOLS } from './config.js';
 import { createInputQueue } from './utils.js';
 
 // 子进程环境：继承主进程，但移除 ANTHROPIC_AUTH_TOKEN。
 // 原因：~/.claude/settings.json 若设了 ANTHROPIC_AUTH_TOKEN，SDK 会优先用它（Bearer）而非 .env 的
 // ANTHROPIC_API_KEY（x-api-key），导致打到错误的端点 401。配合 settingSources:['project'] 不读 user settings。
-const CHILD_ENV = (() => {
+// 注意：必须每次创建会话时现算（不能模块加载时快照），这样管理页改的 API Key / Base URL 才对新会话生效。
+function buildChildEnv() {
   const e = { ...process.env };
   delete e.ANTHROPIC_AUTH_TOKEN;
   e.CLAUDE_AGENT_SDK_CLIENT_APP = 'selflearning/0.1.0';
   return e;
-})();
+}
 
 // 会话注册表
 export const sessions = new Map();
@@ -97,8 +98,8 @@ export function createSession(opts = {}) {
         const text = (typeof data === 'string' ? data : data.toString()).trimEnd();
         if (text) console.error('[claude-code]', text);
       },
-      ...(CLAUDE_MODEL ? { model: CLAUDE_MODEL } : {}),
-      env: CHILD_ENV
+      ...(process.env.CLAUDE_MODEL ? { model: process.env.CLAUDE_MODEL } : {}),
+      env: buildChildEnv()
     }
   });
 
@@ -203,9 +204,9 @@ export function restoreSession(id) {
         const text = (typeof data === 'string' ? data : data.toString()).trimEnd();
         if (text) console.error('[claude-code]', text);
       },
-      ...(CLAUDE_MODEL ? { model: CLAUDE_MODEL } : {}),
+      ...(process.env.CLAUDE_MODEL ? { model: process.env.CLAUDE_MODEL } : {}),
       ...resumeOpts,
-      env: CHILD_ENV
+      env: buildChildEnv()
     }
   });
 
@@ -297,8 +298,8 @@ export async function clearSessionHistory(s) {
         const text = (typeof data === 'string' ? data : data.toString()).trimEnd();
         if (text) console.error('[claude-code]', text);
       },
-      ...(CLAUDE_MODEL ? { model: CLAUDE_MODEL } : {}),
-      env: CHILD_ENV
+      ...(process.env.CLAUDE_MODEL ? { model: process.env.CLAUDE_MODEL } : {}),
+      env: buildChildEnv()
     }
   });
 
@@ -368,8 +369,8 @@ export async function abortTurn(s) {
         const text = (typeof data === 'string' ? data : data.toString()).trimEnd();
         if (text) console.error('[claude-code]', text);
       },
-      ...(CLAUDE_MODEL ? { model: CLAUDE_MODEL } : {}),
-      env: CHILD_ENV
+      ...(process.env.CLAUDE_MODEL ? { model: process.env.CLAUDE_MODEL } : {}),
+      env: buildChildEnv()
     }
   });
 

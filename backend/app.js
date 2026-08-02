@@ -47,6 +47,11 @@ import {
   deletePrompt,
   listRoles,
 } from './controllers/promptController.js';
+import {
+  getSettings,
+  updateSettings,
+  testSettings,
+} from './controllers/settingsController.js';
 import { getStartupLogs } from './startup-logs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -129,6 +134,11 @@ export function createApp() {
   app.post('/api/prompts', createPrompt);
   app.post('/api/prompts/:id/activate', activatePrompt);
   app.delete('/api/prompts/:id', deletePrompt);
+
+  // ========== 运行时配置管理（API Key / Base URL / 模型）==========
+  app.get('/api/settings', getSettings);
+  app.put('/api/settings', updateSettings);
+  app.post('/api/settings/test', testSettings);
 
   // ========== 404 兜底 ==========
   app.use((req, res) => {

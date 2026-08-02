@@ -4,11 +4,12 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { CLAUDE_MODEL } from '../config.js';
 import { resolveApiFormat } from '../vision.js';
 import { insertEvalScore, getProblem, getActivePromptVersion, getPromptVersion } from '../db.js';
 
-const JUDGE_MODEL = process.env.JUDGE_MODEL || CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+function getJudgeModel() {
+  return process.env.JUDGE_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+}
 
 function getApiConfig() {
   let baseUrl = process.env.ANTHROPIC_BASE_URL;
@@ -147,7 +148,7 @@ ${problemInfo ? '\n' + problemInfo : ''}
       'anthropic-version': '2023-06-01',
     };
     payload = {
-      model: JUDGE_MODEL,
+      model: getJudgeModel(),
       max_tokens: 1024,
       system: judgeSystemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
@@ -160,7 +161,7 @@ ${problemInfo ? '\n' + problemInfo : ''}
       'authorization': `Bearer ${apiKey}`,
     };
     payload = {
-      model: JUDGE_MODEL,
+      model: getJudgeModel(),
       max_tokens: 1024,
       messages: [
         { role: 'system', content: judgeSystemPrompt },
@@ -169,7 +170,7 @@ ${problemInfo ? '\n' + problemInfo : ''}
     };
   }
 
-  console.log(`[llm-judge] POST ${url} model=${JUDGE_MODEL} format=${effectiveFormat} turn=${turn.id} prompt_v${turnPromptInfo.version}`);
+  console.log(`[llm-judge] POST ${url} model=${getJudgeModel()} format=${effectiveFormat} turn=${turn.id} prompt_v${turnPromptInfo.version}`);
 
   const resp = await fetch(url, {
     method: 'POST',

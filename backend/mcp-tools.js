@@ -7,7 +7,7 @@ import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { getAllProblems, getProblem, insertProblem, updateProblemFigure, updateChatSession } from './db.js';
 import { runVisionHttp } from './vision.js';
-import { CLAUDE_MODEL, SCRATCH_VISION_PROMPT } from './config.js';
+import { SCRATCH_VISION_PROMPT } from './config.js';
 import { compareAnswer, safeCalc, mcpOk, mcpErr } from './utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -21,8 +21,10 @@ function escapeHtml(s) {
   }[c]));
 }
 
-// 视觉模型展示名（用于工具描述和响应）
-const VISION_MODEL_DISPLAY = process.env.VISION_MODEL || CLAUDE_MODEL || 'claude-sonnet-4 (自动选择)';
+// 视觉模型展示名（用于工具描述和响应；惰性读取，管理页改模型后即时生效）
+function visionModelDisplay() {
+  return process.env.VISION_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4 (自动选择)';
+}
 
 /**
  * 构建 tutor MCP 工具服务器
@@ -148,7 +150,7 @@ export function buildTutorMcp(session) {
           const t0 = Date.now();
           try {
             const text = await runVisionHttp(session.lastImage, session.emit.bind(session));
-            return mcpOk({ recognized: text, elapsed_ms: Date.now() - t0, model: VISION_MODEL_DISPLAY });
+            return mcpOk({ recognized: text, elapsed_ms: Date.now() - t0, model: visionModelDisplay() });
           } catch (e) {
             return mcpErr('视觉子代理失败: ' + (e.message || String(e)));
           }
@@ -215,7 +217,7 @@ export function buildTutorMcp(session) {
           if (!session.scratchImage) return mcpErr('草稿板是空的：请让学生先在草稿区写字，或点击"识别草稿"按钮');
           const t0 = Date.now();
           try {
-            session.emit('ui_event', { type: 'scratch_recognition_started', model: VISION_MODEL_DISPLAY });
+            session.emit('ui_event', { type: 'scratch_recognition_started', model: visionModelDisplay() });
             const rawText = await runVisionHttp(session.scratchImage, session.emit.bind(session), SCRATCH_VISION_PROMPT);
             // 尝试解析JSON
             let parsed;
@@ -236,7 +238,7 @@ export function buildTutorMcp(session) {
             return mcpOk({
               ...parsed,
               elapsed_ms: Date.now() - t0,
-              model: VISION_MODEL_DISPLAY
+              model: visionModelDisplay()
             });
           } catch (e) {
             return mcpErr('草稿识别失败: ' + (e.message || String(e)));
