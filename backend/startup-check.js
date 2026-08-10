@@ -2,9 +2,9 @@
 //
 // 检查项：
 //   1. DB / Prompt：DB 可用且 student/parent/judge 都有活跃 prompt 版本
-//   2. 主对话代理（SDK/Anthropic API）
-//   3. 视觉子代理（Vision，复用 vision.js 的配置与格式判断）
-//   4. LLM Judge（Eval，复用主对话 API 配置 + JUDGE_MODEL）
+//   2. 主对话代理（SDK/Anthropic API）— 使用 CLAUDE_API_KEY / CLAUDE_BASE_URL（fallback ANTHROPIC_*）
+//   3. 视觉子代理（Vision）— 使用 VISION_API_KEY / VISION_BASE_URL（fallback ANTHROPIC_*）
+//   4. LLM Judge（Eval）— 使用 JUDGE_API_KEY / JUDGE_BASE_URL（fallback CLAUDE_* → ANTHROPIC_*）
 //
 // 每项发一个最小 chat 请求（max_tokens 16, "ping"）验证：API 可达 + 鉴权 + 模型存在。
 // 不阻断启动，只打日志。可用 SKIP_STARTUP_CHECK=1 跳过。
@@ -13,37 +13,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { getVisionApiConfig, resolveApiFormat } from './vision.js';
+import { getChatApiConfig, getJudgeApiConfig, isOfficialAnthropic } from './api-config.js';
 import { getDb, getActivePromptVersion } from './db.js';
 
 const TIMEOUT_MS = 20000;
 function getJudgeModel() {
   return process.env.JUDGE_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
-}
-
-// 主对话 / Judge 的 API 配置（同 eval/llm-judge.js 的 getApiConfig）
-function getChatApiConfig() {
-  let baseUrl = process.env.ANTHROPIC_BASE_URL;
-  let apiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
-  if (!baseUrl || !apiKey) {
-    try {
-      const settingsPath = path.join(os.homedir(), '.claude', 'settings.json');
-      if (fs.existsSync(settingsPath)) {
-        const s = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-        const env = s.env || {};
-        baseUrl = baseUrl || env.ANTHROPIC_BASE_URL;
-        apiKey = apiKey || env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN;
-      }
-    } catch { /* ignore */ }
-  }
-  if (!baseUrl) baseUrl = 'https://api.anthropic.com';
-  return { baseUrl: baseUrl.replace(/\/+$/, ''), apiKey };
-}
-
-function isOfficialAnthropic(baseUrl) {
-  try {
-    const host = new URL(baseUrl.startsWith('http') ? baseUrl : 'https://' + baseUrl).hostname;
-    return /anthropic\.com$/i.test(host);
-  } catch { return false; }
 }
 
 // Judge 的有效格式：anthropic 格式但第三方代理 → 降级为 openai（同 llm-judge.js 逻辑）
@@ -124,12 +99,12 @@ function checkDb() {
   }
 }
 
-// 检测 ~/.claude/settings.json 的 ANTHROPIC_AUTH_TOKEN 是否与 .env 的 ANTHROPIC_API_KEY 冲突
+// 检测 ~/.claude/settings.json 的 ANTHROPIC_AUTH_TOKEN 是否与 .env 的 API Key 冲突
 // SDK（Claude Code 子进程）会读 settings.json，若其中含 ANTHROPIC_AUTH_TOKEN 会优先用 Bearer 鉴权，
-// 覆盖 .env 的 ANTHROPIC_API_KEY，导致打到错误端点 401。session.js 已用 settingSources:['project'] 隔离。
+// 覆盖 .env 的 API Key，导致打到错误端点 401。session.js 已用 settingSources:['project'] 隔离。
 function checkSettingsConflict() {
   const t0 = Date.now();
-  const envApiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
+  const envApiKey = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
   let settingsAuthToken = null;
   let settingsBaseUrl = null;
   try {
@@ -142,15 +117,15 @@ function checkSettingsConflict() {
     }
   } catch { /* ignore */ }
 
-  if (settingsAuthToken && process.env.ANTHROPIC_API_KEY) {
+  if (settingsAuthToken && (process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY)) {
     return {
       label: 'settings.json 鉴权冲突',
       ok: true,
-      detail: `settings.json 含 ANTHROPIC_AUTH_TOKEN（与 .env ANTHROPIC_API_KEY 冲突，base=${settingsBaseUrl || '?'})；已由 session.js settingSources:['project'] 隔离，若仍 401 请检查此项`,
+      detail: `settings.json 含 ANTHROPIC_AUTH_TOKEN（与 .env API Key 冲突，base=${settingsBaseUrl || '?'})；已由 session.js settingSources:['project'] 隔离，若仍 401 请检查此项`,
       elapsedMs: Date.now() - t0,
     };
   }
-  if (settingsAuthToken && !process.env.ANTHROPIC_API_KEY) {
+  if (settingsAuthToken && !process.env.CLAUDE_API_KEY && !process.env.ANTHROPIC_API_KEY) {
     return { label: 'settings.json 鉴权冲突', ok: true, detail: '使用 settings.json 的 ANTHROPIC_AUTH_TOKEN 鉴权', elapsedMs: Date.now() - t0 };
   }
   return { label: 'settings.json 鉴权冲突', ok: true, detail: '无冲突', elapsedMs: Date.now() - t0 };
@@ -191,11 +166,12 @@ export async function runStartupChecks() {
     baseUrl: vcfg.baseUrl, apiKey: vcfg.apiKey, model: vmodel, format: vfmt,
   }));
 
-  // 5. LLM Judge（复用主对话 API 配置 + JUDGE_MODEL，格式按 effectiveFormat）
-  const jfmt = resolveJudgeFormat(chat.baseUrl);
+  // 5. LLM Judge（使用独立的 Judge API 配置 + JUDGE_MODEL）
+  const jcfg = getJudgeApiConfig();
+  const jfmt = resolveJudgeFormat(jcfg.baseUrl);
   results.push(await pingChat({
     label: 'LLM Judge (Eval)',
-    baseUrl: chat.baseUrl, apiKey: chat.apiKey, model: getJudgeModel(), format: jfmt,
+    baseUrl: jcfg.baseUrl, apiKey: jcfg.apiKey, model: getJudgeModel(), format: jfmt,
   }));
 
   // 汇总打印

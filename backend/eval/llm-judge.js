@@ -1,33 +1,12 @@
 // LLM-as-Judge: 对单个 turn 进行 5 维度质量评估
 // 自动检测 API 格式（Anthropic / OpenAI 兼容），复用主对话模型的 API 配置
 // Judge prompt 从 DB prompt_versions 表读取（支持版本管理）
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { resolveApiFormat } from '../vision.js';
+import { getJudgeApiConfig, isOfficialAnthropic } from '../api-config.js';
 import { insertEvalScore, getProblem, getActivePromptVersion, getPromptVersion } from '../db.js';
 
 function getJudgeModel() {
   return process.env.JUDGE_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
-}
-
-function getApiConfig() {
-  let baseUrl = process.env.ANTHROPIC_BASE_URL;
-  let apiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
-
-  if (!baseUrl || !apiKey) {
-    try {
-      const settingsPath = path.join(os.homedir(), '.claude', 'settings.json');
-      if (fs.existsSync(settingsPath)) {
-        const s = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-        const env = s.env || {};
-        baseUrl = baseUrl || env.ANTHROPIC_BASE_URL;
-        apiKey = apiKey || env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN;
-      }
-    } catch { /* ignore */ }
-  }
-  if (!baseUrl) baseUrl = 'https://api.anthropic.com';
-  return { baseUrl: baseUrl.replace(/\/+$/, ''), apiKey };
 }
 
 // Fallback judge prompt（DB 未就绪时使用）
@@ -78,21 +57,16 @@ function getTurnSystemPrompt(turn) {
  * @returns {Promise<object>} 评估结果 { scores: {...}, raw: string }
  */
 export async function judgeTurn(turn, sessionId, currentProblemId) {
-  const { baseUrl, apiKey } = getApiConfig();
-  if (!apiKey) throw new Error('LLM Judge 需要 API Key，请设置 ANTHROPIC_API_KEY');
+  const { baseUrl, apiKey } = getJudgeApiConfig();
+  if (!apiKey) throw new Error('LLM Judge 需要 API Key，请设置 CLAUDE_API_KEY 或 ANTHROPIC_API_KEY');
 
   const apiFormat = resolveApiFormat();
 
   // 如果 resolveApiFormat 返回 anthropic 但 base URL 不是 anthropic.com，
   // 说明是第三方代理，需要检测是否实际支持 Anthropic 格式
   let effectiveFormat = apiFormat;
-  if (effectiveFormat === 'anthropic' && baseUrl) {
-    try {
-      const hostname = new URL(baseUrl.startsWith('http') ? baseUrl : 'https://' + baseUrl).hostname;
-      if (!/anthropic\.com$/i.test(hostname)) {
-        effectiveFormat = 'openai';
-      }
-    } catch { /* ignore */ }
+  if (effectiveFormat === 'anthropic' && !isOfficialAnthropic(baseUrl)) {
+    effectiveFormat = 'openai';
   }
 
   const role = turn.role || 'student';

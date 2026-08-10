@@ -1,9 +1,7 @@
 // Session-level LLM Judge: 对整个 session 的辅导质量进行整体评估
 // 与 turn-level judge 并行，关注跨 turn 的连续性、适应性和整体效果
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { resolveApiFormat } from '../vision.js';
+import { getJudgeApiConfig, isOfficialAnthropic } from '../api-config.js';
 import {
   getChatTurns, getChatSession, getProblem,
   getActivePromptVersion,
@@ -16,25 +14,6 @@ function getJudgeModel() {
 
 // Session-level 评估的最小 turn 数（太少没有评估意义）
 const MIN_TURNS_FOR_SESSION_EVAL = 3;
-
-function getApiConfig() {
-  let baseUrl = process.env.ANTHROPIC_BASE_URL;
-  let apiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
-
-  if (!baseUrl || !apiKey) {
-    try {
-      const settingsPath = path.join(os.homedir(), '.claude', 'settings.json');
-      if (fs.existsSync(settingsPath)) {
-        const s = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-        const env = s.env || {};
-        baseUrl = baseUrl || env.ANTHROPIC_BASE_URL;
-        apiKey = apiKey || env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN;
-      }
-    } catch { /* ignore */ }
-  }
-  if (!baseUrl) baseUrl = 'https://api.anthropic.com';
-  return { baseUrl: baseUrl.replace(/\/+$/, ''), apiKey };
-}
 
 const SESSION_JUDGE_PROMPT = `你是一个小学数学 AI 助教的质量评估专家。请根据以下整个 session 的对话记录，对 AI 助教的整体辅导质量进行 5 个维度的评分（1-5 分）。
 
@@ -56,8 +35,8 @@ const SESSION_JUDGE_PROMPT = `你是一个小学数学 AI 助教的质量评估�
  * @returns {Promise<object>} 评估结果 { scores: {...}, raw: string, turn_count: number }
  */
 export async function judgeSession(sessionId) {
-  const { baseUrl, apiKey } = getApiConfig();
-  if (!apiKey) throw new Error('Session Judge 需要 API Key，请设置 ANTHROPIC_API_KEY');
+  const { baseUrl, apiKey } = getJudgeApiConfig();
+  if (!apiKey) throw new Error('Session Judge 需要 API Key，请设置 CLAUDE_API_KEY 或 ANTHROPIC_API_KEY');
 
   const session = getChatSession(sessionId);
   if (!session) throw new Error(`session not found: ${sessionId}`);
@@ -72,13 +51,8 @@ export async function judgeSession(sessionId) {
   // 聚合 session 上下文
   const apiFormat = resolveApiFormat();
   let effectiveFormat = apiFormat;
-  if (effectiveFormat === 'anthropic' && baseUrl) {
-    try {
-      const hostname = new URL(baseUrl.startsWith('http') ? baseUrl : 'https://' + baseUrl).hostname;
-      if (!/anthropic\.com$/i.test(hostname)) {
-        effectiveFormat = 'openai';
-      }
-    } catch { /* ignore */ }
+  if (effectiveFormat === 'anthropic' && !isOfficialAnthropic(baseUrl)) {
+    effectiveFormat = 'openai';
   }
 
   // 构建 session 对话摘要

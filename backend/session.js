@@ -5,16 +5,14 @@ import { getDb, getAllProblems, insertChatSession, getChatSession, getChatTurns,
 import { buildTutorMcp } from './mcp-tools.js';
 import { buildSystemPrompt, ALLOWED_TOOLS } from './config.js';
 import { createInputQueue } from './utils.js';
+import { buildSdkEnv } from './api-config.js';
 
-// 子进程环境：继承主进程，但移除 ANTHROPIC_AUTH_TOKEN。
-// 原因：~/.claude/settings.json 若设了 ANTHROPIC_AUTH_TOKEN，SDK 会优先用它（Bearer）而非 .env 的
-// ANTHROPIC_API_KEY（x-api-key），导致打到错误的端点 401。配合 settingSources:['project'] 不读 user settings。
-// 注意：必须每次创建会话时现算（不能模块加载时快照），这样管理页改的 API Key / Base URL 才对新会话生效。
+// 子进程环境：由 api-config.js 的 buildSdkEnv() 统一构建
+// - 移除 ANTHROPIC_AUTH_TOKEN 避免 settings.json 鉴权冲突
+// - 将 CLAUDE_API_KEY / CLAUDE_BASE_URL 映射为 SDK 需要的 ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL
+// 注意：必须每次创建会话时现算（不能模块加载时快照），这样管理页改的 API Key / Base URL 才对新会话生效
 function buildChildEnv() {
-  const e = { ...process.env };
-  delete e.ANTHROPIC_AUTH_TOKEN;
-  e.CLAUDE_AGENT_SDK_CLIENT_APP = 'selflearning/0.1.0';
-  return e;
+  return buildSdkEnv();
 }
 
 // 会话注册表

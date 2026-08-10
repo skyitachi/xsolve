@@ -10,13 +10,16 @@ export const STATIC_ROOT = path.resolve(__dirname, '..', 'frontend');
 // 模型配置
 // CLAUDE_MODEL: 主对话模型。不设则使用 SDK 默认（claude-sonnet-4-6）
 //   使用自定义代理（ANTHROPIC_BASE_URL）时建议显式设置，因为代理上的模型名可能不同
+//   主对话模型的 API Key / Base URL 可通过以下环境变量配置（优先级高 → 低）：
+//     CLAUDE_API_KEY / CLAUDE_BASE_URL → ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL
+//   详见 backend/api-config.js 的 getChatApiConfig()
 export const CLAUDE_MODEL = process.env.CLAUDE_MODEL || null;
 // VISION_MODEL: 视觉识别模型。不设则自动选择：
 //   - Anthropic 官方 API → claude-sonnet-4-20250514
 //   - 设置了 CLAUDE_MODEL → 复用主对话模型（Claude 原生支持视觉）
 //   - OpenAI 兼容格式 → 必须显式设置
-// 视觉的 API Key / Base URL 也可与主对话模型分开（VISION_API_KEY / VISION_BASE_URL），
-// 详见 backend/vision.js 的 getVisionApiConfig()
+//   视觉的 API Key / Base URL 可与主对话模型分开（VISION_API_KEY / VISION_BASE_URL），
+//   详见 backend/vision.js 的 getVisionApiConfig()
 export const VISION_MODEL = process.env.VISION_MODEL || null;
 export const VISION_MAX_TURNS = parseInt(process.env.VISION_MAX_TURNS || '2', 10);
 

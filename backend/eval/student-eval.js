@@ -2,38 +2,16 @@
 // 参考 docs/student-eval-design/student-eval-design.html
 // 5 个维度: accuracy, independence, thinking_quality, engagement, error_type
 // 规则计算 + LLM 评估混合模式
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { CLAUDE_MODEL } from '../config.js';
 import { resolveApiFormat } from '../vision.js';
+import { getJudgeApiConfig, isOfficialAnthropic } from '../api-config.js';
 import {
   getChatTurns, getChatSession, getProblem,
   insertSessionEvalScore, deleteSessionEvalScores,
 } from '../db.js';
 
-function getJudgeModel() {
-  return process.env.JUDGE_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
-}
+const JUDGE_MODEL = process.env.JUDGE_MODEL || CLAUDE_MODEL || 'claude-sonnet-4-20250514';
 const MIN_TURNS_FOR_EVAL = 2;
-
-function getApiConfig() {
-  let baseUrl = process.env.ANTHROPIC_BASE_URL;
-  let apiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
-
-  if (!baseUrl || !apiKey) {
-    try {
-      const settingsPath = path.join(os.homedir(), '.claude', 'settings.json');
-      if (fs.existsSync(settingsPath)) {
-        const s = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-        const env = s.env || {};
-        baseUrl = baseUrl || env.ANTHROPIC_BASE_URL;
-        apiKey = apiKey || env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN;
-      }
-    } catch { /* ignore */ }
-  }
-  if (!baseUrl) baseUrl = 'https://api.anthropic.com';
-  return { baseUrl: baseUrl.replace(/\/+$/, ''), apiKey };
-}
 
 const STUDENT_EVAL_PROMPT = `你是一个小学数学教育评估专家。请根据以下整个 session 的对话记录，对学生的学习能力和表现进行 5 个维度的评估。
 
@@ -122,18 +100,13 @@ function buildConversationSummary(turns, session, problem) {
 }
 
 async function callLLM(userPrompt, systemPrompt) {
-  const { baseUrl, apiKey } = getApiConfig();
-  if (!apiKey) throw new Error('Student Eval 需要 API Key');
+  const { baseUrl, apiKey } = getJudgeApiConfig();
+  if (!apiKey) throw new Error('Student Eval 需要 API Key，请设置 CLAUDE_API_KEY 或 ANTHROPIC_API_KEY');
 
   const apiFormat = resolveApiFormat();
   let effectiveFormat = apiFormat;
-  if (effectiveFormat === 'anthropic' && baseUrl) {
-    try {
-      const hostname = new URL(baseUrl.startsWith('http') ? baseUrl : 'https://' + baseUrl).hostname;
-      if (!/anthropic\.com$/i.test(hostname)) {
-        effectiveFormat = 'openai';
-      }
-    } catch { /* ignore */ }
+  if (effectiveFormat === 'anthropic' && !isOfficialAnthropic(baseUrl)) {
+    effectiveFormat = 'openai';
   }
 
   let url, headers, payload;
@@ -145,7 +118,7 @@ async function callLLM(userPrompt, systemPrompt) {
       'anthropic-version': '2023-06-01',
     };
     payload = {
-      model: getJudgeModel(),
+      model: JUDGE_MODEL,
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
@@ -157,7 +130,7 @@ async function callLLM(userPrompt, systemPrompt) {
       'authorization': `Bearer ${apiKey}`,
     };
     payload = {
-      model: getJudgeModel(),
+      model: JUDGE_MODEL,
       max_tokens: 1024,
       messages: [
         { role: 'system', content: systemPrompt },
@@ -166,7 +139,7 @@ async function callLLM(userPrompt, systemPrompt) {
     };
   }
 
-  console.log(`[student-eval] POST ${url} model=${getJudgeModel()} format=${effectiveFormat}`);
+  console.log(`[student-eval] POST ${url} model=${JUDGE_MODEL} format=${effectiveFormat}`);
 
   const resp = await fetch(url, {
     method: 'POST',
