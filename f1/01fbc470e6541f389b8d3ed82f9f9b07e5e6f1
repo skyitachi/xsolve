@@ -1,0 +1,18 @@
+backend/controllers/settingsController.js
+  h_5a1c62fd74efa2 1,3-4,13-18,20-31,35-40,45-46,48-66,71,74,77-78,80,84-86
+backend/settings.js
+  h_5a1c62fd74efa2 7-12,23-37,58-69,78-80,83-86,89-107,114-115,119-129,150-152,154,160-186,192-193,201
+frontend/settings.html
+  h_5a1c62fd74efa2 14,31-35,55-58,71,99,102,104-109,111-113,117,119-120,122,124-132,135-137,141-184,188-225,229,231,253-266,277-305,310-323,325-333,348,357-358,360-361,367-370,382-383,388-393,397,404,406-419
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "f101fbc470e6541f389b8d3ed82f9f9b07e5e6f1",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
