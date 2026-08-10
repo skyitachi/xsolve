@@ -1,0 +1,26 @@
+backend/api-config.js
+  h_5a1c62fd74efa2 1-104
+backend/config.js
+  h_5a1c62fd74efa2 13-15,21-22
+backend/eval/llm-judge.js
+  h_5a1c62fd74efa2 5,60-61,68-69
+backend/eval/session-judge.js
+  h_5a1c62fd74efa2 4,38-39,54-55
+backend/eval/student-eval.js
+  h_5a1c62fd74efa2 5,7,13,103-104,108-109,121,133,142
+backend/session.js
+  h_5a1c62fd74efa2 8,10-13,15
+backend/startup-check.js
+  h_5a1c62fd74efa2 5-7,16,102,104,107,120,124,128,169-171,174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "c8e2f50793e84b3903dbc1563e6d361590ba05df",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
