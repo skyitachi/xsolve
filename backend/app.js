@@ -65,8 +65,19 @@ export function createApp() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true }));
 
-  // 静态文件
-  app.use(express.static(FRONTEND_DIR));
+  // 静态文件（含 PWA：manifest 需正确的 MIME 类型）
+  app.use(
+    express.static(FRONTEND_DIR, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.webmanifest')) {
+          res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+        }
+        if (filePath.endsWith('sw.js')) {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      },
+    }),
+  );
 
   // JSXGraph 分步作图产物（由 generate_step_diagram 工具写入）
   fs.mkdirSync(DIAGRAMS_DIR, { recursive: true });

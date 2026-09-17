@@ -1,0 +1,684 @@
+<!-- xsolve App 端技术方案 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>App 端技术方案 · xsolve</title>
+<style>
+@font-face {
+  font-family: 'InstrumentSans';
+  src: url('./_shared/fonts/InstrumentSans-Regular.ttf') format('truetype');
+  font-weight: 400; font-style: normal;
+}
+@font-face {
+  font-family: 'InstrumentSans';
+  src: url('./_shared/fonts/InstrumentSans-Bold.ttf') format('truetype');
+  font-weight: 700; font-style: normal;
+}
+@font-face {
+  font-family: 'DMMono';
+  src: url('./_shared/fonts/DMMono-Regular.ttf') format('truetype');
+  font-weight: 400; font-style: normal;
+}
+:root {
+  --bg: #fafaf9; --bg2: #f5f5f4; --ink: #1c1917; --muted: #78716c;
+  --rule: #e7e5e4; --accent: #4f46e5; --accent2: #7c3aed;
+  --success: #16a34a; --warning: #d97706; --danger: #dc2626;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'InstrumentSans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg); color: var(--ink); font-size: 16px; line-height: 1.7;
+  padding: 2rem 1rem;
+}
+.container { max-width: 960px; margin: 0 auto; }
+.report-header {
+  text-align: center; padding: 3rem 0 2rem;
+  border-bottom: 2px solid var(--rule); margin-bottom: 3rem;
+}
+.report-header h1 {
+  font-size: 2.2rem; font-weight: 700; color: var(--ink);
+  margin-bottom: 0.5rem; letter-spacing: -0.02em;
+}
+.report-header .subtitle { font-size: 1rem; color: var(--muted); }
+.report-header .meta {
+  margin-top: 1rem; font-size: 0.85rem; color: var(--muted);
+  font-family: 'DMMono', monospace;
+}
+section { margin-bottom: 3rem; }
+h2 {
+  font-size: 1.4rem; font-weight: 700; color: var(--ink);
+  margin-bottom: 1.2rem; padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--accent); display: inline-block;
+}
+h3 { font-size: 1.15rem; font-weight: 700; color: var(--ink); margin: 1.5rem 0 0.8rem; }
+h4 { font-size: 1rem; font-weight: 700; color: var(--accent); margin: 1rem 0 0.5rem; }
+p { margin-bottom: 0.8rem; }
+ul, ol { margin-left: 1.5rem; margin-bottom: 1rem; }
+li { margin-bottom: 0.4rem; }
+strong { font-weight: 700; color: var(--ink); }
+mark.key { background: none; color: var(--accent); font-weight: 600; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.callout {
+  background: var(--bg2); border-left: 4px solid var(--accent);
+  padding: 1rem 1.2rem; border-radius: 0 6px 6px 0; margin: 1.2rem 0;
+}
+.callout.warning { border-left-color: var(--warning); }
+.callout.danger { border-left-color: var(--danger); }
+.callout.success { border-left-color: var(--success); }
+.callout-title { font-weight: 700; margin-bottom: 0.3rem; font-size: 0.95rem; }
+
+.card-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem; margin: 1.5rem 0;
+}
+.card { background: white; border: 1px solid var(--rule); border-radius: 8px; padding: 1.2rem; }
+.card.recommended { border-color: var(--accent); box-shadow: 0 0 0 2px #4f46e522; }
+.card-badge {
+  display: inline-block; font-size: 0.7rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px;
+  border-radius: 4px; margin-bottom: 0.6rem;
+}
+.badge-recommend { background: var(--accent); color: white; }
+.badge-quick { background: var(--success); color: white; }
+.badge-pro { background: var(--accent2); color: white; }
+.badge-future { background: var(--muted); color: white; }
+.card h4 { margin: 0 0 0.5rem; color: var(--ink); }
+.card p { font-size: 0.9rem; color: var(--muted); margin-bottom: 0.5rem; }
+.card ul { font-size: 0.9rem; color: var(--muted); margin-left: 1.2rem; }
+
+.table-wrap {
+  overflow-x: auto; overflow-y: auto; max-height: 700px;
+  margin: 1.2rem 0; border: 1px solid var(--rule); border-radius: 8px;
+}
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; min-width: 640px; }
+th {
+  background: var(--bg2); font-weight: 700; text-align: left;
+  padding: 0.7rem 1rem; border-bottom: 2px solid var(--rule); white-space: nowrap;
+}
+td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg2); }
+
+.score {
+  display: inline-block; width: 24px; height: 24px; line-height: 24px;
+  text-align: center; border-radius: 50%; font-weight: 700; font-size: 0.8rem;
+}
+.score-high { background: #dcfce7; color: var(--success); }
+.score-mid { background: #fef3c7; color: var(--warning); }
+.score-low { background: #fee2e2; color: var(--danger); }
+
+.tag {
+  display: inline-block; font-size: 0.75rem; padding: 2px 8px;
+  border-radius: 4px; margin-right: 4px; margin-bottom: 4px; font-weight: 500;
+}
+.tag-free { background: #dcfce7; color: #166534; }
+.tag-paid { background: #fee2e2; color: #991b1b; }
+.tag-cloud { background: #dbeafe; color: #1e40af; }
+.tag-local { background: #f3e8ff; color: #6b21a8; }
+.tag-easy { background: #dcfce7; color: #166534; }
+.tag-medium { background: #fef3c7; color: #92400e; }
+.tag-hard { background: #fee2e2; color: #991b1b; }
+
+code {
+  font-family: 'DMMono', monospace; background: var(--bg2);
+  padding: 2px 6px; border-radius: 4px; font-size: 0.85em;
+}
+pre {
+  background: var(--ink); color: #e7e5e4; padding: 1rem; border-radius: 8px;
+  overflow-x: auto; margin: 1rem 0; font-family: 'DMMono', monospace;
+  font-size: 0.82rem; line-height: 1.55;
+}
+pre code { background: none; padding: 0; color: inherit; }
+
+.arch-diagram {
+  background: white; border: 1px solid var(--rule); border-radius: 8px;
+  padding: 1.5rem; margin: 1.5rem 0; overflow-x: auto;
+}
+.arch-layer { text-align: center; margin: 0.2rem 0; }
+.arch-layer .arch-label {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--muted); margin-bottom: 0.4rem;
+}
+.arch-flow {
+  display: flex; align-items: center; justify-content: center;
+  flex-wrap: wrap; gap: 0.5rem; min-width: 560px;
+}
+.arch-box {
+  background: var(--bg2); border: 1px solid var(--rule); border-radius: 6px;
+  padding: 0.6rem 1rem; text-align: center; font-size: 0.85rem;
+  font-weight: 500; min-width: 96px;
+}
+.arch-box.highlight { background: var(--accent); color: white; border-color: var(--accent); }
+.arch-box.new { background: #ecfdf5; border-color: var(--success); color: #065f46; border-style: dashed; }
+.arch-box.warn { background: #fffbeb; border-color: var(--warning); color: #92400e; }
+.arch-arrow { color: var(--muted); font-size: 1.1rem; text-align: center; margin: 0.15rem 0; }
+
+.timeline { position: relative; padding-left: 2rem; margin: 1.5rem 0; }
+.timeline::before {
+  content: ''; position: absolute; left: 8px; top: 0; bottom: 0;
+  width: 2px; background: var(--rule);
+}
+.timeline-item { position: relative; margin-bottom: 1.5rem; }
+.timeline-item::before {
+  content: ''; position: absolute; left: -2rem; top: 6px; width: 18px; height: 18px;
+  border-radius: 50%; background: var(--accent); border: 3px solid var(--bg);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.timeline-phase { font-weight: 700; font-size: 1rem; color: var(--accent); margin-bottom: 0.3rem; }
+.timeline-desc { font-size: 0.9rem; color: var(--muted); }
+
+.toc {
+  background: white; border: 1px solid var(--rule); border-radius: 8px;
+  padding: 1.2rem 1.5rem; margin-bottom: 2.5rem;
+}
+.toc h3 { margin-top: 0; }
+.toc ol { margin-bottom: 0; font-size: 0.92rem; }
+
+footer {
+  margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--rule);
+  font-size: 0.85rem; color: var(--muted);
+}
+@media (max-width: 768px) {
+  body { padding: 1rem; font-size: 15px; }
+  .report-header h1 { font-size: 1.6rem; }
+  .card-grid { grid-template-columns: 1fr; }
+}
+@media print { body { padding: 0; background: white; } .card { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="report-header">
+  <h1>App 端技术方案</h1>
+  <p class="subtitle">面向小学 AI 做题助手的移动端选型 · 架构 · 分阶段落地</p>
+  <p class="meta">2026-09-17 · 项目：xsolve(selflearning) · 状态：待评审</p>
+</header>
+
+<div class="toc">
+  <h3>目录</h3>
+  <ol>
+    <li>背景与目标</li>
+    <li>现状与关键约束（决定性事实）</li>
+    <li>选型结论</li>
+    <li>目标架构与通信契约</li>
+    <li>Phase 1：PWA 化（1–2 天）</li>
+    <li>Phase 2：后端公网化 + 认证与多用户隔离</li>
+    <li>Phase 3：演进到原生（Capacitor 预案）</li>
+    <li>合规与上架前置</li>
+    <li>里程碑与工作量</li>
+    <li>风险与开放问题</li>
+  </ol>
+</div>
+
+<!-- ============ 1 ============ -->
+<section>
+<h2>一、背景与目标</h2>
+<p>xsolve 目前是一个<strong>面向小学生的 AI 做题助手 Web 应用</strong>：页面分「题目展示 / 做题区（手写草稿）/ AI 交互」三区，已具备 KaTeX 公式渲染、canvas 手写、jsxgraph 交互绘图、语音输入、拍照上传与 SSE 流式对话。</p>
+<p>本方案要回答一个问题：<strong>如何增加一个手机 App 端</strong>，让小学生在手机 / 平板上做题并与 AI 交互。目标形态按优先级递进：<mark class="key">先「可安装」（PWA），后「原生」（按需）</mark>。</p>
+<div class="callout">
+  <p class="callout-title">本方案的立场</p>
+  <p>不追求一步到位的原生 App。先用最低成本把现有能力送到孩子手机上验证，把工程预算优先投在<strong>真正决定能否上线的两件事</strong>——后端公网化与账号体系，而非重写 UI。</p>
+</div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section>
+<h2>二、现状与关键约束（决定性事实）</h2>
+<p>xsolve 是典型的<strong>「重后端 + 轻前端」</strong>结构：AI 能力<strong>全部在后端</strong>（Express + Claude Agent SDK + SQLite + MCP 工具 + SSE），前端只是一层 HTML/JS。这决定了 App 的形态。</p>
+
+<div class="arch-diagram">
+  <div class="arch-layer">
+    <div class="arch-label">客户端（薄壳）</div>
+    <div class="arch-flow">
+      <div class="arch-box">手机 / 平板浏览器</div>
+      <div class="arch-arrow">›</div>
+      <div class="arch-box new">PWA（可安装）</div>
+      <div class="arch-arrow">›</div>
+      <div class="arch-box">未来：Capacitor 壳</div>
+    </div>
+  </div>
+  <div class="arch-arrow">↓</div>
+  <div class="arch-layer">
+    <div class="arch-label">传输</div>
+    <div class="arch-flow">
+      <div class="arch-box highlight">HTTPS + SSE 流式</div>
+    </div>
+  </div>
+  <div class="arch-arrow">↓</div>
+  <div class="arch-layer">
+    <div class="arch-label">后端（现状，保持不动）</div>
+    <div class="arch-flow">
+      <div class="arch-box">Express + SSE</div>
+      <div class="arch-box">Session 状态</div>
+      <div class="arch-box warn">Agent SDK（spawn 原生二进制）</div>
+      <div class="arch-box">MCP 工具</div>
+      <div class="arch-box">SQLite</div>
+    </div>
+  </div>
+</div>
+
+<h3>2.1 不可绕过的硬约束</h3>
+<div class="table-wrap">
+<table>
+<tr><th>约束</th><th>事实</th><th>对 App 端的影响</th></tr>
+<tr>
+  <td><strong>SDK 原生二进制</strong></td>
+  <td><code>@anthropic-ai/claude-agent-sdk</code> 运行时会 spawn 平台专用二进制（如 <code>claude-agent-sdk-linux-arm64/claude</code>）</td>
+  <td>手机端<span class="score score-low">✗</span>跑不动，必须在 Linux 服务器上跑</td>
+</tr>
+<tr>
+  <td><strong>原生模块</strong></td>
+  <td><code>better-sqlite3</code> 按 Node ABI 编译（本机是 Node 26 / ABI 147）</td>
+  <td>后端只能在匹配的 Node + Linux 环境运行</td>
+</tr>
+<tr>
+  <td><strong>无鉴权</strong></td>
+  <td>现有 40+ 个路由全部零鉴权，<code>chat_sessions</code> 无 owner 字段，<code>settings</code>（含 API Key）全局共享</td>
+  <td>一上公网即「谁都能用你的额度、看同一个库」<span class="score score-low">✗</span></td>
+</tr>
+<tr>
+  <td><strong>CDN 依赖</strong></td>
+  <td>前端从 jsdelivr 加载 KaTeX / marked</td>
+  <td>PWA 离线需<strong>本地化</strong>，否则离线白屏</td>
+</tr>
+<tr>
+  <td><strong>容器 root 限制</strong></td>
+  <td>Claude Code CLI 拒绝 root 用 <code>bypassPermissions</code>，需 <code>IS_SANDBOX=1</code>（已修复）</td>
+  <td>部署时保持该环境变量</td>
+</tr>
+</table>
+</div>
+
+<div class="callout warning">
+  <p class="callout-title">一句话结论</p>
+  <p>选型的真正难点不在「App 怎么写」，而在下面那层要<strong>从 Mac 上的 localhost 变成一台公网服务器</strong>，并补上它现在完全没有的<strong>账号体系</strong>。</p>
+</div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section>
+<h2>三、选型结论</h2>
+<p>由于 AI 全在后端，App 只是瘦客户端。四个候选方案的对比（就本项目而言）：</p>
+<div class="table-wrap">
+<table>
+<tr><th>方案</th><th>复用现有代码</th><th>上手成本</th><th>手写/相机/语音</th><th>分发</th><th>本项目适配</th></tr>
+<tr>
+  <td><strong>PWA / 增强 Web</strong></td>
+  <td><span class="score score-high">~100%</span></td>
+  <td><span class="tag tag-easy">极低</span></td>
+  <td>相机✓ 手写✓；语音受限</td>
+  <td>加主屏，不进商店</td>
+  <td><span class="score score-high">★★★★★</span></td>
+</tr>
+<tr>
+  <td><strong>Capacitor 混合壳</strong></td>
+  <td><span class="score score-high">~95%</span></td>
+  <td><span class="tag tag-easy">低</span></td>
+  <td>全部原生能力（插件）</td>
+  <td>正式上架 iOS/安卓</td>
+  <td><span class="score score-high">★★★★★</span></td>
+</tr>
+<tr>
+  <td><strong>React Native / Expo</strong></td>
+  <td><span class="score score-low">0（重写）</span></td>
+  <td><span class="tag tag-medium">中高</span></td>
+  <td>原生，但 KaTeX/画布要重做</td>
+  <td>上架</td>
+  <td><span class="score score-mid">★★☆</span></td>
+</tr>
+<tr>
+  <td><strong>Flutter</strong></td>
+  <td><span class="score score-low">0（重写）</span></td>
+  <td><span class="tag tag-hard">高</span></td>
+  <td>自绘最强（手写/几何）</td>
+  <td>上架</td>
+  <td><span class="score score-mid">★★★</span></td>
+</tr>
+</table>
+</div>
+
+<div class="callout success">
+  <p class="callout-title">结论</p>
+  <p>本项目前端已有 KaTeX、canvas 手写、jsxgraph（iframe）、语音、SSE 且做了双端适配。<strong>Capacitor / PWA 都能几乎照搬这套代码</strong>；而 RN / Flutter 需要把公式渲染与交互绘图全部推倒重做，投入产出比差。</p>
+  <p>结合已确认的方向——<strong>分发走 PWA、前端暂不重写</strong>——最终路线为：</p>
+  <ul>
+    <li><mark class="key">Phase 1</mark>：现有 Web 升级为可安装 PWA（<strong>不重写</strong>）。</li>
+    <li><mark class="key">Phase 2</mark>：后端公网化 + 账号体系（<strong>无论哪种客户端都必做</strong>）。</li>
+    <li><mark class="key">Phase 3</mark>：按需演进——要么 Capacitor 套壳拿原生能力，要么重写前端。</li>
+  </ul>
+</div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section>
+<h2>四、目标架构与通信契约</h2>
+<p>App 端不引入新的服务端逻辑，只<strong>复用现有 HTTP / SSE 契约</strong>，在其之上增加「鉴权」与「多用户隔离」两横切层。</p>
+
+<div class="arch-diagram">
+  <div class="arch-layer">
+    <div class="arch-label">客户端</div>
+    <div class="arch-flow">
+      <div class="arch-box new">PWA（本阶段）</div>
+      <div class="arch-box warn">Capacitor 壳（预留）</div>
+    </div>
+  </div>
+  <div class="arch-arrow">↓ HTTPS + SSE</div>
+  <div class="arch-layer">
+    <div class="arch-label">接入层（新增）</div>
+    <div class="arch-flow">
+      <div class="arch-box highlight">Nginx / 反代 + TLS</div>
+      <div class="arch-box highlight">鉴权中间件</div>
+      <div class="arch-box highlight">限流</div>
+    </div>
+  </div>
+  <div class="arch-arrow">↓</div>
+  <div class="arch-layer">
+    <div class="arch-label">应用层（现有）</div>
+    <div class="arch-flow">
+      <div class="arch-box">Express 路由</div>
+      <div class="arch-box">Session</div>
+      <div class="arch-box">Agent SDK</div>
+      <div class="arch-box">MCP 工具</div>
+    </div>
+  </div>
+  <div class="arch-arrow">↓</div>
+  <div class="arch-layer">
+    <div class="arch-label">数据 &amp; 外部</div>
+    <div class="arch-flow">
+      <div class="arch-box">SQLite（新增 users）</div>
+      <div class="arch-box">模型 API（SiliconFlow / Anthropic）</div>
+    </div>
+  </div>
+</div>
+
+<h3>4.1 通信契约（现有，App 直接复用）</h3>
+<ul>
+  <li><code>POST /api/session</code> 建会话；<code>POST /api/session/:id/turn</code> 发消息（<strong>SSE 流式</strong>返回）。</li>
+  <li><code>GET /api/session/:id/history</code> 拉历史；<code>POST /api/session/:id/scratch-image</code> 同步手写草稿图。</li>
+  <li>校验 / 设置：<code>/api/settings</code>（API Key 等，<strong>Phase 2 后需管理员权限</strong>）。</li>
+</ul>
+<div class="callout warning">
+  <p class="callout-title">SSE 鉴权的坑</p>
+  <p>浏览器原生 <code>EventSource</code> <strong>不能自定义请求头</strong>。当前 <code>/turn</code> 用的是 <code>fetch</code> + 流读取（可控），但若改用 <code>EventSource</code>，鉴权只能走 <strong>Cookie</strong> 或 <strong>URL 携带短时 token</strong>。方案见 §6.4。</p>
+</div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section>
+<h2>五、Phase 1：PWA 化（1–2 天）</h2>
+<p>目标：在<strong>不重写前端</strong>的前提下，让现有 Web 可安装到手机主屏、离线可用、全屏运行。</p>
+
+<h3>5.1 交付清单</h3>
+<div class="table-wrap">
+<table>
+<tr><th>项</th><th>做法</th><th>关键点</th></tr>
+<tr>
+  <td><strong>应用清单</strong></td>
+  <td><code>manifest.webmanifest</code></td>
+  <td>name / 图标（含 <code>maskable</code>）/ <code>display:standalone</code> / <code>theme_color</code> / <code>start_url</code></td>
+</tr>
+<tr>
+  <td><strong>离线外壳</strong></td>
+  <td>Service Worker</td>
+  <td>预缓存 HTML/CSS/JS/字体；<strong>API 与 SSE 一律 network-only，绝不缓存对话</strong></td>
+</tr>
+<tr>
+  <td><strong>HTTPS</strong></td>
+  <td>域名 + 证书</td>
+  <td>PWA 安装的硬前提（本地 localhost 除外）</td>
+</tr>
+<tr>
+  <td><strong>移动端打磨</strong></td>
+  <td>CSS / meta</td>
+  <td><code>viewport-fit=cover</code> + safe-area、禁双击缩放、下拉刷新、横竖屏</td>
+</tr>
+<tr>
+  <td><strong>iOS 全屏</strong></td>
+  <td><code>apple-mobile-web-app-capable</code> 等 meta</td>
+  <td>加到主屏后隐藏 Safari 地址栏</td>
+</tr>
+<tr>
+  <td><strong>CDN 本地化</strong></td>
+  <td>把 KaTeX / marked 落到本地</td>
+  <td>离线可用 + 消除外网依赖（见 <code>docs/需求规范.md</code> 的离线提醒）</td>
+</tr>
+<tr>
+  <td><strong>安装引导</strong></td>
+  <td><code>beforeinstallprompt</code></td>
+  <td>自定义「添加到主屏」按钮</td>
+</tr>
+</table>
+</div>
+
+<h3>5.2 Service Worker 策略</h3>
+<pre><code>缓存策略
+  app shell（HTML/CSS/JS/font）  → Cache First（预缓存，版本化）
+  GET /api/problems 等只读接口   → Stale-While-Revalidate（可选）
+  POST /api/session/*/turn（SSE） → Network Only（禁止缓存）
+  模型/视觉相关接口               → Network Only</code></pre>
+
+<h3>5.3 PWA 的能力天花板（提前知道）</h3>
+<ul>
+  <li>iOS 上 <strong>Web Push 受限</strong>（16.4+ 才部分支持），Android 支持较好。</li>
+  <li><strong>无后台常驻</strong>、<strong>不能上架商店</strong>、无系统级深链 / 分享。</li>
+  <li>手写用 canvas + Pointer Events（可拿压感）够用；但<strong>极致笔迹延迟与防手掌误触</strong>需原生能力——这正是 Phase 3 的触发条件之一。</li>
+</ul>
+
+<h3>5.4 验收标准</h3>
+<ul>
+  <li>手机浏览器打开后可「添加到主屏」，图标/名称/主题色正确。</li>
+  <li>断网后可加载应用外壳并显示明确提示（不白屏）。</li>
+  <li>全屏运行无地址栏；三区布局在手机竖屏可用，手写/公式不溢出。</li>
+</ul>
+</section>
+
+<!-- ============ 6 ============ -->
+<section>
+<h2>六、Phase 2：后端公网化 + 认证与多用户隔离</h2>
+<p>这是<strong>本方案的重心</strong>，也是与客户端选型无关、必须完成的工程。</p>
+
+<h3>6.1 部署拓扑</h3>
+<pre><code>用户手机
+   │  https://xsolve.example.com
+   ▼
+Nginx（TLS 终止 / 反代 / 限流 / 静态缓存）
+   │  http://127.0.0.1:8765
+   ▼
+Node 应用容器（Dockerfile 现有；IS_SANDBOX=1；DB_PATH=/data/xsolve.db）
+   │                    │
+   ▼                    ▼
+SQLite 持久卷        模型 API（SiliconFlow / Anthropic）</code></pre>
+<ul>
+  <li>复用现有 <code>Dockerfile</code> + <code>docker-compose.yml</code>，新增 Nginx 反代与 TLS 即可。</li>
+  <li>数据库挂<strong>持久卷</strong>（现为 <code>xsolve_xsolve-data</code>），并纳入备份。</li>
+  <li>容器内保持 <code>IS_SANDBOX=1</code>（否则 SDK 在 root 下直接退出）。</li>
+</ul>
+
+<h3>6.2 认证方案选型</h3>
+<div class="table-wrap">
+<table>
+<tr><th>方案</th><th>复杂度</th><th>适合度</th><th>说明</th></tr>
+<tr>
+  <td><strong>Session Cookie（服务端会话）</strong></td>
+  <td><span class="score score-high">低</span></td>
+  <td><span class="score score-high">★★★★★</span></td>
+  <td>同源部署天然友好；Cookie 自动随请求发送，<strong>SSE 鉴权最省事</strong>；需 CSRF 防护</td>
+</tr>
+<tr>
+  <td><strong>JWT（Bearer）</strong></td>
+  <td><span class="score score-mid">中</span></td>
+  <td><span class="score score-high">★★★★</span></td>
+  <td>无状态、易扩展；但 <code>EventSource</code> 带不了 header，需额外处理</td>
+</tr>
+<tr>
+  <td><strong>第三方登录（微信/手机号）</strong></td>
+  <td><span class="score score-mid">中高</span></td>
+  <td><span class="score score-high">★★★★</span></td>
+  <td>家长用户最顺手；但需资质与回调配置，可<strong>后置</strong></td>
+</tr>
+</table>
+</div>
+<div class="callout">
+  <p class="callout-title">建议</p>
+  <p>起步用<strong>服务端 Session Cookie</strong>（自建账号，邮箱/用户名 + 密码哈希），快速打通且 SSE 友好；后续再接微信/手机号登录。密码用 <code>argon2</code> / <code>bcrypt</code> 哈希，绝不明文。</p>
+</div>
+
+<h3>6.3 数据模型变更</h3>
+<p>需要新增 <strong>users</strong> 表，并给现有表加归属字段（用防御性迁移，参考 <code>backend/scripts/backfill-prompt-version.mjs</code> 的写法）：</p>
+<pre><code>-- 新增用户表
+CREATE TABLE users (
+  id TEXT PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  display_name TEXT,
+  role TEXT NOT NULL DEFAULT 'parent',   -- parent | student | admin
+  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+
+-- 会话归属（迁移：ALTER TABLE ... ADD COLUMN，容忍已有数据）
+ALTER TABLE chat_sessions ADD COLUMN user_id TEXT;   -- 归属家长/账号
+ALTER TABLE chat_sessions ADD COLUMN student_id TEXT;-- 可选：孩子档案
+
+-- settings 归属：全局配置仅 admin 可改；模型 Key 收归管理员
+ALTER TABLE settings ADD COLUMN scope TEXT NOT NULL DEFAULT 'global';</code></pre>
+<div class="callout warning">
+  <p class="callout-title">迁移注意</p>
+  <p>已有 <code>chat_sessions</code> 数据无 owner。迁移时将其<strong>归属到一个「迁移前」默认账号</strong>（或管理员），避免历史数据对所有人可见。</p>
+</div>
+
+<h3>6.4 鉴权落地要点</h3>
+<ul>
+  <li><strong>中间件</strong>：在 <code>backend/app.js</code> 的 <code>createApp()</code> 里、路由注册之前，加全局鉴权中间件，仅放行 <code>/healthz</code>、<code>/api/auth/*</code>、静态资源。</li>
+  <li><strong>越权防护</strong>：所有 <code>/api/session/:id/*</code> 必须校验 <code>session.user_id === 当前登录用户</code>，否则 403（防止拿到别人 session id 就乱读）。</li>
+  <li><strong>SSE 鉴权</strong>：<code>/turn</code> 走 Cookie 鉴权最稳；若用 Bearer，则签一个<strong>短时一次性 token</strong> 拼在 URL（<code>?token=...</code>），服务端校验后立即失效。</li>
+  <li><strong>管理面收口</strong>：<code>/api/settings</code>（API Key）、<code>/api/prompts</code> 仅 <code>admin</code> 可访问；否则任何家长都能改你的模型 Key。</li>
+</ul>
+
+<h3>6.5 Agent SDK 并发与资源</h3>
+<div class="callout danger">
+  <p class="callout-title">这是最容易翻车的地方</p>
+  <p>每个会话会 <strong>spawn 一个 Claude Code 原生进程</strong>，内存占用可观。单机裸跑在并发上来后极易 OOM（与之前 <code>npm ci</code> 被 137 杀掉同一类问题）。</p>
+</div>
+<ul>
+  <li><strong>并发上限 + 排队</strong>：全局信号量限制同时活跃的 SDK 会话数，超出则排队并给前端「排队中」的流式提示。</li>
+  <li><strong>空闲回收</strong>：会话空闲 N 分钟后 <code>destroySession</code>，释放子进程。</li>
+  <li><strong>规模化</strong>（用户变多后再做）：拆分「会话调度器 + 无状态 worker」，或每用户独立容器池化。</li>
+  <li><strong>限流</strong>：按用户限制「每分钟 turn 数 / 每日 token 量」，防止额度被滥用。</li>
+</ul>
+
+<h3>6.6 安全清单</h3>
+<table>
+<thead><tr><th>项</th><th>措施</th></tr></thead>
+<tbody>
+<tr><td>CORS / 来源</td><td>同源部署无需放开 CORS；若 Capacitor 用 <code>capacitor://localhost</code>，需精确白名单，禁止 <code>*</code></td></tr>
+<tr><td>密钥保护</td><td>API Key 仅存服务端 + 仅 admin 可改；日志脱敏（<code>settings</code> 回显已做掩码）</td></tr>
+<tr><td>请求体大小</td><td>现有 <code>express.json({ limit: '50mb' })</code> 偏大，按需收紧（草稿图除外）</td></tr>
+<tr><td>CSRF</td><td>用 Cookie 会话时，写操作校验 <code>SameSite</code> + CSRF token</td></tr>
+<tr><td>传输</td><td>强制 HTTPS（HSTS），HTTP 301 跳转</td></tr>
+<tr><td>备份</td><td>SQLite 定期快照 + 异地留存</td></tr>
+</tbody>
+</table>
+
+<h3>6.7 验收标准</h3>
+<ul>
+  <li>未登录访问任意 <code>/api/*</code> 均被拒（401），<code>/healthz</code> 除外。</li>
+  <li>用户 A 无法读取/操作 用户 B 的 session（403）。</li>
+  <li>非 admin 访问 <code>/api/settings</code> 返回 403；admin 正常。</li>
+  <li>并发压测下无 OOM，超出并发上限时前端能收到「排队」提示。</li>
+</ul>
+</section>
+
+<!-- ============ 7 ============ -->
+<section>
+<h2>七、Phase 3：演进到原生（Capacitor 预案）</h2>
+
+<h3>7.1 触发条件（满足其一即考虑）</h3>
+<ul>
+  <li>需要<strong>上架应用商店</strong>（PWA 做不到）。</li>
+  <li>需要 <strong>推送 / 后台任务 / 系统深链</strong>。</li>
+  <li>手写需要<strong>极致延迟与防手掌误触</strong>（Apple Pencil / 安卓手写笔原生能力）。</li>
+</ul>
+
+<h3>7.2 迁移路径</h3>
+<ol>
+  <li><strong>Capacitor 套壳</strong>：把现有 <code>frontend/</code> 直接作为 Web 资源打进原生工程，代码几乎不动。</li>
+  <li><strong>插件桥接</strong>：需要原生能力时按需引入/自写 Capacitor 插件（相机、文件、推送、手写笔）。</li>
+  <li><strong>若坚持重写</strong>（当年选了 Flutter/RN）：注意 <code>jsxgraph</code> 交互绘图与 KaTeX 公式仍需 <strong>WebView</strong> 承载，纯原生重写成本高——这也是当初不首选重写的原因。</li>
+</ol>
+</section>
+
+<!-- ============ 8 ============ -->
+<section>
+<h2>八、合规与上架前置</h2>
+<div class="callout warning">
+  <p class="callout-title">面向小学生，这条最可能卡住上线</p>
+  <p>即使只做 PWA，只要面向公众提供服务，就涉及备案与个人信息合规；一旦上架商店，要求更严。</p>
+</div>
+<table>
+<thead><tr><th>事项</th><th>适用</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>ICP 备案</td><td>PWA 公网域名 / 上架</td><td>境内服务器 + 域名须备案</td></tr>
+<tr><td>软件著作权</td><td>上架各安卓商店</td><td>多数国内商店上架必备</td></tr>
+<tr><td>隐私政策 + 儿童个人信息合规</td><td>PWA 与 App 均需</td><td>《个人信息保护法》：处理<strong>不满 14 周岁</strong>儿童个人信息须取得监护人同意，单独告知</td></tr>
+<tr><td>未成年人模式 / 内容安全</td><td>面向学生</td><td>防沉迷、内容过滤、AI 输出安全兜底</td></tr>
+<tr><td>应用商店资质</td><td>上架</td><td>教育类可能需额外资质；iOS 需开发者账号</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ============ 9 ============ -->
+<section>
+<h2>九、里程碑与工作量</h2>
+<div class="timeline">
+  <div class="timeline-item">
+    <div class="timeline-phase">Phase 1 · PWA 化（1–2 天）</div>
+    <div class="timeline-desc">产出：可安装 PWA（manifest + SW + 安装引导 + 移动适配 + CDN 本地化）。<br>依赖：无（可立即启动）。</div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-phase">Phase 2 · 公网化 + 认证（本方案重心）</div>
+    <div class="timeline-desc">产出：Nginx+TLS 部署、users 表与迁移、鉴权中间件、越权防护、管理面收口、SDK 并发治理。<br>依赖：一台可备案的公网 Linux 服务器 + 域名。</div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-phase">Phase 3 · 原生（按需）</div>
+    <div class="timeline-desc">产出：Capacitor 套壳 App 或原生重写。<br>触发：上架 / 推送 / 极致手写成为刚需。</div>
+  </div>
+</div>
+</section>
+
+<!-- ============ 10 ============ -->
+<section>
+<h2>十、风险与开放问题</h2>
+<h3>10.1 风险</h3>
+<table>
+<thead><tr><th>风险</th><th>影响</th><th>缓解</th></tr></thead>
+<tbody>
+<tr><td>单机 SDK 并发吃内存</td><td>高</td><td>并发上限 + 排队 + 空闲回收；规模化后再拆分 worker</td></tr>
+<tr><td>无鉴权直接上公网</td><td>高</td><td>Phase 2 先于对外发布完成</td></tr>
+<tr><td>儿童个人信息合规缺失</td><td>高</td><td>上线前补齐隐私政策与监护人同意流程</td></tr>
+<tr><td>CDN 外网依赖</td><td>中</td><td>Phase 1 本地化 KaTeX/marked</td></tr>
+<tr><td>iOS Web Push 限制</td><td>中</td><td>需推送时进入 Phase 3</td></tr>
+</tbody>
+</table>
+
+<h3>10.2 开放问题（待决策）</h3>
+<ol>
+  <li><strong>预期并发/用户规模</strong>：决定 Phase 2 是否需要 worker 拆分。</li>
+  <li><strong>登录方式</strong>：自建账号起步，还是直接接微信/手机号？</li>
+  <li><strong>家长端与孩子端</strong>：是否要独立入口与权限（家长管、孩子做）？</li>
+  <li><strong>是否有可备案的服务器与域名</strong>：Phase 2 的前置条件。</li>
+</ol>
+</section>
+
+<footer>
+  <p>本方案基于 xsolve 当前代码库实测得出；涉及的后端事实（零鉴权、<code>chat_sessions</code> 无 owner、<code>settings</code> 全局共享、SDK spawn 原生二进制、<code>IS_SANDBOX=1</code> 约束）均已在源码/容器中核对。</p>
+  <p style="margin-top:0.6rem;">下一步：选定 §10.2 的开放问题后，即可启动 Phase 1 或 Phase 2。</p>
+</footer>
+
+</div>
+</body>
+</html>

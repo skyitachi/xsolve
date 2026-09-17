@@ -978,3 +978,129 @@ dialog h3 { margin: 0 0 8px 0; }
 @media (max-width: 768px) {
   .diagram-card { height: 500px; }
 }
+
+/* ============ PWA / 移动端体验增强 ============ */
+html, body {
+  overscroll-behavior-y: none;      /* 关闭整页橡皮筋与下拉刷新，避免干扰做题 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body { -webkit-tap-highlight-color: transparent; }
+
+/* 去除 300ms 点击延迟与双击缩放，交互更跟手 */
+button, .tool, .quick, .mobile-tab, .chat-action-btn, .mode-btn, a, label.tool {
+  touch-action: manipulation;
+}
+button, .tool, .mobile-tab, .chat-action-btn, .mode-btn, label.tool {
+  -webkit-user-select: none; user-select: none;
+}
+
+/* 画布/作图区域：禁长按菜单与误选，保证手写顺滑 */
+#scratch, .diagram-frame, .problem-figure {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+
+/* 管理入口默认只在桌面顶栏出现；移动端收进「设置」弹窗 */
+.dialog-admin-nav { display: none; }
+.dialog-install { display: none; }
+
+@media (max-width: 768px) {
+  /* 刘海/灵动岛安全区（顶部） */
+  .topbar {
+    height: calc(46px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: max(10px, env(safe-area-inset-left, 0px));
+    padding-right: max(10px, env(safe-area-inset-right, 0px));
+  }
+  /* 动态视口高度：避免移动端地址栏收起/展开导致布局跳动 */
+  .layout {
+    height: calc(
+      100dvh - (46px + env(safe-area-inset-top, 0px)) -
+        (56px + env(safe-area-inset-bottom, 0px))
+    );
+  }
+  /* 底部 Tab：安全区适配（box-sizing:border-box，高度已含内边距） */
+  .mobile-tabbar {
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  .mobile-tab { min-height: 44px; }
+
+  /* iOS 聚焦输入框会整体放大页面——把字号提到 16px 规避 */
+  .chat-input textarea,
+  .work-answer input,
+  dialog input,
+  dialog textarea { font-size: 16px; }
+
+  /* 触控目标放大到更易点按的尺寸 */
+  .work-tools .tool {
+    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .topbar button { min-width: 38px; min-height: 34px; }
+  .title-nav-btn { min-width: 38px; min-height: 34px; }
+  .chat-input button { min-height: 38px; }
+
+  /* 聊天滚动更顺滑 */
+  .chat-log { -webkit-overflow-scrolling: touch; }
+
+  /* 顶栏自适应：品牌可截断，操作区不换行、不挤缩，避免溢出裁切 */
+  .brand {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .topbar-actions { flex-wrap: nowrap; min-width: 0; }
+  .topbar-actions > * { flex: 0 0 auto; }
+  .topbar-actions a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    min-height: 30px;
+  }
+
+  /* 安装入口：移动端不在顶栏显示（避免拥挤/遮挡输入框），收进「设置」弹窗 */
+  #install-app-btn { display: none; }
+  .dialog-install {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    padding: 10px;
+    background: #4f46e5;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* 移动端顶栏精简：管理链接移入「设置」弹窗，避免顶栏溢出 */
+  .topbar-actions .topbar-admin { display: none; }
+
+  /* 「设置」弹窗内的管理入口（移动端可见） */
+  .dialog-admin-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .dialog-admin-nav a {
+    flex: 1 1 auto;
+    text-align: center;
+    padding: 8px 10px;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #4f46e5;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .dialog-admin-nav a:active { background: #e5e7eb; }
+}

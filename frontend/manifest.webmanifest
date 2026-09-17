@@ -1,0 +1,23 @@
+{
+  "name": "小学AI做题助手",
+  "short_name": "AI做题助手",
+  "description": "面向小学生的 AI 做题助手：题目展示、手写草稿与 AI 助教三合一。",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "categories": ["education"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "评估面板", "short_name": "评估", "url": "/eval.html" },
+    { "name": "模型配置", "short_name": "配置", "url": "/settings.html" }
+  ]
+}
