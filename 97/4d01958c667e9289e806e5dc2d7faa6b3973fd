@@ -1,0 +1,14 @@
+frontend/js/chat.js
+  h_5a1c62fd74efa2 647,654
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "974d01958c667e9289e806e5dc2d7faa6b3973fd",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
