@@ -1,0 +1,16 @@
+frontend/js/chat.js
+  h_5a1c62fd74efa2 603-640,642-648,650-653,656-658,661-663,666-673
+frontend/styles.css
+  h_5a1c62fd74efa2 798-804,806-839,841,848,858-859,862-890,898,900-903,908
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fa27aae783f5e8b476b4f1a332db890ed589246e",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
