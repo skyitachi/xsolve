@@ -1,0 +1,44 @@
+backend/app.js
+  h_5a1c62fd74efa2 68-80
+docs/app-client-tech-proposal/app-client-tech-proposal.html
+  h_5a1c62fd74efa2 1-684
+frontend/eval.html
+  h_5a1c62fd74efa2 8-11
+frontend/icons/icon.svg
+  h_5a1c62fd74efa2 1-11
+frontend/icons/maskable.svg
+  h_5a1c62fd74efa2 1-11
+frontend/index.html
+  h_5a1c62fd74efa2 6,8-25,32,37-39,158-163,233
+frontend/js/pwa.js
+  h_5a1c62fd74efa2 1-88
+frontend/manifest.webmanifest
+  h_5a1c62fd74efa2 1-23
+frontend/prompts.html
+  h_5a1c62fd74efa2 8-15
+frontend/settings.html
+  h_5a1c62fd74efa2 8-11
+frontend/styles.css
+  h_5a1c62fd74efa2 981-1106
+frontend/sw.js
+  h_5a1c62fd74efa2 1-121
+frontend/vendor/katex/contrib/auto-render.min.js
+  h_5a1c62fd74efa2 1
+frontend/vendor/katex/katex.min.css
+  h_5a1c62fd74efa2 1
+frontend/vendor/katex/katex.min.js
+  h_5a1c62fd74efa2 1
+frontend/vendor/marked/marked.min.js
+  h_5a1c62fd74efa2 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "efca10ad5ffbd3c6fc801b87ee363b2eeb6be9d1",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
