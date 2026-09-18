@@ -1,0 +1,831 @@
+<!-- Generated for xsolve -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>xsolve 用户系统设计方案</title>
+<style>
+@font-face {
+  font-family: 'InstrumentSans';
+  src: url('./_shared/fonts/InstrumentSans-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'InstrumentSans';
+  src: url('./_shared/fonts/InstrumentSans-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrainsMono';
+  src: url('./_shared/fonts/JetBrainsMono-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --bg: #fafafa;
+  --bg2: #f0f0f3;
+  --ink: #1a1a2e;
+  --muted: #6b6b80;
+  --rule: #e0e0e6;
+  --accent: #4b3fe3;
+  --accent2: #27d2bf;
+  --success: #1dc981;
+  --warning: #efaa17;
+  --danger: #e8463a;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'InstrumentSans', 'PingFang SC', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 4rem 2rem 6rem;
+}
+
+/* Cover */
+.cover {
+  text-align: left;
+  margin-bottom: 4rem;
+  padding-bottom: 2rem;
+  border-bottom: 3px solid var(--accent);
+}
+.cover .badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: rgba(75, 63, 227, 0.08);
+  padding: 4px 12px;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+}
+.cover h1 {
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.02em;
+}
+.cover .subtitle {
+  font-size: 1.05rem;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+.cover .meta {
+  font-size: 13px;
+  color: var(--muted);
+  font-family: 'JetBrainsMono', monospace;
+}
+
+/* Section headings */
+h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 3.5rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rule);
+  letter-spacing: -0.01em;
+}
+h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-top: 2.25rem;
+  margin-bottom: 0.75rem;
+  color: var(--ink);
+}
+h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--accent);
+}
+
+p {
+  margin-bottom: 1rem;
+}
+
+strong {
+  font-weight: 700;
+}
+
+mark.key {
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Lists */
+ul, ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+li {
+  margin-bottom: 0.4rem;
+}
+
+/* Tables */
+.table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 600px;
+  margin: 1rem 0;
+  border-radius: 6px;
+  border: 1px solid var(--rule);
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  min-width: 500px;
+}
+thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+th {
+  background: var(--bg2);
+  text-align: left;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 13px;
+  border-bottom: 2px solid var(--rule);
+  white-space: nowrap;
+}
+td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+tbody tr:last-child td {
+  border-bottom: none;
+}
+tbody tr:hover {
+  background: var(--bg2);
+}
+code {
+  font-family: 'JetBrainsMono', monospace;
+  font-size: 0.88em;
+  background: var(--bg2);
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+
+/* Callout */
+.callout {
+  background: var(--bg2);
+  border-left: 4px solid var(--accent);
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+  border-radius: 0 6px 6px 0;
+}
+.callout p:last-child {
+  margin-bottom: 0;
+}
+.callout.ok {
+  border-left-color: var(--success);
+}
+.callout.ok .callout-title {
+  color: var(--success);
+}
+.callout.warn {
+  border-left-color: var(--danger);
+}
+.callout.warn .callout-title {
+  color: var(--danger);
+}
+.callout-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+
+/* Cards */
+.card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.card {
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+.card .priority-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+}
+.p0 { background: rgba(75,63,227,0.1); color: var(--accent); }
+.p1 { background: rgba(39,210,191,0.14); color: #128f80; }
+.p2 { background: rgba(107,107,128,0.12); color: var(--muted); }
+.card h4 { margin-top: 0; color: var(--ink); }
+.card ul { margin-bottom: 0; padding-left: 1.1rem; font-size: 14px; }
+
+/* Diagram */
+.diagram {
+  margin: 2rem 0;
+  text-align: center;
+  overflow-x: auto;
+}
+.diagram figcaption {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 0.5rem;
+}
+
+/* Mermaid */
+.mermaid, .mermaid-figure {
+  background: var(--bg2);
+  border-radius: 8px;
+  padding: 1.5rem;
+  display: flex;
+  justify-content: center;
+}
+.mermaid-figure svg { max-width: 100%; height: auto; }
+
+/* Code block */
+.code-block {
+  background: #1a1a2e;
+  color: #e0e0e6;
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  font-family: 'JetBrainsMono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre;
+}
+.code-block .ck { color: #c792ea; }
+.code-block .cs { color: #c3e88d; }
+.code-block .cm { color: #65737e; }
+.code-block .ct { color: #ffcb6b; }
+
+/* Footer */
+footer {
+  margin-top: 4rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--rule);
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .container { padding: 2rem 1rem 4rem; }
+  .cover h1 { font-size: 1.8rem; }
+  h2 { font-size: 1.25rem; }
+  .card-grid { grid-template-columns: 1fr; }
+}
+
+@media print {
+  .diagram { page-break-inside: avoid; }
+  h2 { page-break-after: avoid; }
+  .table-wrap { max-height: none; overflow: visible; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Cover -->
+<div class="cover">
+  <div class="badge">技术设计方案</div>
+  <h1>xsolve 用户系统设计</h1>
+  <p class="subtitle">登录 · 鉴权 · 学生/家长角色区分 —— 基于现有 Node.js + SQLite 栈的轻量账号体系</p>
+  <p class="meta">2026-09-18 · xsolve 项目</p>
+</div>
+
+<!-- TOC -->
+<h2>目录</h2>
+<ol>
+  <li><a href="#bg">现状与差距</a></li>
+  <li><a href="#goal">设计目标与原则</a></li>
+  <li><a href="#model">核心模型：厘清两个「角色」</a></li>
+  <li><a href="#data">数据模型</a></li>
+  <li><a href="#path">关键路径</a></li>
+  <li><a href="#integ">与现有系统的集成点</a></li>
+  <li><a href="#config">Prompt 与配置改动</a></li>
+  <li><a href="#fe">前端改动</a></li>
+  <li><a href="#mile">里程碑与验收</a></li>
+  <li><a href="#open">开放问题</a></li>
+</ol>
+
+<!-- 1. 现状与差距 -->
+<h2 id="bg">1. 现状与差距</h2>
+
+<p>xsolve 当前<strong>没有任何账号体系</strong>。每个浏览器拿到的是一个匿名会话：模式（学生 / 家长）只是前端 localStorage 里的一个开关，任何人都能自由切换；所有数据（会话、答题流水、掌握度、画像）都挂在全局单例 <code>student_id = 'me'</code> 上。这套「单人单机」假设在只有自家人使用时没问题，但一旦想让多个孩子、或家长与孩子分别登录，就完全站不住脚。</p>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>现有能力</th><th>实现位置</th><th>问题</th></tr>
+</thead>
+<tbody>
+<tr><td>模式切换 <code>student</code> / <code>parent</code></td><td><code>frontend/js/state.js</code>（<code>localStorage.ai_mode</code>）+ <code>backend/session.js:createSession</code></td><td>纯前端开关，学生可自行切到家长模式拿到讲解与答案，约束形同虚设</td></tr>
+<tr><td>会话归属</td><td><code>chat_sessions.role</code>、<code>chat_turns.role</code></td><td><code>role</code> 只记「模式」，不记「是谁」。无法区分不同孩子/家长的会话</td></tr>
+<tr><td>学生记忆隔离键</td><td><code>student_id</code> 硬编码 <code>'me'</code>（<code>db.js</code>、<code>turnController.autoLogAttempts</code>、<code>mcp-tools.js</code>）</td><td>所有学生的答题流水 / 掌握度 / 画像 / 记忆事实混在同一行空间，无法多用户</td></tr>
+<tr><td>会话本地持久化键</td><td><code>frontend/js/state.js</code>（<code>xsolve_session_&lt;mode&gt;</code>）</td><td>键只按模式分，不按账号分，多账号同机使用会串会话</td></tr>
+<tr><td>管理页（评估 / Prompt / 模型配置 / 学习档案）</td><td><code>backend/app.js</code> 直接暴露 <code>/api/eval/*</code>、<code>/api/prompts/*</code>、<code>/api/settings/*</code>、<code>/api/memory/*</code></td><td>零鉴权，任何能访问服务的人都能改模型 Key、改 Prompt、看他人学习档案</td></tr>
+<tr><td>后端依赖</td><td><code>package.json</code>：<code>express</code> / <code>better-sqlite3</code> / <code>zod</code> / claude-agent-sdk</td><td>无任何鉴权 / 密码库——本方案尽量不出新增原生依赖</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="callout warn">
+  <div class="callout-title">一句话总结差距</div>
+  <p>系统缺的是一层「<strong>身份</strong>」：谁在登录、他是什么角色、他能看谁的数据。补上这层身份后，「家长看孩子」「学生不许拿答案」「记忆按孩子隔离」都会自然成立——因为记忆系统在 P0 时已经预留了 <code>student_id</code> 列，只差把 <code>'me'</code> 换成真实用户 id。</p>
+</div>
+
+<!-- 2. 目标与原则 -->
+<h2 id="goal">2. 设计目标与原则</h2>
+
+<div class="callout">
+  <div class="callout-title">设计目标</div>
+  <p><strong>账号 + 登录</strong>：学生与家长各自拥有账号，用户名 + 密码登录。</p>
+  <p><strong>会话鉴权</strong>：登录态用服务端会话（httpOnly Cookie），业务与管理 API 全部经过鉴权中间件。</p>
+  <p><strong>角色区分</strong>：区分学生 / 家长，家长可绑定并查看自己的孩子；学生的数据只属于自己。</p>
+  <p><strong>顺水推舟</strong>：最大化复用现有结构——把 <code>student_id='me'</code> 换成真实 id，不推倒记忆系统重来。</p>
+</div>
+
+<h3>2.1 设计原则</h3>
+<ul>
+  <li><mark class="key">零新增原生依赖</mark>：密码哈希用 Node 内置 <code>crypto.scrypt</code>，会话令牌用 <code>crypto.randomBytes</code>——不引入 <code>bcrypt</code> / <code>jsonwebtoken</code> 这类需要编译或不必要的库。</li>
+  <li><mark class="key">服务端会话而非 JWT</mark>：家庭场景、单体服务、需要「登出即时失效」，服务端会话表最直接。JWT 反而要额外处理吊销。</li>
+  <li><mark class="key">兼容现网数据</mark>：现有 <code>xsolve.db</code> 里的历史会话与记忆，通过一个「引导账号」承接，防御式迁移（<code>SELECT col LIMIT 0</code> 探测 → <code>ALTER TABLE ADD COLUMN</code>）。</li>
+  <li><mark class="key">最小权限</mark>：学生账号<strong>锁定学生模式</strong>；管理页仅「家庭管理员」可见；家长只能访问已绑定的孩子。</li>
+  <li><mark class="key">后端为最终防线</mark>：前端显隐只是体验，所有权限判定必须在后端中间件里再判一次。</li>
+</ul>
+
+<!-- 3. 核心模型 -->
+<h2 id="model">3. 核心模型：厘清两个「角色」</h2>
+
+<p>这是本方案最容易被搞混、也最需要先说清楚的一点：系统里存在<strong>两个层次的「角色」，二者不是一回事</strong>。</p>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>概念</th><th>取值</th><th>存在哪</th><th>含义 / 决定什么</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>账号角色</strong> account role</td><td><code>student</code> / <code>parent</code> / <code>admin</code></td><td><code>users.role</code></td><td>这个登录「人」是谁。决定他能访问哪些 API、能创建什么模式的会话、能看谁的数据</td></tr>
+<tr><td><strong>会话模式</strong> session mode</td><td><code>student</code> / <code>parent</code></td><td><code>chat_sessions.role</code>（沿用旧列名= mode）</td><td>这条对话用哪套系统提示词：学生版（不给答案）还是家长版（可讲解）。由账号角色<strong>派生</strong>，不自由选择</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>映射规则简单而确定：</p>
+<ul>
+  <li><strong>学生账号</strong> → 只能创建 <code>student</code> 模式会话；<code>session.student_id = 自己</code>（答题流水记在自己名下）。</li>
+  <li><strong>家长账号</strong> → 只能创建 <code>parent</code> 模式会话；<code>session.student_id = 选中的已绑定孩子</code>（家长陪孩子做题时，孩子的答题流水仍记在孩子名下）。</li>
+  <li><strong>admin 账号</strong> → 可进管理页；一般不出现在日常辅导界面。</li>
+</ul>
+
+<div class="callout ok">
+  <div class="callout-title">为什么这样拆</div>
+  <p>把「账号角色」和「会话模式」分开后，现有 <code>prompt_versions.role</code>（student/parent 两套提示词）<strong>完全不用动</strong>——选哪套提示词仍由会话模式决定，只是模式不再由前端开关随便挑，而是由登录账号的角色强制派生。这恰好复用了你已经在用的机制。</p>
+</div>
+
+<h3>3.1 分层架构</h3>
+
+<p>请求自上而下穿过四层：浏览器持 httpOnly Cookie → Express 鉴权中间件解析会话与角色 → 业务 Controller 按归属读写 → SQLite 按 <code>student_id</code> 隔离数据。</p>
+
+<div class="diagram">
+  <script type="text/plain" class="mermaid-source" hidden>flowchart TB
+    subgraph 客户端
+        U1[学生账号<br/>student]
+        U2[家长账号<br/>parent]
+        U3[管理员<br/>admin]
+    end
+
+    subgraph 接入层
+        L[login.html / js/auth.js<br/>携带 Cookie 请求]
+    end
+
+    subgraph 鉴权层["Express 鉴权中间件（middleware/auth.js）"]
+        M1[requireAuth<br/>解析 cookie → req.user]
+        M2[requireRole<br/>student / parent / admin]
+        M3[requireParentOf<br/>家长只能访问绑定孩子]
+    end
+
+    subgraph 业务层
+        B1[会话 / 对话<br/>session · turnController]
+        B2[学生记忆<br/>memory · digest · consolidate]
+        B3[管理页<br/>eval · prompts · settings]
+    end
+
+    subgraph 数据层["SQLite · xsolve.db"]
+        D1[(users<br/>user_sessions<br/>family_links)]
+        D2[(chat_sessions<br/>chat_turns)]
+        D3[(student_attempts<br/>topic_mastery<br/>student_profile)]
+    end
+
+    U1 --> L
+    U2 --> L
+    U3 --> L
+    L --> M1 --> M2 --> M3
+    M3 --> B1
+    M3 --> B2
+    M3 --> B3
+    B1 --> D2
+    B2 --> D3
+    B3 --> D3
+    M1 --> D1
+
+    style M1 fill:#e5eaff,stroke:#4b3fe3,stroke-width:2px
+    style M2 fill:#e5eaff,stroke:#4b3fe3,stroke-width:2px
+    style M3 fill:#e5eaff,stroke:#4b3fe3,stroke-width:2px
+    style D1 fill:#f0f0f3,stroke:#6b6b80</script>
+  <div class="mermaid-figure">
+<svg id="mermaid-1789702742579" width="100%" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" class="flowchart" style="max-width: 1023.90625px;" viewBox="0 0 1023.90625 1184.946044921875" role="graphics-document document" aria-roledescription="flowchart-v2"><style>#mermaid-1789702742579{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;fill:#333;}#mermaid-1789702742579 .error-icon{fill:#552222;}#mermaid-1789702742579 .error-text{fill:#552222;stroke:#552222;}#mermaid-1789702742579 .edge-thickness-normal{stroke-width:1px;}#mermaid-1789702742579 .edge-thickness-thick{stroke-width:3.5px;}#mermaid-1789702742579 .edge-pattern-solid{stroke-dasharray:0;}#mermaid-1789702742579 .edge-thickness-invisible{stroke-width:0;fill:none;}#mermaid-1789702742579 .edge-pattern-dashed{stroke-dasharray:3;}#mermaid-1789702742579 .edge-pattern-dotted{stroke-dasharray:2;}#mermaid-1789702742579 .marker{fill:#333333;stroke:#333333;}#mermaid-1789702742579 .marker.cross{stroke:#333333;}#mermaid-1789702742579 svg{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;}#mermaid-1789702742579 p{margin:0;}#mermaid-1789702742579 .label{font-family:"trebuchet ms",verdana,arial,sans-serif;color:#333;}#mermaid-1789702742579 .cluster-label text{fill:#333;}#mermaid-1789702742579 .cluster-label span{color:#333;}#mermaid-1789702742579 .cluster-label span p{background-color:transparent;}#mermaid-1789702742579 .label text,#mermaid-1789702742579 span{fill:#333;color:#333;}#mermaid-1789702742579 .node rect,#mermaid-1789702742579 .node circle,#mermaid-1789702742579 .node ellipse,#mermaid-1789702742579 .node polygon,#mermaid-1789702742579 .node path{fill:#ECECFF;stroke:#9370DB;stroke-width:1px;}#mermaid-1789702742579 .rough-node .label text,#mermaid-1789702742579 .node .label text,#mermaid-1789702742579 .image-shape .label,#mermaid-1789702742579 .icon-shape .label{text-anchor:middle;}#mermaid-1789702742579 .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#mermaid-1789702742579 .rough-node .label,#mermaid-1789702742579 .node .label,#mermaid-1789702742579 .image-shape .label,#mermaid-1789702742579 .icon-shape .label{text-align:center;}#mermaid-1789702742579 .node.clickable{cursor:pointer;}#mermaid-1789702742579 .root .anchor path{fill:#333333!important;stroke-width:0;stroke:#333333;}#mermaid-1789702742579 .arrowheadPath{fill:#333333;}#mermaid-1789702742579 .edgePath .path{stroke:#333333;stroke-width:2.0px;}#mermaid-1789702742579 .flowchart-link{stroke:#333333;fill:none;}#mermaid-1789702742579 .edgeLabel{background-color:rgba(232,232,232, 0.8);text-align:center;}#mermaid-1789702742579 .edgeLabel p{background-color:rgba(232,232,232, 0.8);}#mermaid-1789702742579 .edgeLabel rect{opacity:0.5;background-color:rgba(232,232,232, 0.8);fill:rgba(232,232,232, 0.8);}#mermaid-1789702742579 .labelBkg{background-color:rgba(232, 232, 232, 0.5);}#mermaid-1789702742579 .cluster rect{fill:#ffffde;stroke:#aaaa33;stroke-width:1px;}#mermaid-1789702742579 .cluster text{fill:#333;}#mermaid-1789702742579 .cluster span{color:#333;}#mermaid-1789702742579 div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:12px;background:hsl(80, 100%, 96.2745098039%);border:1px solid #aaaa33;border-radius:2px;pointer-events:none;z-index:100;}#mermaid-1789702742579 .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#333;}#mermaid-1789702742579 rect.text{fill:none;stroke-width:0;}#mermaid-1789702742579 .icon-shape,#mermaid-1789702742579 .image-shape{background-color:rgba(232,232,232, 0.8);text-align:center;}#mermaid-1789702742579 .icon-shape p,#mermaid-1789702742579 .image-shape p{background-color:rgba(232,232,232, 0.8);padding:2px;}#mermaid-1789702742579 .icon-shape rect,#mermaid-1789702742579 .image-shape rect{opacity:0.5;background-color:rgba(232,232,232, 0.8);fill:rgba(232,232,232, 0.8);}#mermaid-1789702742579 :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g><marker id="mermaid-1789702742579_flowchart-v2-pointEnd" class="marker flowchart-v2" viewBox="0 0 10 10" refX="5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker id="mermaid-1789702742579_flowchart-v2-pointStart" class="marker flowchart-v2" viewBox="0 0 10 10" refX="4.5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 5 L 10 10 L 10 0 z" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker id="mermaid-1789702742579_flowchart-v2-circleEnd" class="marker flowchart-v2" viewBox="0 0 10 10" refX="11" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker id="mermaid-1789702742579_flowchart-v2-circleStart" class="marker flowchart-v2" viewBox="0 0 10 10" refX="-1" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker id="mermaid-1789702742579_flowchart-v2-crossEnd" class="marker cross flowchart-v2" viewBox="0 0 11 11" refX="12" refY="5.2" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M 1,1 l 9,9 M 10,1 l -9,9" class="arrowMarkerPath" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><marker id="mermaid-1789702742579_flowchart-v2-crossStart" class="marker cross flowchart-v2" viewBox="0 0 11 11" refX="-1" refY="5.2" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M 1,1 l 9,9 M 10,1 l -9,9" class="arrowMarkerPath" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><g class="root"><g class="clusters"><g class="cluster " id="数据层" data-look="classic"><rect style="" x="12.6640625" y="1000" width="913.79296875" height="176.94611358642578"></rect><g class="cluster-label " transform="translate(404.646484375, 1000)"><foreignObject width="129.828125" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>SQLite · xsolve.db</p></span></div></foreignObject></g></g><g class="cluster " id="业务层" data-look="classic"><rect style="" x="122.703125" y="798" width="893.203125" height="152"></rect><g class="cluster-label " transform="translate(545.3046875, 798)"><foreignObject width="48" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>业务层</p></span></div></foreignObject></g></g><g class="cluster " id="鉴权层" data-look="classic"><rect style="" x="8" y="364" width="892.01953125" height="384"></rect><g class="cluster-label " transform="translate(354.009765625, 364)"><foreignObject width="200" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;"><span class="nodeLabel "><p>Express 鉴权中间件（middleware/auth.js）</p></span></div></foreignObject></g></g><g class="cluster " id="接入层" data-look="classic"><rect style="" x="98.0234375" y="186" width="489.41015625" height="128"></rect><g class="cluster-label " transform="translate(318.728515625, 186)"><foreignObject width="48" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>接入层</p></span></div></foreignObject></g></g><g class="cluster " id="客户端" data-look="classic"><rect style="" x="67.2265625" y="8" width="526" height="128"></rect><g class="cluster-label " transform="translate(306.2265625, 8)"><foreignObject width="48" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>客户端</p></span></div></foreignObject></g></g></g><g class="edgePaths"><path d="M164.227,111L164.227,115.167C164.227,119.333,164.227,127.667,164.227,136C164.227,144.333,164.227,152.667,164.227,161C164.227,169.333,164.227,177.667,183.481,187.173C202.736,196.679,241.245,207.357,260.5,212.697L279.755,218.036" id="L_U1_L_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702742579_flowchart-v2-pointEnd)"></path><path d="M338.227,111L338.227,115.167C338.227,119.333,338.227,127.667,338.227,136C338.227,144.333,338.227,152.667,338.227,161C338.227,169.333,338.227,177.667,341.482,185.501C344.737,193.336,351.247,200.672,354.503,204.34L357.758,208.008" id="L_U2_L_1" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702742579_flowchart-v2-pointEnd)"></path><path d="M504.227,111L504.227,115.167C504.227,119.333,504.227,127.667,504.227,136C504.227,144.333,504.227,152.667,504.227,161C504.227,169.333,504.227,177.667,497.692,185.663C491.158,193.659,478.089,201.318,471.555,205.148L465.02,208.977" id="L_U3_L_2" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702742579_flowchart-v2-pointEnd)"></path><path d="M395.023,289L395.023,293.167C395.023,297.333,395.023,305.667,395.023,314C395.023,322.333,395.023,330.667,395.023,339C395.023,347.333,395.023,355.667,395.023,363.333C395.023,371,395.023,378,395.023,381.5L395.023,385" id="L_L_M1_3" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702742579_flowchart-v2-pointEnd)"></path><path d="M499.06,467L510.175,471.167C521.29,475.333,543.52,483.667,554.635,491.333C565.75,499,565.75,506,565.75,509.5L565.75,513" id="L_M1_M2_4" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702742579_flowchart-v2-pointEnd)"></path><path d="M565.75,595L565.75,599.167C565.75,603.333,565.75,611.667,565.75,619.333C565.75,627,565.75,634,565.75,637.5L565.75,641" id="L_M2_M3_5" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702742579_flowchart-v2-pointEnd)"></path><path d="M455.75,707.944L425.079,714.62C394.409,721.296,333.068,734.648,302.397,745.491C271.727,756.333,271.727,764.667,271.727,773C271.727,781.333,271.727,789.667,271.727,799.333C271.727,809,271.727,820,271.727,825.5L271.727,831" id="L_M3_B1_6" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702742579_flowchart-v2-pointEnd)"></path><path d="M565.75,723L565.75,727.167C565.75,731.333,565.75,739.667,565.75,748C565.75,756.333,565.75,764.667,565.75,773C565.75,781.333,565.75,789.667,565.75,797.333C565.75,805,565.75,812,565.75,815.5L565.75,819" id="L_M3_B2_7" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702742579_flowchart-v2-pointEnd)"></path><path d="M675.75,707.658L707.013,714.381C738.276,721.105,800.802,734.553,832.065,745.443C863.328,756.333,863.328,764.667,863.328,773C863.328,781.333,863.328,789.667,863.328,799.333C863.328,809,863.328,820,863.328,825.5L863.328,831" id="L_M3_B3_8" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702742579_flowchart-v2-pointEnd)"></path><path d="M271.727,913L271.727,919.167C271.727,925.333,271.727,937.667,271.727,948C271.727,958.333,271.727,966.667,271.727,975C271.727,983.333,271.727,991.667,271.727,1001.718C271.727,1011.769,271.727,1023.539,271.727,1029.423L271.727,1035.308" id="L_B1_D2_9" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702742579_flowchart-v2-pointEnd)"></path><path d="M565.75,925L565.75,929.167C565.75,933.333,565.75,941.667,565.75,950C565.75,958.333,565.75,966.667,565.75,975C565.75,983.333,565.75,991.667,579.688,1003.619C593.625,1015.572,621.5,1031.144,635.438,1038.93L649.375,1046.716" id="L_B2_D3_10" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702742579_flowchart-v2-pointEnd)"></path><path d="M863.328,913L863.328,919.167C863.328,925.333,863.328,937.667,863.328,948C863.328,958.333,863.328,966.667,863.328,975C863.328,983.333,863.328,991.667,852.567,1002.673C841.805,1013.679,820.282,1027.359,809.52,1034.199L798.759,1041.038" id="L_B3_D3_11" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702742579_flowchart-v2-pointEnd)"></path><path d="M280.617,453.048L250.965,459.54C221.313,466.032,162.008,479.016,132.355,496.175C102.703,513.333,102.703,534.667,102.703,556C102.703,577.333,102.703,598.667,102.703,620C102.703,641.333,102.703,662.667,102.703,684C102.703,705.333,102.703,726.667,102.703,741.5C102.703,756.333,102.703,764.667,102.703,773C102.703,781.333,102.703,789.667,102.703,806.5C102.703,823.333,102.703,848.667,102.703,874C102.703,899.333,102.703,924.667,102.703,941.5C102.703,958.333,102.703,966.667,102.703,975C102.703,983.333,102.703,991.667,102.703,999.736C102.703,1007.806,102.703,1015.612,102.703,1019.514L102.703,1023.417" id="L_M1_D1_12" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702742579_flowchart-v2-pointEnd)"></path></g><g class="edgeLabels"><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g></g><g class="nodes"><g class="node default  " id="flowchart-U1-0" transform="translate(164.2265625, 72)"><rect class="basic label-container" style="" x="-62" y="-39" width="124" height="78"></rect><g class="label" style="" transform="translate(-32, -24)"><rect></rect><foreignObject width="64" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>学生账号<br>student</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-U2-1" transform="translate(338.2265625, 72)"><rect class="basic label-container" style="" x="-62" y="-39" width="124" height="78"></rect><g class="label" style="" transform="translate(-32, -24)"><rect></rect><foreignObject width="64" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>家长账号<br>parent</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-U3-2" transform="translate(504.2265625, 72)"><rect class="basic label-container" style="" x="-54" y="-39" width="108" height="78"></rect><g class="label" style="" transform="translate(-24, -24)"><rect></rect><foreignObject width="48" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>管理员<br>admin</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-L-3" transform="translate(395.0234375, 250)"><rect class="basic label-container" style="" x="-111.4140625" y="-39" width="222.828125" height="78"></rect><g class="label" style="" transform="translate(-81.4140625, -24)"><rect></rect><foreignObject width="162.828125" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>login.html / js/auth.js<br>携带 Cookie 请求</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-M1-4" transform="translate(395.0234375, 428)"><rect class="basic label-container" style="fill:#e5eaff !important;stroke:#4b3fe3 !important;stroke-width:2px !important" x="-114.40625" y="-39" width="228.8125" height="78"></rect><g class="label" style="" transform="translate(-84.40625, -24)"><rect></rect><foreignObject width="168.8125" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>requireAuth<br>解析 cookie → req.user</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-M2-5" transform="translate(565.75, 556)"><rect class="basic label-container" style="fill:#e5eaff !important;stroke:#4b3fe3 !important;stroke-width:2px !important" x="-120.8046875" y="-39" width="241.609375" height="78"></rect><g class="label" style="" transform="translate(-90.8046875, -24)"><rect></rect><foreignObject width="181.609375" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>requireRole<br>student / parent / admin</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-M3-6" transform="translate(565.75, 684)"><rect class="basic label-container" style="fill:#e5eaff !important;stroke:#4b3fe3 !important;stroke-width:2px !important" x="-110" y="-39" width="220" height="78"></rect><g class="label" style="" transform="translate(-80, -24)"><rect></rect><foreignObject width="160" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>requireParentOf<br>家长只能访问绑定孩子</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-B1-7" transform="translate(271.7265625, 874)"><rect class="basic label-container" style="" x="-114.0234375" y="-39" width="228.046875" height="78"></rect><g class="label" style="" transform="translate(-84.0234375, -24)"><rect></rect><foreignObject width="168.046875" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>会话 / 对话<br>session · turnController</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-B2-8" transform="translate(565.75, 874)"><rect class="basic label-container" style="" x="-130" y="-51" width="260" height="102"></rect><g class="label" style="" transform="translate(-100, -36)"><rect></rect><foreignObject width="200" height="72"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;"><span class="nodeLabel "><p>学生记忆<br>memory · digest · consolidate</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-B3-9" transform="translate(863.328125, 874)"><rect class="basic label-container" style="" x="-117.578125" y="-39" width="235.15625" height="78"></rect><g class="label" style="" transform="translate(-87.578125, -24)"><rect></rect><foreignObject width="175.15625" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>管理页<br>eval · prompts · settings</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-D1-10" transform="translate(102.703125, 1088.473056793213)"><path d="M0,11.706547025589899 a55.0390625,11.706547025589899 0,0,0 110.078125,0 a55.0390625,11.706547025589899 0,0,0 -110.078125,0 l0,98.7065470255899 a55.0390625,11.706547025589899 0,0,0 110.078125,0 l0,-98.7065470255899" class="basic label-container" style="fill:#f0f0f3 !important;stroke:#6b6b80 !important" label-offset-y="11.706547025589899" transform="translate(-55.0390625, -61.05982053838485)"></path><g class="label" style="" transform="translate(-47.5390625, -26)"><rect></rect><foreignObject width="95.078125" height="72"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>users<br>user_sessions<br>family_links</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-D2-11" transform="translate(271.7265625, 1088.473056793213)"><path d="M0,11.776859504132231 a55.6640625,11.776859504132231 0,0,0 111.328125,0 a55.6640625,11.776859504132231 0,0,0 -111.328125,0 l0,74.77685950413223 a55.6640625,11.776859504132231 0,0,0 111.328125,0 l0,-74.77685950413223" class="basic label-container" style="" label-offset-y="11.776859504132231" transform="translate(-55.6640625, -49.16528925619835)"></path><g class="label" style="" transform="translate(-48.1640625, -14)"><rect></rect><foreignObject width="96.328125" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>chat_sessions<br>chat_turns</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-D3-12" transform="translate(724.125, 1088.473056793213)"><path d="M0,13.318439343496292 a71.2578125,13.318439343496292 0,0,0 142.515625,0 a71.2578125,13.318439343496292 0,0,0 -142.515625,0 l0,100.3184393434963 a71.2578125,13.318439343496292 0,0,0 142.515625,0 l0,-100.3184393434963" class="basic label-container" style="" label-offset-y="13.318439343496292" transform="translate(-71.2578125, -63.47765901524444)"></path><g class="label" style="" transform="translate(-63.7578125, -26)"><rect></rect><foreignObject width="127.515625" height="72"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>student_attempts<br>topic_mastery<br>student_profile</p></span></div></foreignObject></g></g></g></g></g></svg>
+  </div>
+  <figcaption>图 1：用户系统分层架构（新增部分高亮）</figcaption>
+</div>
+
+<h3>3.2 鉴权分层（权限矩阵）</h3>
+
+<p>不同 API 组要求不同的身份与角色。<code>✅</code> = 允许，<code>🚫</code> = 拒绝（403），<code>🔒</code> = 仅限本人的数据。</p>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>API 组</th><th>未登录</th><th>学生</th><th>家长</th><th>admin</th></tr>
+</thead>
+<tbody>
+<tr><td><code>/api/auth/login·register</code></td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+<tr><td><code>/api/auth/me·logout</code></td><td>🚫</td><td>🔒</td><td>🔒</td><td>🔒</td></tr>
+<tr><td><code>/api/session/*</code>、<code>/api/session/:id/turn</code>（对话）</td><td>🚫(401)</td><td>🔒 自己的会话</td><td>🔒 自己的会话</td><td>✅</td></tr>
+<tr><td><code>/api/memory/*</code>（学习档案）</td><td>🚫</td><td>🔒 自己</td><td>🔒 已绑定孩子</td><td>✅</td></tr>
+<tr><td><code>/api/children</code>（孩子列表）</td><td>🚫</td><td>🚫</td><td>✅</td><td>✅</td></tr>
+<tr><td><code>/api/prompts/*</code>、<code>/api/settings/*</code>、<code>/api/eval/*</code></td><td>🚫</td><td>🚫</td><td>✅ 仅管理员家长</td><td>✅</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- 4. 数据模型 -->
+<h2 id="data">4. 数据模型</h2>
+
+<p>在现有 <code>xsolve.db</code> 中新增 4 张表（<code>users</code> / <code>user_sessions</code> / <code>family_links</code> / <code>invite_codes</code>），并给 <code>chat_sessions</code> 补两列归属字段。记忆相关的 4 张表（<code>student_attempts</code> 等）<strong>结构不变</strong>，只是 <code>student_id</code> 从常量 <code>'me'</code> 变成真实用户 id。</p>
+
+<div class="diagram">
+  <script type="text/plain" class="mermaid-source" hidden>erDiagram
+    users ||--o{ user_sessions : "拥有登录态"
+    users ||--o{ family_links : "作为家长(parent_id)"
+    users ||--o{ family_links : "作为孩子(student_id)"
+    users ||--o{ invite_codes : "生成(parent_id)"
+    users ||--o{ chat_sessions : "拥有(user_id)"
+    users ||--o{ student_attempts : "答题(student_id)"
+    users ||--|| student_profile : "画像(student_id)"
+
+    users {
+        text id PK
+        text role "student|parent|admin"
+        text username UK
+        text display_name
+        text password_hash "scrypt"
+        int  is_admin
+        text status
+        int  created_at
+        int  last_login_at
+    }
+    user_sessions {
+        text token PK "存 cookie"
+        text user_id FK
+        int  created_at
+        int  expires_at
+        text user_agent
+        text ip
+    }
+    family_links {
+        text parent_id FK
+        text student_id FK
+        text relation
+        int  created_at
+    }
+    invite_codes {
+        text code PK
+        text parent_id FK
+        int  expires_at
+        text used_by
+    }
+    chat_sessions {
+        text id PK
+        text role "= session mode"
+        text user_id "新增"
+        text student_id "新增 记忆归属"
+    }
+    student_attempts {
+        text id PK
+        text student_id FK "改: 真实 id"
+        text topic
+        int  correct
+    }</script>
+  <div class="mermaid-figure">
+<svg id="mermaid-1789702742621" width="100%" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="max-width: 1389.6875px;" viewBox="0 0 1389.6875 518.642578125" role="graphics-document document" aria-roledescription="er"><style>#mermaid-1789702742621{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;fill:#333;}#mermaid-1789702742621 .error-icon{fill:#552222;}#mermaid-1789702742621 .error-text{fill:#552222;stroke:#552222;}#mermaid-1789702742621 .edge-thickness-normal{stroke-width:1px;}#mermaid-1789702742621 .edge-thickness-thick{stroke-width:3.5px;}#mermaid-1789702742621 .edge-pattern-solid{stroke-dasharray:0;}#mermaid-1789702742621 .edge-thickness-invisible{stroke-width:0;fill:none;}#mermaid-1789702742621 .edge-pattern-dashed{stroke-dasharray:3;}#mermaid-1789702742621 .edge-pattern-dotted{stroke-dasharray:2;}#mermaid-1789702742621 .marker{fill:#333333;stroke:#333333;}#mermaid-1789702742621 .marker.cross{stroke:#333333;}#mermaid-1789702742621 svg{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;}#mermaid-1789702742621 p{margin:0;}#mermaid-1789702742621 .entityBox{fill:#ECECFF;stroke:#9370DB;}#mermaid-1789702742621 .attributeBoxOdd{fill:#ffffff;stroke:#9370DB;}#mermaid-1789702742621 .attributeBoxEven{fill:#f2f2f2;stroke:#9370DB;}#mermaid-1789702742621 .relationshipLabelBox{fill:hsl(80, 100%, 96.2745098039%);opacity:0.7;background-color:hsl(80, 100%, 96.2745098039%);}#mermaid-1789702742621 .relationshipLabelBox rect{opacity:0.5;}#mermaid-1789702742621 .relationshipLine{stroke:#333333;}#mermaid-1789702742621 .entityTitleText{text-anchor:middle;font-size:18px;fill:#333;}#mermaid-1789702742621 #MD_PARENT_START{fill:#f5f5f5!important;stroke:#333333!important;stroke-width:1;}#mermaid-1789702742621 #MD_PARENT_END{fill:#f5f5f5!important;stroke:#333333!important;stroke-width:1;}#mermaid-1789702742621 :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g></g><defs><marker id="MD_PARENT_START" refX="0" refY="7" markerWidth="190" markerHeight="240" orient="auto"><path d="M 18,7 L9,13 L1,7 L9,1 Z"></path></marker></defs><defs><marker id="MD_PARENT_END" refX="19" refY="7" markerWidth="20" markerHeight="28" orient="auto"><path d="M 18,7 L9,13 L1,7 L9,1 Z"></path></marker></defs><defs><marker id="ONLY_ONE_START" refX="0" refY="9" markerWidth="18" markerHeight="18" orient="auto"><path stroke="gray" fill="none" d="M9,0 L9,18 M15,0 L15,18"></path></marker></defs><defs><marker id="ONLY_ONE_END" refX="18" refY="9" markerWidth="18" markerHeight="18" orient="auto"><path stroke="gray" fill="none" d="M3,0 L3,18 M9,0 L9,18"></path></marker></defs><defs><marker id="ZERO_OR_ONE_START" refX="0" refY="9" markerWidth="30" markerHeight="18" orient="auto"><circle stroke="gray" fill="white" cx="21" cy="9" r="6"></circle><path stroke="gray" fill="none" d="M9,0 L9,18"></path></marker></defs><defs><marker id="ZERO_OR_ONE_END" refX="30" refY="9" markerWidth="30" markerHeight="18" orient="auto"><circle stroke="gray" fill="white" cx="9" cy="9" r="6"></circle><path stroke="gray" fill="none" d="M21,0 L21,18"></path></marker></defs><defs><marker id="ONE_OR_MORE_START" refX="18" refY="18" markerWidth="45" markerHeight="36" orient="auto"><path stroke="gray" fill="none" d="M0,18 Q 18,0 36,18 Q 18,36 0,18 M42,9 L42,27"></path></marker></defs><defs><marker id="ONE_OR_MORE_END" refX="27" refY="18" markerWidth="45" markerHeight="36" orient="auto"><path stroke="gray" fill="none" d="M3,9 L3,27 M9,18 Q27,0 45,18 Q27,36 9,18"></path></marker></defs><defs><marker id="ZERO_OR_MORE_START" refX="18" refY="18" markerWidth="57" markerHeight="36" orient="auto"><circle stroke="gray" fill="white" cx="48" cy="18" r="6"></circle><path stroke="gray" fill="none" d="M0,18 Q18,0 36,18 Q18,36 0,18"></path></marker></defs><defs><marker id="ZERO_OR_MORE_END" refX="39" refY="18" markerWidth="57" markerHeight="36" orient="auto"><circle stroke="gray" fill="white" cx="9" cy="18" r="6"></circle><path stroke="gray" fill="none" d="M21,18 Q39,0 57,18 Q39,36 21,18"></path></marker></defs><path class="er relationshipLine" d="M426.086,175.075L372.027,194.624C317.969,214.173,209.852,253.27,155.793,281.152C101.734,309.034,101.734,325.701,101.734,334.034L101.734,342.367" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M426.086,201.718L400.088,216.826C374.09,231.934,322.094,262.151,302.506,289.274C282.918,316.398,295.739,340.428,302.149,352.444L308.56,364.459" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M440.888,242.367L432.9,250.701C424.912,259.034,408.937,275.701,395.838,296.049C382.74,316.398,372.519,340.428,367.409,352.444L362.299,364.459" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M547.461,242.367L547.461,250.701C547.461,259.034,547.461,275.701,547.461,296.034C547.461,316.367,547.461,340.367,547.461,352.367L547.461,364.367" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M668.836,210.149L689.898,223.852C710.961,237.555,753.086,264.961,774.148,290.687C795.211,316.413,795.211,340.459,795.211,352.482L795.211,364.505" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M668.836,168.413L736.188,189.072C803.539,209.731,938.242,251.049,1005.594,283.724C1072.945,316.398,1072.945,340.428,1072.945,352.444L1072.945,364.459" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M668.836,156.729L776.249,179.335C883.661,201.941,1098.487,247.154,1205.9,284.867C1313.313,322.58,1313.313,352.792,1313.313,367.899L1313.313,383.005" marker-end="url(#ONLY_ONE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><g id="entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e" transform="translate(426.0859375,20 )"><rect class="er entityBox" x="0" y="0" width="242.75" height="222.3671875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e" x="0" y="0" transform="translate(121.375,12)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">users</text><rect class="er attributeBoxOdd" x="0" y="24" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-1-type" x="0" y="0" transform="translate(5,35)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxOdd" x="28.765625" y="24" width="78" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-1-name" x="0" y="0" transform="translate(33.765625,35)" style="dominant-baseline: middle; font-size: 10.2px;">id</text><rect class="er attributeBoxOdd" x="106.765625" y="24" width="22.5" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-1-key" x="0" y="0" transform="translate(111.765625,35)" style="dominant-baseline: middle; font-size: 10.2px;">PK</text><rect class="er attributeBoxOdd" x="129.265625" y="24" width="113.484375" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-1-comment" x="0" y="0" transform="translate(134.265625,35)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="0" y="46" width="28.765625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-2-type" x="0" y="0" transform="translate(5,57.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxEven" x="28.765625" y="46" width="78" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-2-name" x="0" y="0" transform="translate(33.765625,57.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;">role</text><rect class="er attributeBoxEven" x="106.765625" y="46" width="22.5" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-2-key" x="0" y="0" transform="translate(111.765625,57.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="129.265625" y="46" width="113.484375" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-2-comment" x="0" y="0" transform="translate(134.265625,57.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;">student|parent|admin</text><rect class="er attributeBoxOdd" x="0" y="68.091796875" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-3-type" x="0" y="0" transform="translate(5,79.091796875)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxOdd" x="28.765625" y="68.091796875" width="78" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-3-name" x="0" y="0" transform="translate(33.765625,79.091796875)" style="dominant-baseline: middle; font-size: 10.2px;">username</text><rect class="er attributeBoxOdd" x="106.765625" y="68.091796875" width="22.5" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-3-key" x="0" y="0" transform="translate(111.765625,79.091796875)" style="dominant-baseline: middle; font-size: 10.2px;">UK</text><rect class="er attributeBoxOdd" x="129.265625" y="68.091796875" width="113.484375" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-3-comment" x="0" y="0" transform="translate(134.265625,79.091796875)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="0" y="90.091796875" width="28.765625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-4-type" x="0" y="0" transform="translate(5,101.1376953125)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxEven" x="28.765625" y="90.091796875" width="78" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-4-name" x="0" y="0" transform="translate(33.765625,101.1376953125)" style="dominant-baseline: middle; font-size: 10.2px;">display_name</text><rect class="er attributeBoxEven" x="106.765625" y="90.091796875" width="22.5" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-4-key" x="0" y="0" transform="translate(111.765625,101.1376953125)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="129.265625" y="90.091796875" width="113.484375" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-4-comment" x="0" y="0" transform="translate(134.265625,101.1376953125)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxOdd" x="0" y="112.18359375" width="28.765625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-5-type" x="0" y="0" transform="translate(5,123.2294921875)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxOdd" x="28.765625" y="112.18359375" width="78" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-5-name" x="0" y="0" transform="translate(33.765625,123.2294921875)" style="dominant-baseline: middle; font-size: 10.2px;">password_hash</text><rect class="er attributeBoxOdd" x="106.765625" y="112.18359375" width="22.5" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-5-key" x="0" y="0" transform="translate(111.765625,123.2294921875)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxOdd" x="129.265625" y="112.18359375" width="113.484375" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-5-comment" x="0" y="0" transform="translate(134.265625,123.2294921875)" style="dominant-baseline: middle; font-size: 10.2px;">scrypt</text><rect class="er attributeBoxEven" x="0" y="134.275390625" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-6-type" x="0" y="0" transform="translate(5,145.275390625)" style="dominant-baseline: middle; font-size: 10.2px;">int</text><rect class="er attributeBoxEven" x="28.765625" y="134.275390625" width="78" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-6-name" x="0" y="0" transform="translate(33.765625,145.275390625)" style="dominant-baseline: middle; font-size: 10.2px;">is_admin</text><rect class="er attributeBoxEven" x="106.765625" y="134.275390625" width="22.5" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-6-key" x="0" y="0" transform="translate(111.765625,145.275390625)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="129.265625" y="134.275390625" width="113.484375" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-6-comment" x="0" y="0" transform="translate(134.265625,145.275390625)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxOdd" x="0" y="156.275390625" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-7-type" x="0" y="0" transform="translate(5,167.275390625)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxOdd" x="28.765625" y="156.275390625" width="78" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-7-name" x="0" y="0" transform="translate(33.765625,167.275390625)" style="dominant-baseline: middle; font-size: 10.2px;">status</text><rect class="er attributeBoxOdd" x="106.765625" y="156.275390625" width="22.5" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-7-key" x="0" y="0" transform="translate(111.765625,167.275390625)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxOdd" x="129.265625" y="156.275390625" width="113.484375" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-7-comment" x="0" y="0" transform="translate(134.265625,167.275390625)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="0" y="178.275390625" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-8-type" x="0" y="0" transform="translate(5,189.275390625)" style="dominant-baseline: middle; font-size: 10.2px;">int</text><rect class="er attributeBoxEven" x="28.765625" y="178.275390625" width="78" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-8-name" x="0" y="0" transform="translate(33.765625,189.275390625)" style="dominant-baseline: middle; font-size: 10.2px;">created_at</text><rect class="er attributeBoxEven" x="106.765625" y="178.275390625" width="22.5" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-8-key" x="0" y="0" transform="translate(111.765625,189.275390625)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="129.265625" y="178.275390625" width="113.484375" height="22"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-8-comment" x="0" y="0" transform="translate(134.265625,189.275390625)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxOdd" x="0" y="200.275390625" width="28.765625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-9-type" x="0" y="0" transform="translate(5,211.3212890625)" style="dominant-baseline: middle; font-size: 10.2px;">int</text><rect class="er attributeBoxOdd" x="28.765625" y="200.275390625" width="78" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-9-name" x="0" y="0" transform="translate(33.765625,211.3212890625)" style="dominant-baseline: middle; font-size: 10.2px;">last_login_at</text><rect class="er attributeBoxOdd" x="106.765625" y="200.275390625" width="22.5" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-9-key" x="0" y="0" transform="translate(111.765625,211.3212890625)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxOdd" x="129.265625" y="200.275390625" width="113.484375" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-users-33ae1e26-be31-5c1d-bf65-e859e9d0308e-attr-9-comment" x="0" y="0" transform="translate(134.265625,211.3212890625)" style="dominant-baseline: middle; font-size: 10.2px;"></text></g><g id="entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b" transform="translate(20,342.3671875 )"><rect class="er entityBox" x="0" y="0" width="163.46875" height="156.275390625"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b" x="0" y="0" transform="translate(81.734375,12)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">user_sessions</text><rect class="er attributeBoxOdd" x="0" y="24" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-1-type" x="0" y="0" transform="translate(5,35)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxOdd" x="28.765625" y="24" width="60.25" height="22"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-1-name" x="0" y="0" transform="translate(33.765625,35)" style="dominant-baseline: middle; font-size: 10.2px;">token</text><rect class="er attributeBoxOdd" x="89.015625" y="24" width="21.5625" height="22"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-1-key" x="0" y="0" transform="translate(94.015625,35)" style="dominant-baseline: middle; font-size: 10.2px;">PK</text><rect class="er attributeBoxOdd" x="110.578125" y="24" width="52.890625" height="22"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-1-comment" x="0" y="0" transform="translate(115.578125,35)" style="dominant-baseline: middle; font-size: 10.2px;">存 cookie</text><rect class="er attributeBoxEven" x="0" y="46" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-2-type" x="0" y="0" transform="translate(5,57)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxEven" x="28.765625" y="46" width="60.25" height="22"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-2-name" x="0" y="0" transform="translate(33.765625,57)" style="dominant-baseline: middle; font-size: 10.2px;">user_id</text><rect class="er attributeBoxEven" x="89.015625" y="46" width="21.5625" height="22"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-2-key" x="0" y="0" transform="translate(94.015625,57)" style="dominant-baseline: middle; font-size: 10.2px;">FK</text><rect class="er attributeBoxEven" x="110.578125" y="46" width="52.890625" height="22"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-2-comment" x="0" y="0" transform="translate(115.578125,57)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxOdd" x="0" y="68" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-3-type" x="0" y="0" transform="translate(5,79)" style="dominant-baseline: middle; font-size: 10.2px;">int</text><rect class="er attributeBoxOdd" x="28.765625" y="68" width="60.25" height="22"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-3-name" x="0" y="0" transform="translate(33.765625,79)" style="dominant-baseline: middle; font-size: 10.2px;">created_at</text><rect class="er attributeBoxOdd" x="89.015625" y="68" width="21.5625" height="22"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-3-key" x="0" y="0" transform="translate(94.015625,79)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxOdd" x="110.578125" y="68" width="52.890625" height="22"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-3-comment" x="0" y="0" transform="translate(115.578125,79)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="0" y="90" width="28.765625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-4-type" x="0" y="0" transform="translate(5,101.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;">int</text><rect class="er attributeBoxEven" x="28.765625" y="90" width="60.25" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-4-name" x="0" y="0" transform="translate(33.765625,101.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;">expires_at</text><rect class="er attributeBoxEven" x="89.015625" y="90" width="21.5625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-4-key" x="0" y="0" transform="translate(94.015625,101.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="110.578125" y="90" width="52.890625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-4-comment" x="0" y="0" transform="translate(115.578125,101.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxOdd" x="0" y="112.091796875" width="28.765625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-5-type" x="0" y="0" transform="translate(5,123.1376953125)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxOdd" x="28.765625" y="112.091796875" width="60.25" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-5-name" x="0" y="0" transform="translate(33.765625,123.1376953125)" style="dominant-baseline: middle; font-size: 10.2px;">user_agent</text><rect class="er attributeBoxOdd" x="89.015625" y="112.091796875" width="21.5625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-5-key" x="0" y="0" transform="translate(94.015625,123.1376953125)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxOdd" x="110.578125" y="112.091796875" width="52.890625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-5-comment" x="0" y="0" transform="translate(115.578125,123.1376953125)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="0" y="134.18359375" width="28.765625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-6-type" x="0" y="0" transform="translate(5,145.2294921875)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxEven" x="28.765625" y="134.18359375" width="60.25" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-6-name" x="0" y="0" transform="translate(33.765625,145.2294921875)" style="dominant-baseline: middle; font-size: 10.2px;">ip</text><rect class="er attributeBoxEven" x="89.015625" y="134.18359375" width="21.5625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-6-key" x="0" y="0" transform="translate(94.015625,145.2294921875)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="110.578125" y="134.18359375" width="52.890625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-usersessions-7bbbab7a-d5b0-5ec3-a938-fe78f00d0c1b-attr-6-comment" x="0" y="0" transform="translate(115.578125,145.2294921875)" style="dominant-baseline: middle; font-size: 10.2px;"></text></g><g id="entity-familylinks-85204e6a-2bfc-5949-82df-44e212b9a113" transform="translate(283.46875,364.458984375 )"><rect class="er entityBox" x="0" y="0" width="109.984375" height="112.091796875"></rect><text class="er entityLabel" id="text-entity-familylinks-85204e6a-2bfc-5949-82df-44e212b9a113" x="0" y="0" transform="translate(54.9921875,12)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">family_links</text><rect class="er attributeBoxOdd" x="0" y="24" width="28.765625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-familylinks-85204e6a-2bfc-5949-82df-44e212b9a113-attr-1-type" x="0" y="0" transform="translate(5,35.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxOdd" x="28.765625" y="24" width="59.984375" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-familylinks-85204e6a-2bfc-5949-82df-44e212b9a113-attr-1-name" x="0" y="0" transform="translate(33.765625,35.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;">parent_id</text><rect class="er attributeBoxOdd" x="88.75" y="24" width="21.234375" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-familylinks-85204e6a-2bfc-5949-82df-44e212b9a113-attr-1-key" x="0" y="0" transform="translate(93.75,35.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;">FK</text><rect class="er attributeBoxEven" x="0" y="46.091796875" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-familylinks-85204e6a-2bfc-5949-82df-44e212b9a113-attr-2-type" x="0" y="0" transform="translate(5,57.091796875)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxEven" x="28.765625" y="46.091796875" width="59.984375" height="22"></rect><text class="er entityLabel" id="text-entity-familylinks-85204e6a-2bfc-5949-82df-44e212b9a113-attr-2-name" x="0" y="0" transform="translate(33.765625,57.091796875)" style="dominant-baseline: middle; font-size: 10.2px;">student_id</text><rect class="er attributeBoxEven" x="88.75" y="46.091796875" width="21.234375" height="22"></rect><text class="er entityLabel" id="text-entity-familylinks-85204e6a-2bfc-5949-82df-44e212b9a113-attr-2-key" x="0" y="0" transform="translate(93.75,57.091796875)" style="dominant-baseline: middle; font-size: 10.2px;">FK</text><rect class="er attributeBoxOdd" x="0" y="68.091796875" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-familylinks-85204e6a-2bfc-5949-82df-44e212b9a113-attr-3-type" x="0" y="0" transform="translate(5,79.091796875)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxOdd" x="28.765625" y="68.091796875" width="59.984375" height="22"></rect><text class="er entityLabel" id="text-entity-familylinks-85204e6a-2bfc-5949-82df-44e212b9a113-attr-3-name" x="0" y="0" transform="translate(33.765625,79.091796875)" style="dominant-baseline: middle; font-size: 10.2px;">relation</text><rect class="er attributeBoxOdd" x="88.75" y="68.091796875" width="21.234375" height="22"></rect><text class="er entityLabel" id="text-entity-familylinks-85204e6a-2bfc-5949-82df-44e212b9a113-attr-3-key" x="0" y="0" transform="translate(93.75,79.091796875)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="0" y="90.091796875" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-familylinks-85204e6a-2bfc-5949-82df-44e212b9a113-attr-4-type" x="0" y="0" transform="translate(5,101.091796875)" style="dominant-baseline: middle; font-size: 10.2px;">int</text><rect class="er attributeBoxEven" x="28.765625" y="90.091796875" width="59.984375" height="22"></rect><text class="er entityLabel" id="text-entity-familylinks-85204e6a-2bfc-5949-82df-44e212b9a113-attr-4-name" x="0" y="0" transform="translate(33.765625,101.091796875)" style="dominant-baseline: middle; font-size: 10.2px;">created_at</text><rect class="er attributeBoxEven" x="88.75" y="90.091796875" width="21.234375" height="22"></rect><text class="er entityLabel" id="text-entity-familylinks-85204e6a-2bfc-5949-82df-44e212b9a113-attr-4-key" x="0" y="0" transform="translate(93.75,101.091796875)" style="dominant-baseline: middle; font-size: 10.2px;"></text></g><g id="entity-invitecodes-84a3b64f-87f7-568f-a017-42621e7abb84" transform="translate(493.453125,364.3671875 )"><rect class="er entityBox" x="0" y="0" width="108.015625" height="112.275390625"></rect><text class="er entityLabel" id="text-entity-invitecodes-84a3b64f-87f7-568f-a017-42621e7abb84" x="0" y="0" transform="translate(54.0078125,12)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">invite_codes</text><rect class="er attributeBoxOdd" x="0" y="24" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-invitecodes-84a3b64f-87f7-568f-a017-42621e7abb84-attr-1-type" x="0" y="0" transform="translate(5,35)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxOdd" x="28.765625" y="24" width="57.6875" height="22"></rect><text class="er entityLabel" id="text-entity-invitecodes-84a3b64f-87f7-568f-a017-42621e7abb84-attr-1-name" x="0" y="0" transform="translate(33.765625,35)" style="dominant-baseline: middle; font-size: 10.2px;">code</text><rect class="er attributeBoxOdd" x="86.453125" y="24" width="21.5625" height="22"></rect><text class="er entityLabel" id="text-entity-invitecodes-84a3b64f-87f7-568f-a017-42621e7abb84-attr-1-key" x="0" y="0" transform="translate(91.453125,35)" style="dominant-baseline: middle; font-size: 10.2px;">PK</text><rect class="er attributeBoxEven" x="0" y="46" width="28.765625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-invitecodes-84a3b64f-87f7-568f-a017-42621e7abb84-attr-2-type" x="0" y="0" transform="translate(5,57.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxEven" x="28.765625" y="46" width="57.6875" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-invitecodes-84a3b64f-87f7-568f-a017-42621e7abb84-attr-2-name" x="0" y="0" transform="translate(33.765625,57.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;">parent_id</text><rect class="er attributeBoxEven" x="86.453125" y="46" width="21.5625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-invitecodes-84a3b64f-87f7-568f-a017-42621e7abb84-attr-2-key" x="0" y="0" transform="translate(91.453125,57.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;">FK</text><rect class="er attributeBoxOdd" x="0" y="68.091796875" width="28.765625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-invitecodes-84a3b64f-87f7-568f-a017-42621e7abb84-attr-3-type" x="0" y="0" transform="translate(5,79.1376953125)" style="dominant-baseline: middle; font-size: 10.2px;">int</text><rect class="er attributeBoxOdd" x="28.765625" y="68.091796875" width="57.6875" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-invitecodes-84a3b64f-87f7-568f-a017-42621e7abb84-attr-3-name" x="0" y="0" transform="translate(33.765625,79.1376953125)" style="dominant-baseline: middle; font-size: 10.2px;">expires_at</text><rect class="er attributeBoxOdd" x="86.453125" y="68.091796875" width="21.5625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-invitecodes-84a3b64f-87f7-568f-a017-42621e7abb84-attr-3-key" x="0" y="0" transform="translate(91.453125,79.1376953125)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="0" y="90.18359375" width="28.765625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-invitecodes-84a3b64f-87f7-568f-a017-42621e7abb84-attr-4-type" x="0" y="0" transform="translate(5,101.2294921875)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxEven" x="28.765625" y="90.18359375" width="57.6875" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-invitecodes-84a3b64f-87f7-568f-a017-42621e7abb84-attr-4-name" x="0" y="0" transform="translate(33.765625,101.2294921875)" style="dominant-baseline: middle; font-size: 10.2px;">used_by</text><rect class="er attributeBoxEven" x="86.453125" y="90.18359375" width="21.5625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-invitecodes-84a3b64f-87f7-568f-a017-42621e7abb84-attr-4-key" x="0" y="0" transform="translate(91.453125,101.2294921875)" style="dominant-baseline: middle; font-size: 10.2px;"></text></g><g id="entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019" transform="translate(701.46875,364.5048828125 )"><rect class="er entityBox" x="0" y="0" width="187.484375" height="112"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019" x="0" y="0" transform="translate(93.7421875,12)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">chat_sessions</text><rect class="er attributeBoxOdd" x="0" y="24" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-1-type" x="0" y="0" transform="translate(5,35)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxOdd" x="28.765625" y="24" width="58.5625" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-1-name" x="0" y="0" transform="translate(33.765625,35)" style="dominant-baseline: middle; font-size: 10.2px;">id</text><rect class="er attributeBoxOdd" x="87.328125" y="24" width="21.5625" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-1-key" x="0" y="0" transform="translate(92.328125,35)" style="dominant-baseline: middle; font-size: 10.2px;">PK</text><rect class="er attributeBoxOdd" x="108.890625" y="24" width="78.59375" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-1-comment" x="0" y="0" transform="translate(113.890625,35)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="0" y="46" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-2-type" x="0" y="0" transform="translate(5,57)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxEven" x="28.765625" y="46" width="58.5625" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-2-name" x="0" y="0" transform="translate(33.765625,57)" style="dominant-baseline: middle; font-size: 10.2px;">role</text><rect class="er attributeBoxEven" x="87.328125" y="46" width="21.5625" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-2-key" x="0" y="0" transform="translate(92.328125,57)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="108.890625" y="46" width="78.59375" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-2-comment" x="0" y="0" transform="translate(113.890625,57)" style="dominant-baseline: middle; font-size: 10.2px;">= session mode</text><rect class="er attributeBoxOdd" x="0" y="68" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-3-type" x="0" y="0" transform="translate(5,79)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxOdd" x="28.765625" y="68" width="58.5625" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-3-name" x="0" y="0" transform="translate(33.765625,79)" style="dominant-baseline: middle; font-size: 10.2px;">user_id</text><rect class="er attributeBoxOdd" x="87.328125" y="68" width="21.5625" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-3-key" x="0" y="0" transform="translate(92.328125,79)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxOdd" x="108.890625" y="68" width="78.59375" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-3-comment" x="0" y="0" transform="translate(113.890625,79)" style="dominant-baseline: middle; font-size: 10.2px;">新增</text><rect class="er attributeBoxEven" x="0" y="90" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-4-type" x="0" y="0" transform="translate(5,101)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxEven" x="28.765625" y="90" width="58.5625" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-4-name" x="0" y="0" transform="translate(33.765625,101)" style="dominant-baseline: middle; font-size: 10.2px;">student_id</text><rect class="er attributeBoxEven" x="87.328125" y="90" width="21.5625" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-4-key" x="0" y="0" transform="translate(92.328125,101)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="108.890625" y="90" width="78.59375" height="22"></rect><text class="er entityLabel" id="text-entity-chatsessions-4a569d8e-2327-5a06-854c-373791508019-attr-4-comment" x="0" y="0" transform="translate(113.890625,101)" style="dominant-baseline: middle; font-size: 10.2px;">新增 记忆归属</text></g><g id="entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c" transform="translate(988.953125,364.458984375 )"><rect class="er entityBox" x="0" y="0" width="167.984375" height="112.091796875"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c" x="0" y="0" transform="translate(83.9921875,12)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">student_attempts</text><rect class="er attributeBoxOdd" x="0" y="24" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-1-type" x="0" y="0" transform="translate(5,35)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxOdd" x="28.765625" y="24" width="58.5625" height="22"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-1-name" x="0" y="0" transform="translate(33.765625,35)" style="dominant-baseline: middle; font-size: 10.2px;">id</text><rect class="er attributeBoxOdd" x="87.328125" y="24" width="21.5625" height="22"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-1-key" x="0" y="0" transform="translate(92.328125,35)" style="dominant-baseline: middle; font-size: 10.2px;">PK</text><rect class="er attributeBoxOdd" x="108.890625" y="24" width="59.09375" height="22"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-1-comment" x="0" y="0" transform="translate(113.890625,35)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="0" y="46" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-2-type" x="0" y="0" transform="translate(5,57)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxEven" x="28.765625" y="46" width="58.5625" height="22"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-2-name" x="0" y="0" transform="translate(33.765625,57)" style="dominant-baseline: middle; font-size: 10.2px;">student_id</text><rect class="er attributeBoxEven" x="87.328125" y="46" width="21.5625" height="22"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-2-key" x="0" y="0" transform="translate(92.328125,57)" style="dominant-baseline: middle; font-size: 10.2px;">FK</text><rect class="er attributeBoxEven" x="108.890625" y="46" width="59.09375" height="22"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-2-comment" x="0" y="0" transform="translate(113.890625,57)" style="dominant-baseline: middle; font-size: 10.2px;">改: 真实 id</text><rect class="er attributeBoxOdd" x="0" y="68" width="28.765625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-3-type" x="0" y="0" transform="translate(5,79.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;">text</text><rect class="er attributeBoxOdd" x="28.765625" y="68" width="58.5625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-3-name" x="0" y="0" transform="translate(33.765625,79.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;">topic</text><rect class="er attributeBoxOdd" x="87.328125" y="68" width="21.5625" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-3-key" x="0" y="0" transform="translate(92.328125,79.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxOdd" x="108.890625" y="68" width="59.09375" height="22.091796875"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-3-comment" x="0" y="0" transform="translate(113.890625,79.0458984375)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="0" y="90.091796875" width="28.765625" height="22"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-4-type" x="0" y="0" transform="translate(5,101.091796875)" style="dominant-baseline: middle; font-size: 10.2px;">int</text><rect class="er attributeBoxEven" x="28.765625" y="90.091796875" width="58.5625" height="22"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-4-name" x="0" y="0" transform="translate(33.765625,101.091796875)" style="dominant-baseline: middle; font-size: 10.2px;">correct</text><rect class="er attributeBoxEven" x="87.328125" y="90.091796875" width="21.5625" height="22"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-4-key" x="0" y="0" transform="translate(92.328125,101.091796875)" style="dominant-baseline: middle; font-size: 10.2px;"></text><rect class="er attributeBoxEven" x="108.890625" y="90.091796875" width="59.09375" height="22"></rect><text class="er entityLabel" id="text-entity-studentattempts-71ad745d-8c57-59b2-a935-5b888246150c-attr-4-comment" x="0" y="0" transform="translate(113.890625,101.091796875)" style="dominant-baseline: middle; font-size: 10.2px;"></text></g><g id="entity-studentprofile-212d94ee-9dae-5bf1-a235-37f0e1dff6ef" transform="translate(1256.9375,383.0048828125 )"><rect class="er entityBox" x="0" y="0" width="112.75" height="75"></rect><text class="er entityLabel" id="text-entity-studentprofile-212d94ee-9dae-5bf1-a235-37f0e1dff6ef" x="0" y="0" transform="translate(56.375,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">student_profile</text></g><rect class="er relationshipLabelBox" x="218.7953643798828" y="233.66848754882812" width="60" height="14"></rect><text class="er relationshipLabel" id="rel1" x="248.7953643798828" y="240.66848754882812" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">拥有登录态</text><rect class="er relationshipLabelBox" x="273.35260009765625" y="257.187255859375" width="108.734375" height="14"></rect><text class="er relationshipLabel" id="rel2" x="327.71978759765625" y="264.187255859375" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">作为家长(parent_id)</text><rect class="er relationshipLabelBox" x="337.2421875" y="291.6188659667969" width="113.9375" height="14"></rect><text class="er relationshipLabel" id="rel3" x="394.2109375" y="298.6188659667969" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">作为孩子(student_id)</text><rect class="er relationshipLabelBox" x="505.09381103515625" y="296.36700439453125" width="84.734375" height="14"></rect><text class="er relationshipLabel" id="rel4" x="547.4609985351562" y="303.36700439453125" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">生成(parent_id)</text><rect class="er relationshipLabelBox" x="719.2169799804688" y="264.3875427246094" width="71.84375" height="14"></rect><text class="er relationshipLabel" id="rel5" x="755.1388549804688" y="271.3875427246094" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">拥有(user_id)</text><rect class="er relationshipLabelBox" x="847.7781982421875" y="232.34742736816406" width="89.9375" height="14"></rect><text class="er relationshipLabel" id="rel6" x="892.7469482421875" y="239.34742736816406" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">答题(student_id)</text><rect class="er relationshipLabelBox" x="971.489013671875" y="225.44020080566406" width="89.9375" height="14"></rect><text class="er relationshipLabel" id="rel7" x="1016.457763671875" y="232.44020080566406" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">画像(student_id)</text></svg>
+  </div>
+  <figcaption>图 2：用户系统数据模型（ER）</figcaption>
+</div>
+
+<h3>4.1 新表 DDL</h3>
+
+<div class="code-block"><span class="cm">-- users：账号</span>
+<span class="ck">CREATE TABLE IF NOT EXISTS</span> users (
+  id            TEXT <span class="ck">PRIMARY KEY</span>,                <span class="cm">-- uuid</span>
+  role          TEXT <span class="ck">NOT NULL</span>,                 <span class="cm">-- 'student' | 'parent' | 'admin'</span>
+  username      TEXT <span class="ck">NOT NULL UNIQUE</span>,          <span class="cm">-- 登录名</span>
+  display_name  TEXT,                          <span class="cm">-- 显示名（如"小明"）</span>
+  password_hash TEXT <span class="ck">NOT NULL</span>,                 <span class="cm">-- scrypt 输出：salt$hash（hex）</span>
+  is_admin      INTEGER <span class="ck">NOT NULL DEFAULT</span> 0,    <span class="cm">-- 家庭管理员：可进管理页</span>
+  status        TEXT <span class="ck">NOT NULL DEFAULT</span> <span class="cs">'active'</span>,
+  created_at    INTEGER <span class="ck">NOT NULL DEFAULT</span> (strftime(<span class="cs">'%s'</span>,<span class="cs">'now'</span>)),
+  last_login_at INTEGER
+);
+
+<span class="cm">-- user_sessions：登录态（cookie token → user）</span>
+<span class="ck">CREATE TABLE IF NOT EXISTS</span> user_sessions (
+  token      TEXT <span class="ck">PRIMARY KEY</span>,               <span class="cm">-- randomBytes(32).hex</span>
+  user_id    TEXT <span class="ck">NOT NULL REFERENCES</span> users(id) <span class="ck">ON DELETE CASCADE</span>,
+  created_at INTEGER <span class="ck">NOT NULL DEFAULT</span> (strftime(<span class="cs">'%s'</span>,<span class="cs">'now'</span>)),
+  expires_at INTEGER <span class="ck">NOT NULL</span>,
+  user_agent TEXT,
+  ip         TEXT
+);
+<span class="ck">CREATE INDEX IF NOT EXISTS</span> idx_user_sessions_user <span class="ck">ON</span> user_sessions(user_id);
+
+<span class="cm">-- family_links：家长-孩子绑定（多对多）</span>
+<span class="ck">CREATE TABLE IF NOT EXISTS</span> family_links (
+  parent_id  TEXT <span class="ck">NOT NULL REFERENCES</span> users(id) <span class="ck">ON DELETE CASCADE</span>,
+  student_id TEXT <span class="ck">NOT NULL REFERENCES</span> users(id) <span class="ck">ON DELETE CASCADE</span>,
+  relation   TEXT,                            <span class="cm">-- '父' / '母' / '监护人'</span>
+  created_at INTEGER <span class="ck">NOT NULL DEFAULT</span> (strftime(<span class="cs">'%s'</span>,<span class="cs">'now'</span>)),
+  <span class="ck">PRIMARY KEY</span> (parent_id, student_id)
+);
+
+<span class="cm">-- invite_codes：家长生成邀请码，孩子注册时凭码自动绑定</span>
+<span class="ck">CREATE TABLE IF NOT EXISTS</span> invite_codes (
+  code       TEXT <span class="ck">PRIMARY KEY</span>,
+  parent_id  TEXT <span class="ck">NOT NULL REFERENCES</span> users(id) <span class="ck">ON DELETE CASCADE</span>,
+  expires_at INTEGER,
+  used_by    TEXT,
+  created_at INTEGER <span class="ck">NOT NULL DEFAULT</span> (strftime(<span class="cs">'%s'</span>,<span class="cs">'now'</span>))
+);</div>
+
+<h3>4.2 既有表迁移（防御式）</h3>
+
+<div class="code-block"><span class="cm">-- chat_sessions 增加归属列（沿用 db.js 现有探测式迁移写法）</span>
+<span class="ck">try</span> { db.prepare(<span class="cs">"SELECT user_id FROM chat_sessions LIMIT 0"</span>).get(); }
+<span class="ck">catch</span> { db.exec(<span class="cs">"ALTER TABLE chat_sessions ADD COLUMN user_id TEXT"</span>); }
+
+<span class="ck">try</span> { db.prepare(<span class="cs">"SELECT student_id FROM chat_sessions LIMIT 0"</span>).get(); }
+<span class="ck">catch</span> { db.exec(<span class="cs">"ALTER TABLE chat_sessions ADD COLUMN student_id TEXT"</span>); }</div>
+
+<div class="callout">
+  <div class="callout-title">历史数据承接</div>
+  <p>现网 <code>xsolve.db</code> 已有匿名历史。迁移策略：首次启动若无任何用户，自动创建一个<strong>引导学生账号</strong>（如 <code>demo / demo123</code>，可改），并把现存所有 <code>student_id='me'</code> 的记忆行、以及 <code>chat_sessions</code> 中 <code>user_id IS NULL</code> 的旧会话，统一改挂到该账号 id 上。这样老数据不丢，登录后即可看到。</p>
+</div>
+
+<!-- 5. 关键路径 -->
+<h2 id="path">5. 关键路径</h2>
+
+<h3>5.1 注册与登录（Cookie 会话）</h3>
+
+<div class="diagram">
+    <script type="text/plain" class="mermaid-source" hidden>flowchart TD
+    A[浏览器 POST /api/auth/login<br/>用户名 + 密码] --> B{scrypt 校验密码}
+    B -- 通过 --> C[写入 user_sessions<br/>下发 httpOnly Cookie: xsolve_sid]
+    B -- 失败 --> D[401 用户名或密码错误]
+    C --> E[后续请求自动携带 Cookie]
+    E --> F[requireAuth<br/>解析 token 得到 req.user]
+    F --> G[GET /api/auth/me<br/>返回角色 + 绑定孩子]
+    G --> H{按账号角色分流}
+    H -- student --> I[锁定 student 模式<br/>记忆归属自己]
+    H -- parent --> J[parent 模式<br/>可选已绑定孩子]
+
+    style B fill:#e5eaff,stroke:#4b3fe3,stroke-width:2px
+    style H fill:#e5eaff,stroke:#4b3fe3,stroke-width:2px
+    style D fill:#ffe3e0,stroke:#e8463a,stroke-width:2px</script>
+  <div class="mermaid-figure">
+<svg id="mermaid-1789702865722" width="100%" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" class="flowchart" style="max-width: 622.953125px;" viewBox="0 0 622.953125 1238.59375" role="graphics-document document" aria-roledescription="flowchart-v2"><style>#mermaid-1789702865722{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;fill:#333;}#mermaid-1789702865722 .error-icon{fill:#552222;}#mermaid-1789702865722 .error-text{fill:#552222;stroke:#552222;}#mermaid-1789702865722 .edge-thickness-normal{stroke-width:1px;}#mermaid-1789702865722 .edge-thickness-thick{stroke-width:3.5px;}#mermaid-1789702865722 .edge-pattern-solid{stroke-dasharray:0;}#mermaid-1789702865722 .edge-thickness-invisible{stroke-width:0;fill:none;}#mermaid-1789702865722 .edge-pattern-dashed{stroke-dasharray:3;}#mermaid-1789702865722 .edge-pattern-dotted{stroke-dasharray:2;}#mermaid-1789702865722 .marker{fill:#333333;stroke:#333333;}#mermaid-1789702865722 .marker.cross{stroke:#333333;}#mermaid-1789702865722 svg{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;}#mermaid-1789702865722 p{margin:0;}#mermaid-1789702865722 .label{font-family:"trebuchet ms",verdana,arial,sans-serif;color:#333;}#mermaid-1789702865722 .cluster-label text{fill:#333;}#mermaid-1789702865722 .cluster-label span{color:#333;}#mermaid-1789702865722 .cluster-label span p{background-color:transparent;}#mermaid-1789702865722 .label text,#mermaid-1789702865722 span{fill:#333;color:#333;}#mermaid-1789702865722 .node rect,#mermaid-1789702865722 .node circle,#mermaid-1789702865722 .node ellipse,#mermaid-1789702865722 .node polygon,#mermaid-1789702865722 .node path{fill:#ECECFF;stroke:#9370DB;stroke-width:1px;}#mermaid-1789702865722 .rough-node .label text,#mermaid-1789702865722 .node .label text,#mermaid-1789702865722 .image-shape .label,#mermaid-1789702865722 .icon-shape .label{text-anchor:middle;}#mermaid-1789702865722 .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#mermaid-1789702865722 .rough-node .label,#mermaid-1789702865722 .node .label,#mermaid-1789702865722 .image-shape .label,#mermaid-1789702865722 .icon-shape .label{text-align:center;}#mermaid-1789702865722 .node.clickable{cursor:pointer;}#mermaid-1789702865722 .root .anchor path{fill:#333333!important;stroke-width:0;stroke:#333333;}#mermaid-1789702865722 .arrowheadPath{fill:#333333;}#mermaid-1789702865722 .edgePath .path{stroke:#333333;stroke-width:2.0px;}#mermaid-1789702865722 .flowchart-link{stroke:#333333;fill:none;}#mermaid-1789702865722 .edgeLabel{background-color:rgba(232,232,232, 0.8);text-align:center;}#mermaid-1789702865722 .edgeLabel p{background-color:rgba(232,232,232, 0.8);}#mermaid-1789702865722 .edgeLabel rect{opacity:0.5;background-color:rgba(232,232,232, 0.8);fill:rgba(232,232,232, 0.8);}#mermaid-1789702865722 .labelBkg{background-color:rgba(232, 232, 232, 0.5);}#mermaid-1789702865722 .cluster rect{fill:#ffffde;stroke:#aaaa33;stroke-width:1px;}#mermaid-1789702865722 .cluster text{fill:#333;}#mermaid-1789702865722 .cluster span{color:#333;}#mermaid-1789702865722 div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:12px;background:hsl(80, 100%, 96.2745098039%);border:1px solid #aaaa33;border-radius:2px;pointer-events:none;z-index:100;}#mermaid-1789702865722 .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#333;}#mermaid-1789702865722 rect.text{fill:none;stroke-width:0;}#mermaid-1789702865722 .icon-shape,#mermaid-1789702865722 .image-shape{background-color:rgba(232,232,232, 0.8);text-align:center;}#mermaid-1789702865722 .icon-shape p,#mermaid-1789702865722 .image-shape p{background-color:rgba(232,232,232, 0.8);padding:2px;}#mermaid-1789702865722 .icon-shape rect,#mermaid-1789702865722 .image-shape rect{opacity:0.5;background-color:rgba(232,232,232, 0.8);fill:rgba(232,232,232, 0.8);}#mermaid-1789702865722 :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g><marker id="mermaid-1789702865722_flowchart-v2-pointEnd" class="marker flowchart-v2" viewBox="0 0 10 10" refX="5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker id="mermaid-1789702865722_flowchart-v2-pointStart" class="marker flowchart-v2" viewBox="0 0 10 10" refX="4.5" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 5 L 10 10 L 10 0 z" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></path></marker><marker id="mermaid-1789702865722_flowchart-v2-circleEnd" class="marker flowchart-v2" viewBox="0 0 10 10" refX="11" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker id="mermaid-1789702865722_flowchart-v2-circleStart" class="marker flowchart-v2" viewBox="0 0 10 10" refX="-1" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><circle cx="5" cy="5" r="5" class="arrowMarkerPath" style="stroke-width: 1; stroke-dasharray: 1, 0;"></circle></marker><marker id="mermaid-1789702865722_flowchart-v2-crossEnd" class="marker cross flowchart-v2" viewBox="0 0 11 11" refX="12" refY="5.2" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M 1,1 l 9,9 M 10,1 l -9,9" class="arrowMarkerPath" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><marker id="mermaid-1789702865722_flowchart-v2-crossStart" class="marker cross flowchart-v2" viewBox="0 0 11 11" refX="-1" refY="5.2" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M 1,1 l 9,9 M 10,1 l -9,9" class="arrowMarkerPath" style="stroke-width: 2; stroke-dasharray: 1, 0;"></path></marker><g class="root"><g class="clusters"></g><g class="edgePaths"><path d="M361.453,110L361.453,114.167C361.453,118.333,361.453,126.667,361.523,134.417C361.594,142.167,361.734,149.334,361.804,152.917L361.875,156.501" id="L_A_B_0" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702865722_flowchart-v2-pointEnd)"></path><path d="M316.498,281.639L299.907,295.298C283.316,308.957,250.135,336.275,233.544,355.435C216.953,374.594,216.953,385.594,216.953,391.094L216.953,396.594" id="L_B_C_1" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702865722_flowchart-v2-pointEnd)"></path><path d="M407.408,281.639L423.832,295.298C440.257,308.957,473.105,336.275,489.529,359.435C505.953,382.594,505.953,401.594,505.953,411.094L505.953,420.594" id="L_B_D_2" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702865722_flowchart-v2-pointEnd)"></path><path d="M216.953,502.594L216.953,506.76C216.953,510.927,216.953,519.26,216.953,526.927C216.953,534.594,216.953,541.594,216.953,545.094L216.953,548.594" id="L_C_E_3" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702865722_flowchart-v2-pointEnd)"></path><path d="M216.953,606.594L216.953,610.76C216.953,614.927,216.953,623.26,216.953,630.927C216.953,638.594,216.953,645.594,216.953,649.094L216.953,652.594" id="L_E_F_4" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702865722_flowchart-v2-pointEnd)"></path><path d="M216.953,734.594L216.953,738.76C216.953,742.927,216.953,751.26,216.953,758.927C216.953,766.594,216.953,773.594,216.953,777.094L216.953,780.594" id="L_F_G_5" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702865722_flowchart-v2-pointEnd)"></path><path d="M216.953,862.594L216.953,866.76C216.953,870.927,216.953,879.26,217.023,887.011C217.094,894.761,217.234,901.928,217.304,905.511L217.375,909.095" id="L_G_H_6" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702865722_flowchart-v2-pointEnd)"></path><path d="M176.839,1038.48L164.361,1051.332C151.882,1064.184,126.925,1089.889,114.447,1108.241C101.969,1126.594,101.969,1137.594,101.969,1143.094L101.969,1148.594" id="L_H_I_7" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702865722_flowchart-v2-pointEnd)"></path><path d="M258.067,1038.48L270.379,1051.332C282.691,1064.184,307.314,1089.889,319.626,1108.241C331.938,1126.594,331.938,1137.594,331.938,1143.094L331.938,1148.594" id="L_H_J_8" class=" edge-thickness-normal edge-pattern-solid edge-thickness-normal edge-pattern-solid flowchart-link" style="" marker-end="url(#mermaid-1789702865722_flowchart-v2-pointEnd)"></path></g><g class="edgeLabels"><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel" transform="translate(216.953125, 363.59375)"><g class="label" transform="translate(-16, -12)"><foreignObject width="32" height="24"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "><p>通过</p></span></div></foreignObject></g></g><g class="edgeLabel" transform="translate(505.953125, 363.59375)"><g class="label" transform="translate(-16, -12)"><foreignObject width="32" height="24"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "><p>失败</p></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel"><g class="label" transform="translate(0, 0)"><foreignObject width="0" height="0"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "></span></div></foreignObject></g></g><g class="edgeLabel" transform="translate(101.96875, 1115.59375)"><g class="label" transform="translate(-27.1484375, -12)"><foreignObject width="54.296875" height="24"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "><p>student</p></span></div></foreignObject></g></g><g class="edgeLabel" transform="translate(331.9375, 1115.59375)"><g class="label" transform="translate(-23.6796875, -12)"><foreignObject width="47.359375" height="24"><div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="edgeLabel "><p>parent</p></span></div></foreignObject></g></g></g><g class="nodes"><g class="node default  " id="flowchart-A-0" transform="translate(361.453125, 59)"><rect class="basic label-container" style="" x="-130" y="-51" width="260" height="102"></rect><g class="label" style="" transform="translate(-100, -36)"><rect></rect><foreignObject width="200" height="72"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;"><span class="nodeLabel "><p>浏览器 POST /api/auth/login<br>用户名 + 密码</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-B-1" transform="translate(361.453125, 243.296875)"><polygon points="83.296875,0 166.59375,-83.296875 83.296875,-166.59375 0,-83.296875" class="label-container" transform="translate(-83.296875,83.296875)" style="fill:#e5eaff !important;stroke:#4b3fe3 !important;stroke-width:2px !important"></polygon><g class="label" style="" transform="translate(-56.296875, -12)"><rect></rect><foreignObject width="112.59375" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>scrypt 校验密码</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-C-3" transform="translate(216.953125, 451.59375)"><rect class="basic label-container" style="" x="-130" y="-51" width="260" height="102"></rect><g class="label" style="" transform="translate(-100, -36)"><rect></rect><foreignObject width="200" height="72"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: break-spaces; line-height: 1.5; max-width: 200px; text-align: center; width: 200px;"><span class="nodeLabel "><p>写入 user_sessions<br>下发 httpOnly Cookie: xsolve_sid</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-D-5" transform="translate(505.953125, 451.59375)"><rect class="basic label-container" style="fill:#ffe3e0 !important;stroke:#e8463a !important;stroke-width:2px !important" x="-109" y="-27" width="218" height="54"></rect><g class="label" style="" transform="translate(-79, -12)"><rect></rect><foreignObject width="158" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>401 用户名或密码错误</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-E-7" transform="translate(216.953125, 579.59375)"><rect class="basic label-container" style="" x="-120.4609375" y="-27" width="240.921875" height="54"></rect><g class="label" style="" transform="translate(-90.4609375, -12)"><rect></rect><foreignObject width="180.921875" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>后续请求自动携带 Cookie</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-F-9" transform="translate(216.953125, 695.59375)"><rect class="basic label-container" style="" x="-119.4140625" y="-39" width="238.828125" height="78"></rect><g class="label" style="" transform="translate(-89.4140625, -24)"><rect></rect><foreignObject width="178.828125" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>requireAuth<br>解析 token 得到 req.user</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-G-11" transform="translate(216.953125, 823.59375)"><rect class="basic label-container" style="" x="-103.015625" y="-39" width="206.03125" height="78"></rect><g class="label" style="" transform="translate(-73.015625, -24)"><rect></rect><foreignObject width="146.03125" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>GET /api/auth/me<br>返回角色 + 绑定孩子</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-H-13" transform="translate(216.953125, 995.59375)"><polygon points="83,0 166,-83 83,-166 0,-83" class="label-container" transform="translate(-83,83)" style="fill:#e5eaff !important;stroke:#4b3fe3 !important;stroke-width:2px !important"></polygon><g class="label" style="" transform="translate(-56, -12)"><rect></rect><foreignObject width="112" height="24"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>按账号角色分流</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-I-15" transform="translate(101.96875, 1191.59375)"><rect class="basic label-container" style="" x="-93.96875" y="-39" width="187.9375" height="78"></rect><g class="label" style="" transform="translate(-63.96875, -24)"><rect></rect><foreignObject width="127.9375" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>锁定 student 模式<br>记忆归属自己</p></span></div></foreignObject></g></g><g class="node default  " id="flowchart-J-17" transform="translate(331.9375, 1191.59375)"><rect class="basic label-container" style="" x="-86" y="-39" width="172" height="78"></rect><g class="label" style="" transform="translate(-56, -24)"><rect></rect><foreignObject width="112" height="48"><div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;"><span class="nodeLabel "><p>parent 模式<br>可选已绑定孩子</p></span></div></foreignObject></g></g></g></g></g></svg>
+  </div>
+  <figcaption>图 3：登录鉴权与角色分流</figcaption>
+</div>
+
+<h3>5.2 关键接口一览</h3>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>方法 · 路径</th><th>鉴权</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>POST /api/auth/register</code></td><td>公开</td><td>创建账号。<code>role=student</code> 可带 <code>invite_code</code> 自动绑定家长</td></tr>
+<tr><td><code>POST /api/auth/login</code></td><td>公开</td><td>校验密码 → 建 user_sessions → 下发 httpOnly Cookie</td></tr>
+<tr><td><code>POST /api/auth/logout</code></td><td>登录</td><td>删除当前 token 行 + 清 Cookie</td></tr>
+<tr><td><code>GET  /api/auth/me</code></td><td>登录</td><td>当前用户 + 角色 + 绑定的孩子列表</td></tr>
+<tr><td><code>POST /api/auth/invite</code></td><td>家长</td><td>生成邀请码（孩子注册时用）</td></tr>
+<tr><td><code>GET  /api/children</code></td><td>家长</td><td>已绑定孩子列表</td></tr>
+<tr><td><code>POST /api/session</code></td><td>登录</td><td>建会话。<code>mode</code> 由账号角色强制派生；家长须带 <code>studentId</code>（绑定孩子）</td></tr>
+<tr><td><code>POST /api/session/:id/turn</code></td><td>登录 + 归属</td><td>对话 SSE；仅会话拥有者可访问</td></tr>
+<tr><td><code>GET  /api/memory/overview</code></td><td>登录</td><td>学生看自己；家长带 <code>?studentId=</code>（须绑定）</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>5.3 模式与会话归属的派生逻辑</h3>
+
+<p>在 <code>createSession()</code> 入口处，按登录账号角色<strong>强制</strong>决定 <code>mode</code> 与 <code>student_id</code>，忽略前端传来的自由值：</p>
+
+<div class="code-block"><span class="cm">// backend/session.js —— 由账号角色派生，而非信任前端 body.mode</span>
+<span class="ck">function</span> deriveSessionScope(user, body) {
+  <span class="ck">if</span> (user.role === <span class="cs">'student'</span>) {
+    <span class="ck">return</span> { mode: <span class="cs">'student'</span>, student_id: user.id };   <span class="cm">// 学生锁死学生模式</span>
+  }
+  <span class="ck">if</span> (user.role === <span class="cs">'parent'</span>) {
+    <span class="ck">const</span> sid = body.studentId;
+    assert(isBoundChild(user.id, sid));                     <span class="cm">// 必须是自己绑定的孩子</span>
+    <span class="ck">return</span> { mode: <span class="cs">'parent'</span>, student_id: sid };
+  }
+  <span class="ck">return</span> { mode: body.mode || <span class="cs">'parent'</span>, student_id: body.studentId || <span class="ck">null</span> }; <span class="cm">// admin</span>
+}</div>
+
+<p>家长陪孩子做题时，对话走<strong>家长版提示词</strong>（<code>mode='parent'</code>），但孩子的答题流水仍记在<strong>孩子名下</strong>（<code>student_id=孩子id</code>）——这正是「谁在用」与「数据属于谁」解耦的价值。</p>
+
+<!-- 6. 集成点 -->
+<h2 id="integ">6. 与现有系统的集成点</h2>
+
+<p>下表列出需要触碰的文件与改动，全部在现有架构内，无框架级重写。</p>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>文件</th><th>改动</th></tr>
+</thead>
+<tbody>
+<tr><td><code>backend/db.js</code></td><td>新增 <code>users</code>/<code>user_sessions</code>/<code>family_links</code>/<code>invite_codes</code> 建表 + 迁移；<code>chat_sessions</code> 加 <code>user_id</code>/<code>student_id</code>；用户与绑定的 CRUD（<code>createUser</code>/<code>getUserByUsername</code>/<code>insertUserSession</code>/<code>getUserByToken</code>/<code>linkParentChild</code>/<code>listChildren</code>）；引导账号 seed</td></tr>
+<tr><td><code>backend/auth.js</code> <em>(新)</em></td><td>密码哈希/校验（<code>crypto.scrypt</code> + 随机盐，<code>timingSafeEqual</code> 比较）；令牌生成（<code>randomBytes(32)</code>）；Cookie 读写助手</td></tr>
+<tr><td><code>backend/middleware/auth.js</code> <em>(新)</em></td><td><code>requireAuth</code> / <code>requireRole(...)</code> / <code>requireAdmin</code> / <code>requireParentOf(studentId)</code>；统一 401/403 响应</td></tr>
+<tr><td><code>backend/controllers/authController.js</code> <em>(新)</em></td><td><code>register</code> / <code>login</code> / <code>logout</code> / <code>me</code> / <code>invite</code> / <code>children</code></td></tr>
+<tr><td><code>backend/app.js</code></td><td>挂 <code>/api/auth/*</code> 路由；给 <code>/api/session*</code>、<code>/api/memory*</code> 加 <code>requireAuth</code>；给 <code>/api/prompts*</code>、<code>/api/settings*</code>、<code>/api/eval*</code> 加 <code>requireAdmin</code></td></tr>
+<tr><td><code>backend/session.js</code></td><td><code>createSession({ user, studentId })</code>：调 <code>deriveSessionScope</code> 定 mode/student_id；<code>insertChatSession</code> 写入 <code>user_id</code>/<code>student_id</code>；<code>restoreSession</code> 校验归属</td></tr>
+<tr><td><code>backend/controllers/sessionController.js</code></td><td><code>listSessions</code> 按 <code>user_id</code>（学生）或 <code>student_id</code>（家长看孩子）过滤；每个 <code>:id</code> 处理入口校验归属，防越权访问他人会话</td></tr>
+<tr><td><code>backend/controllers/turnController.js</code></td><td><code>autoLogAttempts</code> 用 <code>session.studentId</code> 替换硬编码 <code>'me'</code>；consolidate/compress 触发带上该 id</td></tr>
+<tr><td><code>backend/mcp-tools.js</code></td><td><code>remember</code> / <code>recall_memory</code> / <code>ability_report</code> 用 <code>session.studentId</code>（不再写死 <code>'me'</code>）</td></tr>
+<tr><td><code>backend/memory/digest.js</code></td><td><code>buildMemoryDigest(studentId)</code> 增加参数；<code>session.js</code> 注入时传会话的 student_id</td></tr>
+<tr><td><code>backend/memory/consolidate.js</code></td><td><code>consolidateStudent(session.studentId)</code>（原写死 'me'）</td></tr>
+<tr><td><code>backend/controllers/memoryController.js</code></td><td>按当前用户解析目标 student_id：学生=自己；家长=<code>?studentId=</code> 且须绑定；无权限 403</td></tr>
+<tr><td><code>backend/eval/*</code>（student/session judge）</td><td>评估归属改用真实 <code>student_id</code>（原按 <code>role</code>+<code>'me'</code>）</td></tr>
+<tr><td><code>frontend/login.html</code> <em>(新)</em></td><td>登录 / 注册页（学生凭邀请码注册，家长可生成邀请码）</td></tr>
+<tr><td><code>frontend/js/auth.js</code> <em>(新)</em></td><td><code>fetch</code> 统一 <code>credentials:'include'</code>；401 跳登录；渲染当前用户与退出</td></tr>
+<tr><td><code>frontend/index.html</code></td><td>顶栏账户菜单（用户名 / 退出）；学生账号隐藏「家长模式」入口与模式切换；家长显示「我的孩子」</td></tr>
+<tr><td><code>frontend/js/state.js</code></td><td>会话本地键加账号前缀（<code>xsolve_session_&lt;userId&gt;_&lt;mode&gt;</code>），避免多账号串会话</td></tr>
+<tr><td><code>frontend/{eval,prompts,settings,student-memory}.html</code></td><td>非管理员隐藏入口；后端 403 兜底</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- 7. Prompt 与配置 -->
+<h2 id="config">7. Prompt 与配置改动</h2>
+
+<div class="callout ok">
+  <div class="callout-title">Prompt：基本无需改动</div>
+  <p>学生的「不给答案」约束本就写在 <code>SYSTEM_PROMPT_STUDENT</code>（<code>config.js</code>），家长版在 <code>SYSTEM_PROMPT_PARENT</code>；活跃版本存在 DB <code>prompt_versions</code>。<strong>本方案不改提示词内容</strong>——只是让「学生账号拿不到家长版」这件事由后端强制保证，提示词与模式绑定的机制原样复用。</p>
+  <p>唯一可选微调：记忆摘要注入段的措辞从「这位学生」保持中性即可，无需因多用户而改。</p>
+</div>
+
+<div class="callout warn">
+  <div class="callout-title">⚠️ 改 prompt ≠ 改 config.js（项目铁律）</div>
+  <p>若确实需要改动 <code>config.js</code> 里的提示词，务必要<strong>同步写入 DB 并激活</strong>（跑 <code>backend/scripts/upgrade-*.mjs</code> 或在 <code>/prompts.html</code> 激活新版本），否则线上仍走 DB 里的旧版本。本方案不改 prompt，故无同步动作。</p>
+</div>
+
+<h3>7.1 新增配置（<code>config.js</code> / env，均可选）</h3>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>常量 / env</th><th>默认</th><th>用途</th></tr>
+</thead>
+<tbody>
+<tr><td><code>AUTH_COOKIE_NAME</code></td><td><code>xsolve_sid</code></td><td>登录 Cookie 名</td></tr>
+<tr><td><code>SESSION_TTL_DAYS</code></td><td><code>30</code></td><td>登录态有效期</td></tr>
+<tr><td><code>BOOTSTRAP_STUDENT_USERNAME / _PASSWORD</code></td><td><code>demo / demo123</code></td><td>首次启动创建、承接历史数据的引导账号（建议首登后改密）</td></tr>
+<tr><td><code>ALLOW_SELF_REGISTER_STUDENT</code></td><td><code>false</code></td><td>学生是否可无邀请码自主注册</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- 8. 前端改动 -->
+<h2 id="fe">8. 前端改动</h2>
+
+<ul>
+  <li><strong>登录页</strong> <code>frontend/login.html</code>：用户名 + 密码；注册区按角色分叉（家长可「生成邀请码」，学生填「邀请码」绑定家长）。</li>
+  <li><strong>统一鉴权包装</strong> <code>frontend/js/auth.js</code>：所有 <code>fetch</code> 走 <code>credentials:'include'</code>；集中处理 <code>401 → 跳登录</code>、<code>403 → 提示无权限</code>；提供 <code>getMe()</code> 供各页渲染账户信息。</li>
+  <li><strong>主界面按角色裁剪</strong> <code>index.html</code> + <code>state.js</code>：
+    <ul>
+      <li>学生账号：隐藏模式切换与「家长模式」入口；顶栏只留题目的日常操作。</li>
+      <li>家长账号：「我的孩子」下拉（切换查看对象）；保留管理入口（若为管理员家长）。</li>
+      <li>会话本地键加入账号前缀，切换账号不串会话。</li>
+    </ul>
+  </li>
+  <li><strong>管理页收口</strong>：<code>eval.html</code> / <code>prompts.html</code> / <code>settings.html</code> / <code>student-memory.html</code> 非管理员隐藏入口，后端中间件兜底 403。</li>
+</ul>
+
+<!-- 9. 里程碑 -->
+<h2 id="mile">9. 里程碑与验收</h2>
+
+<div class="card-grid">
+  <div class="card">
+    <span class="priority-badge p0">P0 · 身份与隔离</span>
+    <h4>可用最小闭环</h4>
+    <ul>
+      <li><code>users</code>/<code>user_sessions</code> 表 + 迁移</li>
+      <li>注册 / 登录 / 登出 / <code>me</code></li>
+      <li>httpOnly Cookie 会话 + <code>requireAuth</code></li>
+      <li>业务 API 全覆盖鉴权中间件</li>
+      <li>会话与记忆按 user 隔离（<code>'me'</code> → 真实 id）</li>
+      <li>登录页 + 401 跳转</li>
+      <li>学生账号锁定 student 模式</li>
+      <li>历史数据迁移到引导账号</li>
+    </ul>
+  </div>
+  <div class="card">
+    <span class="priority-badge p1">P1 · 家长与孩子</span>
+    <h4>家庭关系</h4>
+    <ul>
+      <li><code>family_links</code> + <code>invite_codes</code></li>
+      <li>邀请码绑定流程</li>
+      <li>家长查看孩子会话列表</li>
+      <li>家长查看孩子学习档案（只读）</li>
+      <li><code>requireAdmin</code> 锁管理页</li>
+      <li>家长端「我的孩子」切换</li>
+    </ul>
+  </div>
+  <div class="card">
+    <span class="priority-badge p2">P2 · 完备性</span>
+    <h4>运营与安全</h4>
+    <ul>
+      <li>修改密码 / 密码重置</li>
+      <li>一个学生多家长绑定</li>
+      <li>登录限流与审计日志</li>
+      <li>游客试用模式（可选）</li>
+      <li>管理页：账号管理界面</li>
+    </ul>
+  </div>
+  <div class="card">
+    <span class="priority-badge p2">验收标准</span>
+    <h4>Definition of Done</h4>
+    <ul>
+      <li>未登录访问业务 API → 401</li>
+      <li>学生访问管理 API → 403</li>
+      <li>家长访问非绑定孩子档案 → 403</li>
+      <li>两个学生账号记忆互不串</li>
+      <li>登出后旧 Cookie 立即失效</li>
+      <li>历史会话登录后可见</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 10. 开放问题 -->
+<h2 id="open">10. 开放问题</h2>
+
+<ul>
+  <li><strong>游客 / 试用</strong>：是否允许不登录先试？若允许，试用的数据是否落库、落给谁？（倾向：P0 直接要求登录，避免游离子空间，简化归属。）</li>
+  <li><strong>家长 = 家庭管理员？</strong>：本方案默认「家长可被标记为 <code>is_admin</code>」以进管理页；也可改成独立的全局 admin，与家长解耦。取决于你希望谁能改模型 Key / Prompt。</li>
+  <li><strong>学生能否自主注册</strong>：家长邀请码 <code>ALLOW_SELF_REGISTER_STUDENT=false</code> 是更安全默认，但会增加家长操作成本。</li>
+  <li><strong>多家长绑定同一孩子</strong>：<code>family_links</code> 主键是 <code>(parent_id, student_id)</code>，天然支持一个孩子被爸妈同时绑定；是否需要「主监护人」概念待定。</li>
+  <li><strong>更远</strong>：手机号 / 微信 / SSO 登录？——家庭场景不必，列为未来选项。</li>
+  <li><strong>历史数据归属</strong>：引导账号 <code>demo</code> 是临时承接方案，是否需要一次性「认领」流程把历史划给真实账号。</li>
+</ul>
+
+<footer>
+  xsolve 用户系统设计方案 · 基于现有 Node.js + SQLite 栈 · 2026-09-18
+</footer>
+
+</div>
+</body>
+</html>
