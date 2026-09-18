@@ -27,6 +27,19 @@ export const VISION_MAX_TURNS = parseInt(process.env.VISION_MAX_TURNS || '2', 10
 export function getClaudeModel() { return process.env.CLAUDE_MODEL || null; }
 export function getVisionModel() { return process.env.VISION_MODEL || null; }
 
+// ---------- 学生记忆系统调参（P1）----------
+// 掌握度时间衰减半衰期（天）：距今这么久远的一次作答，其权重减半。
+// 越大越"记性好"（衰减慢），越小越看重近期表现。
+export const MASTERY_HALFLIFE_DAYS = parseFloat(process.env.MASTERY_HALFLIFE_DAYS || '21');
+// 新观测的融合系数（学习率 α，0~1）：本次作答相对历史掌握度的权重。
+export const MASTERY_LEARNING_RATE = parseFloat(process.env.MASTERY_LEARNING_RATE || '0.35');
+// 长会话压缩：turn 数超过该阈值时，触发一次早期对话摘要。
+export const SESSION_COMPRESS_THRESHOLD = parseInt(process.env.SESSION_COMPRESS_THRESHOLD || '30', 10);
+// 每次压缩保留最近 N 轮不压缩（留在 SDK resume 上下文里）。
+export const SESSION_COMPRESS_KEEP = parseInt(process.env.SESSION_COMPRESS_KEEP || '8', 10);
+// consolidate（LLM 固化画像）触发间隔（每 N 个 turn 一次，且有新作答时）。
+export const MEMORY_CONSOLIDATE_INTERVAL = parseInt(process.env.MEMORY_CONSOLIDATE_INTERVAL || '6', 10);
+
 // ---------- 系统提示词 ----------
 export const SYSTEM_PROMPT_BASE = `你是一位耐心、鼓励的小学数学 AI 助教，借助 Claude Code 的工具能力辅导一位小学生（4-6 年级，学而思大白本风格）做数学题。
 
@@ -37,8 +50,10 @@ export const SYSTEM_PROMPT_BASE = `你是一位耐心、鼓励的小学数学 AI
 - delete_problem: 向学生请求删除一道题（会弹窗让学生确认），不传 id 则请求删当前题
 - propose_problem: 当学生让你**出新题** / 出类似题 / 加深难度 时调用。你必须给出完整字段：topic, text (题面，可含 \\$...\\$ LaTeX), answer, hints[]，可选 figure。提交后会弹窗让学生确认是否替换当前题；用户确认前请不要假设题已经替换。
 - check_answer: 判答（容错比较数字/分数/包含关系）
-- record_history: 把一次提交记入学生历史
+- record_history: 把一次提交记入学生历史（答题流水 + 主题掌握度，跨会话持久）
 - ability_report: 输出基于历史的水平摘要
+- remember: 把一条值得长期记住的**定性事实**写入学生记忆（如「对单位换算常出错」「喜欢先画线段图」）
+- recall_memory: **按需检索**学生长期记忆细节（某主题的掌握度与最近答题 / 最近答题流水 / 之前 remember 记下的事实）
 - read_scratch_state: 查看学生草稿区笔画数
 - recognize_scratch: **识别学生草稿板上的手写内容**（笔迹）。调用后会用视觉模型识别草稿图片，返回识别到的数学公式（LaTeX格式）、中文文字、最终答案和置信度。当你需要了解学生在草稿上写了什么演算过程、检查学生草稿上的计算是否正确、或学生说"看看我的草稿"时调用此工具。
 - calc: 安全计算数学表达式（+ - * / 与括号），用它来避免心算出错
@@ -51,6 +66,13 @@ export const SYSTEM_PROMPT_BASE = `你是一位耐心、鼓励的小学数学 AI
 3. 需要切题/判答/记录历史/出新题等动作时，**必须**调用对应工具。
 4. 涉及任何计算（哪怕是 12 ÷ 3）都先调用 calc，避免心算出错。
 5. 回复用简短中文，可使用 $...$ 写公式（KaTeX）。
+
+【关于"学生记忆"（系统注入的背景）】
+- 系统可能在系统提示末尾注入一段「关于这位学生（记忆摘要）」——它是系统根据该学生历史答题自动生成的背景信息，**不是学生发来的消息**；不要向学生复述、也不要点破"系统记忆"的存在。
+- 用它来调整：出题难度（薄弱主题多巩固、较强主题可加深）、提示的详略、避免重复讲学生已经掌握的内容。
+- 每轮判答后照常调用 check_answer + record_history。即使漏调用 record_history，系统也会根据 check_answer 自动记入长期记忆；显式调用更好，可补充 error_type / hint_count。
+- 需要更多细节（如某主题具体错在哪、最近做了哪些题）时，调用 recall_memory 主动检索；观察到学生稳定的习惯/偏好/里程碑（如"总是忘记换算单位""喜欢先画线段图"）时，调用 remember 记下来。
+- 注意：remember 只记**定性**事实，不要记流水账；答题对错由系统自动落库，不要用 remember 重复记录。
 
 【出题准则】
 - 用学而思大白本风格的小学高年级经典题型（鸡兔同笼/行程/工程/分数百分数应用/年龄/平均数/和倍/植树/容斥/盈亏/数论/几何等）。
@@ -193,6 +215,8 @@ export const ALLOWED_TOOLS = [
   'mcp__tutor__check_answer',
   'mcp__tutor__record_history',
   'mcp__tutor__ability_report',
+  'mcp__tutor__remember',
+  'mcp__tutor__recall_memory',
   'mcp__tutor__read_scratch_state',
   'mcp__tutor__recognize_scratch',
   'mcp__tutor__calc',

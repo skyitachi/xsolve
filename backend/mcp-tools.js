@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
-import { getAllProblems, getProblem, insertProblem, updateProblemFigure, updateChatSession } from './db.js';
+import { getAllProblems, getProblem, insertProblem, updateProblemFigure, updateChatSession, recordAttempt, insertMemoryFact, getMemoryFacts, getTopicMastery, getAttemptsByTopic, getRecentAttempts, getStudentProfile } from './db.js';
 import { runVisionHttp } from './vision.js';
 import { SCRATCH_VISION_PROMPT } from './config.js';
 import { compareAnswer, safeCalc, mcpOk, mcpErr } from './utils.js';
@@ -26,6 +26,28 @@ function visionModelDisplay() {
   return process.env.VISION_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4 (自动选择)';
 }
 
+// 难度自适应（P1）：据学生整体水位与该主题掌握度，给 AI 一条出题难度建议。
+function difficultyHint(topic) {
+  const parts = [];
+  try {
+    const profile = getStudentProfile('me');
+    if (profile?.level) parts.push(`学生整体难度水位「${profile.level}」`);
+  } catch { /* ignore */ }
+  try {
+    const rows = getTopicMastery('me');
+    const m = topic ? rows.find((r) => r.topic === topic) : null;
+    if (m && (m.attempts || 0) >= 2) {
+      const pct = Math.round((m.mastery || 0) * 100);
+      if (m.mastery < 0.6) parts.push(`主题「${topic}」掌握度较低（约 ${pct}%，${m.attempts} 题），宜偏巩固/基础、多给台阶`);
+      else if (m.mastery >= 0.8) parts.push(`主题「${topic}」掌握度较高（约 ${pct}%，${m.attempts} 题），可适度加深或出变式`);
+      else parts.push(`主题「${topic}」掌握度中等（约 ${pct}%，${m.attempts} 题），保持同档难度、略作巩固`);
+    } else if (topic) {
+      parts.push(`主题「${topic}」暂无足够历史，按学生整体水平出题`);
+    }
+  } catch { /* ignore */ }
+  return parts.length ? (`难度自适应建议：${parts.join('；')}。`) : '';
+}
+
 /**
  * 构建 tutor MCP 工具服务器
  * @param {object} session - 会话对象
@@ -37,8 +59,8 @@ export function buildTutorMcp(session) {
 
   return createSdkMcpServer({
     name: 'tutor',
-    version: '0.2.0',
-    instructions: '小学数学辅导工具集：读取/切换题目、判答、记录、计算、视觉识别、草稿识别等。题目持久化在 SQLite 数据库中。',
+    version: '0.3.0',
+    instructions: '小学数学辅导工具集：读取/切换题目、判答、记录、计算、视觉识别、草稿识别、学生长期记忆（答题流水 / 主题掌握度 / 定性事实的写入与检索）等。题目与记忆持久化在 SQLite 数据库中。',
     tools: [
       // ========== 题目相关 ==========
       tool('get_current_problem', '读取学生当前正在做的题目（含正确答案）', {}, async () => {
@@ -130,10 +152,12 @@ export function buildTutorMcp(session) {
           session.proposedProblems = session.proposedProblems || [];
           session.proposedProblems.push(problem);
           session.emit('ui_event', { type: 'problem_proposed', problem });
+          const hint = difficultyHint(args.topic);
           return mcpOk({
             ok: true,
             problem_id: id,
             figure_attached: hasFig,
+            ...(hint ? { difficulty_hint: hint } : {}),
             note: hasFig
               ? '已向学生弹窗，并把上传的原图作为插图一并展示。学生若确认会保存到数据库并替换到做题区。'
               : '已向学生弹窗。学生若确认会保存到数据库并替换到做题区。学生若取消，提议作废。'
@@ -167,24 +191,51 @@ export function buildTutorMcp(session) {
         return mcpOk({ correct: compareAnswer(args.user_answer, p.answer), expected: p.answer });
       }),
 
-      tool('record_history', '把一次提交结果记入学生历史', {
-        problem_id: z.string(),
-        user_answer: z.string(),
-        correct: z.boolean()
-      }, async (args) => {
-        const p = findProblem(args.problem_id);
-        session.history.push({
-          problemId: args.problem_id,
-          topic: p ? p.topic : '?',
-          finalAnswer: args.user_answer,
-          correctAnswer: p ? p.answer : '?',
-          correct: !!args.correct,
-          time: new Date().toISOString()
-        });
-        session.history = session.history.slice(-50);
-        session.emit('ui_event', { type: 'history_updated', count: session.history.length });
-        return mcpOk({ ok: true, total: session.history.length });
-      }),
+      tool('record_history',
+        '把一次提交结果记入学生长期记忆（答题流水 + 主题掌握度）。判答后调用。即使不调用，系统也会根据 check_answer 自动记录；显式调用可补充 error_type / hint_count。',
+        {
+          problem_id: z.string(),
+          user_answer: z.string(),
+          correct: z.boolean().optional().describe('学生答案是否正确；不传则由系统按标准答案判定'),
+          hint_count: z.number().int().min(0).optional().describe('本题用了几次提示'),
+          error_type: z.string().optional().describe('错因分类，如 计算 / 概念 / 审题 / 方法')
+        },
+        async (args) => {
+          const p = findProblem(args.problem_id);
+          // 对错以系统判答为准（客观事实），不依赖 AI 自报
+          const correct = p ? compareAnswer(args.user_answer, p.answer) : !!args.correct;
+          const topic = p ? p.topic : '其他';
+          // 兼容旧能力：仍写入会话内历史（ability_report 读它）
+          session.history.push({
+            problemId: args.problem_id,
+            topic,
+            finalAnswer: args.user_answer,
+            correctAnswer: p ? p.answer : '?',
+            correct,
+            time: new Date().toISOString()
+          });
+          session.history = session.history.slice(-50);
+          session.emit('ui_event', { type: 'history_updated', count: session.history.length });
+
+          // 真落库（与 persistTurn 自动落库共用去重键，重复触发不会双记）
+          let persisted = false;
+          try {
+            const r = recordAttempt({
+              student_id: 'me',
+              session_id: session.id,
+              turn_id: null,
+              problem_id: args.problem_id,
+              topic,
+              user_answer: args.user_answer,
+              correct,
+              hint_count: args.hint_count || 0,
+              error_type: args.error_type || null,
+            });
+            persisted = r.inserted;
+          } catch { /* 落库失败不应影响对话 */ }
+
+          return mcpOk({ ok: true, persisted, correct, total: session.history.length });
+        }),
 
       tool('ability_report', '基于历史输出水平摘要', {}, async () => {
         const total = session.history.length;
@@ -204,6 +255,64 @@ export function buildTutorMcp(session) {
             [k, `${v.c}/${v.t} (${Math.round(v.c / v.t * 100)}%)`]))
         });
       }),
+
+      tool('remember',
+        '把一条值得长期记住的**定性事实**写入学生记忆（如「对单位换算常出错」「喜欢先画线段图」「这周已连续 3 天练习」）。当观察到学生稳定的习惯/偏好/里程碑时调用。只记定性结论，不要记流水账；答题对错由系统自动落库，无需用本工具重复记录。',
+        {
+          content: z.string().describe('要记住的事实，一句话中文'),
+          kind: z.enum(['observation', 'preference', 'milestone']).optional()
+            .describe('类别：observation=观察 / preference=偏好 / milestone=里程碑；默认 observation')
+        },
+        async (args) => {
+          const content = (args.content || '').trim();
+          if (!content) return mcpErr('content 不能为空');
+          try {
+            const id = insertMemoryFact({
+              student_id: 'me',
+              kind: args.kind || 'observation',
+              content,
+              source_turn: null,
+            });
+            return mcpOk({ ok: true, id, note: '已记入该学生的长期记忆' });
+          } catch (e) {
+            return mcpErr('写入记忆失败: ' + (e.message || String(e)));
+          }
+        }),
+
+      tool('recall_memory',
+        '按需检索该学生的长期记忆细节。scope=topic 查某主题的掌握度与最近答题；scope=recent 查最近答题流水；scope=facts 查之前用 remember 记下的定性事实。系统提示里已有摘要时，如需更细的历史再用本工具。',
+        {
+          scope: z.enum(['topic', 'recent', 'facts']).describe('检索范围'),
+          topic: z.string().optional().describe('scope=topic 时的主题名，例如 行程问题'),
+          limit: z.number().int().min(1).max(30).optional().describe('返回条数上限，默认 10')
+        },
+        async (args) => {
+          const limit = args.limit || 10;
+          try {
+            if (args.scope === 'facts') {
+              const facts = getMemoryFacts('me', limit);
+              return mcpOk({ scope: 'facts', count: facts.length, facts });
+            }
+            if (args.scope === 'recent') {
+              const attempts = getRecentAttempts('me', limit);
+              return mcpOk({ scope: 'recent', count: attempts.length, attempts });
+            }
+            // scope === 'topic'
+            if (!args.topic) return mcpErr('scope=topic 需要提供 topic');
+            const masteryRow = getTopicMastery('me').find((m) => m.topic === args.topic) || null;
+            const attempts = getAttemptsByTopic('me', args.topic, limit);
+            return mcpOk({
+              scope: 'topic',
+              topic: args.topic,
+              mastery: masteryRow
+                ? { level: Math.round((masteryRow.mastery || 0) * 100), attempts: masteryRow.attempts, correct: masteryRow.correct, last_seen: masteryRow.last_seen }
+                : null,
+              recent_attempts: attempts,
+            });
+          } catch (e) {
+            return mcpErr('检索记忆失败: ' + (e.message || String(e)));
+          }
+        }),
 
       // ========== 草稿相关 ==========
       tool('read_scratch_state', '查看学生草稿区笔画数', {}, async () => {

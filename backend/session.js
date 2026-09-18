@@ -6,6 +6,7 @@ import { buildTutorMcp } from './mcp-tools.js';
 import { buildSystemPrompt, ALLOWED_TOOLS } from './config.js';
 import { createInputQueue } from './utils.js';
 import { buildSdkEnv } from './api-config.js';
+import { buildMemoryDigest } from './memory/digest.js';
 
 // 子进程环境：由 api-config.js 的 buildSdkEnv() 统一构建
 // - 移除 ANTHROPIC_AUTH_TOKEN 避免 settings.json 鉴权冲突
@@ -29,6 +30,41 @@ function resolvePrompt(mode) {
   }
   // Fallback: 首次启动 DB 尚未 seed 完成时
   return { content: buildSystemPrompt(mode), versionId: null, version: 0 };
+}
+
+/**
+ * 拼装最终 systemPrompt：
+ *   活跃 prompt 正文 + （可选）本会话早期对话摘要 + （可选）跨会话学生记忆摘要。
+ * 无记忆数据时与原来一致。
+ */
+function resolveSystemPrompt(mode, sessionId) {
+  const info = resolvePrompt(mode);
+  const parts = [info.content];
+
+  // 工作记忆：本会话长会话压缩产物（供衔接前文，不暴露给学生）
+  if (sessionId) {
+    try {
+      const row = getChatSession(sessionId);
+      if (row?.context_summary) {
+        parts.push(`## 本会话早期对话摘要（系统生成，用于衔接前文；不要向学生暴露）\n${row.context_summary}`);
+      }
+    } catch { /* ignore */ }
+  }
+
+  // 跨会话「学生记忆摘要」（P0 主路径）
+  let digest = '';
+  try {
+    digest = buildMemoryDigest();
+  } catch (e) {
+    console.error('[memory] build digest failed:', e.message);
+  }
+  if (digest) parts.push(digest);
+
+  return {
+    content: parts.join('\n\n'),
+    versionId: info.versionId,
+    version: info.version,
+  };
 }
 
 // 从 SDK result 消息中捕获 session_id 并持久化到 DB（供后续 resume 用）
@@ -78,7 +114,7 @@ export function createSession(opts = {}) {
   const tutorMcp = buildTutorMcp(session);
 
   // 从 DB 获取活跃 prompt
-  const promptInfo = resolvePrompt(mode);
+  const promptInfo = resolveSystemPrompt(mode, id);
   session.promptVersionId = promptInfo.versionId;
 
   session.query = query({
@@ -179,7 +215,7 @@ export function restoreSession(id) {
   const tutorMcp = buildTutorMcp(session);
 
   // 从 DB 获取活跃 prompt
-  const promptInfo = resolvePrompt(mode);
+  const promptInfo = resolveSystemPrompt(mode, id);
   session.promptVersionId = promptInfo.versionId;
 
   // 使用 SDK resume 机制恢复对话上下文
@@ -279,7 +315,7 @@ export async function clearSessionHistory(s) {
 
   // 3. 重新构建 MCP 工具集和 SDK query
   const tutorMcp = buildTutorMcp(s);
-  const promptInfo = resolvePrompt(s.mode);
+  const promptInfo = resolveSystemPrompt(s.mode);
   s.promptVersionId = promptInfo.versionId;
 
   s.query = query({
@@ -350,7 +386,7 @@ export async function abortTurn(s) {
   s.query = null;
 
   const tutorMcp = buildTutorMcp(s);
-  const promptInfo = resolvePrompt(s.mode);
+  const promptInfo = resolveSystemPrompt(s.mode);
   s.promptVersionId = promptInfo.versionId;
 
   s.query = query({

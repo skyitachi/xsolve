@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>xsolve 学习档案</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, "PingFang SC", system-ui, sans-serif;
+  background: #f5f5f7; color: #1a1a2e; font-size: 14px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.container { width: 100%; max-width: 100%; margin: 0; padding: 2rem 1.5rem 3rem; }
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.75rem; gap: 1rem; }
+h1 { font-size: 1.5rem; font-weight: 700; }
+.subtitle { color: #6b6b80; font-size: 13px; margin-top: 4px; }
+h2 { font-size: 1.15rem; font-weight: 600; margin: 1.75rem 0 0.75rem; }
+.back-link { color: #4b3fe3; text-decoration: none; font-size: 13px; }
+.back-link:hover { text-decoration: underline; }
+.head-nav { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+
+.toolbar { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; }
+.toolbar select, .toolbar button {
+  padding: 6px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; background: #fff;
+}
+.toolbar button { cursor: pointer; }
+.toolbar button.primary { background: #4b3fe3; color: #fff; border: none; }
+.toolbar button.ghost { background: #e85d75; color: #fff; border: none; }
+.toolbar button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Summary cards */
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
+.summary-card { background: #fff; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.summary-card .label { font-size: 12px; color: #6b6b80; margin-bottom: 0.4rem; }
+.summary-card .value { font-size: 1.7rem; font-weight: 700; color: #1a1a2e; line-height: 1.1; }
+.summary-card .value small { font-size: 0.95rem; color: #6b6b80; font-weight: 500; }
+.summary-card .sub { font-size: 12px; color: #6b6b80; margin-top: 0.25rem; }
+
+/* Profile narrative */
+.profile-card {
+  background: #fff; border-radius: 12px; padding: 1.25rem 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06); border-left: 4px solid #4b3fe3;
+}
+.profile-card .narrative { font-size: 14px; color: #2a2a40; }
+.profile-card .meta { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.tag { display: inline-block; font-size: 12px; padding: 2px 10px; border-radius: 999px; background: #eef0ff; color: #4b3fe3; }
+.tag.gray { background: #f0f0f3; color: #6b6b80; }
+.profile-card .updated { font-size: 11px; color: #9a9aab; margin-top: 0.6rem; }
+
+/* Mastery heatmap */
+.mastery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; }
+.mastery-cell {
+  border-radius: 10px; padding: 0.875rem; color: #fff; position: relative;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08); min-height: 92px;
+}
+.mastery-cell .topic { font-size: 13px; font-weight: 600; margin-bottom: 0.35rem; word-break: break-all; }
+.mastery-cell .pct { font-size: 1.5rem; font-weight: 700; line-height: 1; }
+.mastery-cell .detail { font-size: 11px; opacity: 0.9; margin-top: 0.4rem; }
+
+/* Growth curve */
+.chart-card { background: #fff; border-radius: 12px; padding: 1rem 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.chart-card svg { width: 100%; height: auto; display: block; }
+
+/* Error distribution */
+.error-dist { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.error-chip {
+  background: #fff; border-radius: 8px; padding: 0.625rem 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  display: flex; align-items: center; gap: 0.6rem;
+}
+.error-chip .error-dot { width: 10px; height: 10px; border-radius: 50%; }
+.error-chip .error-label { font-size: 13px; font-weight: 600; }
+.error-chip .error-count { font-size: 1.1rem; font-weight: 700; margin-left: auto; }
+
+/* Tables */
+.table-wrap { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }
+th { background: #f0f0f3; font-weight: 600; }
+tbody tr:hover { background: #fafafe; }
+td.ans { font-family: ui-monospace, monospace; font-size: 12px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.ok { color: #0a9e6a; font-weight: 700; }
+.bad { color: #e8463a; font-weight: 700; }
+
+/* Facts */
+.facts-list { background: #fff; border-radius: 12px; padding: 0.5rem 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.fact-item { display: flex; gap: 0.75rem; align-items: baseline; padding: 0.6rem 0; border-bottom: 1px solid #f0f0f3; }
+.fact-item:last-child { border-bottom: none; }
+.fact-kind { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #eef0ff; color: #4b3fe3; white-space: nowrap; }
+.fact-kind.preference { background: #e8f9f0; color: #0a7c43; }
+.fact-kind.milestone { background: #fff4e0; color: #c47600; }
+.fact-content { flex: 1; font-size: 13px; color: #2a2a40; }
+.fact-time { font-size: 11px; color: #9a9aab; white-space: nowrap; }
+
+.empty { text-align: center; padding: 2.5rem 1rem; color: #6b6b80; background: #fff; border-radius: 12px; }
+.loading { text-align: center; padding: 2rem; color: #6b6b80; }
+
+/* Mobile attempt cards */
+.attempt-cards { display: none; }
+.attempt-card { background: #fff; border-radius: 10px; padding: 0.75rem 0.875rem; margin-bottom: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.attempt-card-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.attempt-card-topic { font-weight: 600; font-size: 13px; }
+.attempt-card-meta { font-size: 11px; color: #9a9aab; margin-top: 0.25rem; }
+.attempt-card-ans { font-family: ui-monospace, monospace; font-size: 12px; color: #4a4a5e; margin-top: 0.35rem; word-break: break-all; }
+
+@media (max-width: 768px) {
+  .container { padding: 1rem 0.75rem 2.5rem; }
+  header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  h1 { font-size: 1.25rem; }
+  h2 { font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  .summary-grid { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+  .summary-card { padding: 0.875rem; }
+  .summary-card .value { font-size: 1.35rem; }
+  .mastery-grid { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+  .table-wrap.attempts { display: none; }
+  .attempt-cards { display: block; }
+  .toolbar select, .toolbar button { font-size: 14px; }
+}
+@media (max-width: 420px) {
+  .mastery-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div>
+      <h1>学习档案</h1>
+      <p class="subtitle">AI 助教对这位学生跨会话的长期记忆（掌握度 · 成长 · 错因 · 画像）</p>
+    </div>
+    <div class="head-nav">
+      <a class="back-link" href="/student-eval.html">学生能力评估</a>
+      <a class="back-link" href="/eval.html">AI 质量评估</a>
+      <a class="back-link" href="/index.html">返回主应用</a>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <label style="font-size:13px;color:#6b6b80;">统计区间</label>
+    <select id="daysSelect" onchange="loadAll()">
+      <option value="14">近 14 天</option>
+      <option value="30" selected>近 30 天</option>
+      <option value="90">近 90 天</option>
+      <option value="180">近 180 天</option>
+    </select>
+    <button class="primary" onclick="loadAll()">刷新</button>
+    <button class="ghost" id="consolidateBtn" onclick="triggerConsolidate()" title="用 LLM 根据近期作答重新归纳学生画像">重新固化画像</button>
+    <span id="toolbarMsg" style="font-size:12px;color:#6b6b80;"></span>
+  </div>
+
+  <div id="summarySection" class="summary-grid">
+    <div class="summary-card"><div class="label">加载中...</div></div>
+  </div>
+
+  <h2>学生画像</h2>
+  <div id="profileSection"><div class="loading">加载中...</div></div>
+
+  <h2>掌握度热力图 <span style="font-size:12px;color:#9a9aab;font-weight:400;">（数字为主题掌握度，越低越需巩固）</span></h2>
+  <div id="masteryGrid" class="mastery-grid"><div class="loading">加载中...</div></div>
+
+  <h2>成长曲线 <span style="font-size:12px;color:#9a9aab;font-weight:400;">（每日正确率）</span></h2>
+  <div id="growthChart" class="chart-card"><div class="loading">加载中...</div></div>
+
+  <h2>错因分布</h2>
+  <div id="errorDist" class="error-dist"><div class="loading">加载中...</div></div>
+
+  <h2>答题流水 <span id="attemptCountInfo" style="font-size:12px;color:#9a9aab;font-weight:400;"></span></h2>
+  <div class="table-wrap attempts">
+    <table>
+      <thead>
+        <tr><th>时间</th><th>主题</th><th>作答</th><th>结果</th><th>提示</th></tr>
+      </thead>
+      <tbody id="attemptBody"><tr><td colspan="5" class="loading">加载中...</td></tr></tbody>
+    </table>
+  </div>
+  <div id="attemptCards" class="attempt-cards"><div class="loading">加载中...</div></div>
+
+  <h2>AI 主动记忆 <span style="font-size:12px;color:#9a9aab;font-weight:400;">（助教观察到的习惯 / 偏好 / 里程碑）</span></h2>
+  <div id="factsSection"><div class="loading">加载中...</div></div>
+</div>
+
+<script>
+const ERROR_TYPES = {
+  calculation: { label: '计算错误', color: '#efaa17' },
+  concept: { label: '概念错误', color: '#e8463a' },
+  comprehension: { label: '审题错误', color: '#e85d75' },
+  method: { label: '方法错误', color: '#8b5cf6' },
+  '计算': { label: '计算错误', color: '#efaa17' },
+  '概念': { label: '概念错误', color: '#e8463a' },
+  '审题': { label: '审题错误', color: '#e85d75' },
+  '方法': { label: '方法错误', color: '#8b5cf6' },
+};
+const KIND_LABELS = { observation: '观察', preference: '偏好', milestone: '里程碑' };
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function fmtTime(ts) {
+  if (!ts) return '-';
+  const d = new Date(ts * 1000);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+function relTime(ts) {
+  if (!ts) return '未知';
+  const diff = Math.floor(Date.now() / 1000) - Number(ts);
+  if (diff < 60) return '刚刚';
+  if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
+  return `${Math.floor(diff / 86400)} 天前`;
+}
+function masteryColor(pct) {
+  if (pct >= 80) return 'linear-gradient(135deg,#12b76a,#0a9e6a)';
+  if (pct >= 60) return 'linear-gradient(135deg,#f5b041,#efaa17)';
+  return 'linear-gradient(135deg,#f56b5a,#e8463a)';
+}
+function masterySolid(pct) { return pct >= 80 ? '#0a9e6a' : pct >= 60 ? '#efaa17' : '#e8463a'; }
+
+async function loadAll() {
+  const days = document.getElementById('daysSelect').value;
+  try {
+    const resp = await fetch(`/api/memory/overview?days=${days}`);
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    renderSummary(data);
+    renderProfile(data.profile);
+    renderMastery(data.mastery);
+    renderGrowth(data.daily);
+    renderErrorDist(data.error_distribution);
+    renderAttempts(data.attempts);
+    renderFacts(data.facts);
+  } catch (e) {
+    document.getElementById('summarySection').innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`;
+  }
+}
+
+function renderSummary(data) {
+  const s = data.stats || {};
+  const level = data.profile?.level;
+  const topics = (data.mastery || []).length;
+  document.getElementById('summarySection').innerHTML = `
+    <div class="summary-card">
+      <div class="label">累计练习</div>
+      <div class="value">${s.total || 0}<small> 题</small></div>
+      <div class="sub">${s.last_at ? '最近：' + relTime(s.last_at) : '还没有答题记录'}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">总正确率</div>
+      <div class="value">${s.rate != null ? s.rate : 0}<small>%</small></div>
+      <div class="sub">答对 ${s.correct || 0} / ${s.total || 0}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">涉及主题</div>
+      <div class="value">${topics}<small> 个</small></div>
+      <div class="sub">已有掌握度统计</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">难度水位</div>
+      <div class="value" style="font-size:1.3rem;">${level ? esc(level) : '—'}</div>
+      <div class="sub">${data.profile ? '来自 LLM 固化画像' : '尚未固化画像'}</div>
+    </div>
+  `;
+}
+
+function renderProfile(profile) {
+  const el = document.getElementById('profileSection');
+  if (!profile || (!profile.narrative && !profile.independence)) {
+    el.innerHTML = '<div class="empty">还没有画像综述。积累几次答题后点上方「重新固化画像」生成。</div>';
+    return;
+  }
+  const tags = [];
+  if (profile.independence) tags.push(`<span class="tag gray">独立性：${esc(profile.independence)}</span>`);
+  if (profile.preferences && typeof profile.preferences === 'object') {
+    for (const [k, v] of Object.entries(profile.preferences)) if (v) tags.push(`<span class="tag">偏好·${esc(k)}</span>`);
+  }
+  el.innerHTML = `
+    <div class="profile-card">
+      <div class="narrative">${profile.narrative ? esc(profile.narrative) : '（暂无综述）'}</div>
+      ${tags.length ? `<div class="meta">${tags.join('')}</div>` : ''}
+      <div class="updated">${profile.updated_at ? '更新于 ' + relTime(profile.updated_at) : ''}</div>
+    </div>
+  `;
+}
+
+function renderMastery(mastery) {
+  const el = document.getElementById('masteryGrid');
+  if (!mastery || !mastery.length) {
+    el.innerHTML = '<div class="empty">还没有主题掌握度数据。学生答题后会自动统计。</div>';
+    return;
+  }
+  const sorted = [...mastery].sort((a, b) => a.mastery - b.mastery);
+  el.innerHTML = sorted.map(m => `
+    <div class="mastery-cell" style="background:${masteryColor(m.mastery)}" title="${esc(m.topic)}：${m.correct}/${m.attempts} 题正确，最近 ${relTime(m.last_seen)}">
+      <div class="topic">${esc(m.topic)}</div>
+      <div class="pct">${m.mastery}%</div>
+      <div class="detail">${m.correct}/${m.attempts} 题 · ${relTime(m.last_seen)}</div>
+    </div>
+  `).join('');
+}
+
+function renderGrowth(daily) {
+  const el = document.getElementById('growthChart');
+  if (!daily || !daily.length) {
+    el.innerHTML = '<div class="empty">暂无足够的答题数据绘制成长曲线。</div>';
+    return;
+  }
+  const W = 720, H = 220, padL = 40, padR = 16, padT = 16, padB = 32;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const n = daily.length;
+  const x = i => n === 1 ? padL + plotW / 2 : padL + (i * plotW) / (n - 1);
+  const y = rate => padT + plotH - (rate / 100) * plotH;
+
+  // 网格线（0/50/100%）
+  let grid = '';
+  for (const g of [0, 50, 100]) {
+    const gy = y(g);
+    grid += `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" stroke="#e8e8ee" stroke-width="1"/>`;
+    grid += `<text x="${padL - 6}" y="${gy + 4}" text-anchor="end" font-size="10" fill="#9a9aab">${g}%</text>`;
+  }
+
+  const pts = daily.map((d, i) => `${x(i)},${y(d.rate)}`).join(' ');
+  const area = `${padL},${padT + plotH} ${pts} ${x(n - 1)},${padT + plotH}`;
+
+  // 端点标签：只标首/尾，避免拥挤
+  const dots = daily.map((d, i) => {
+    const show = n <= 12 || i === 0 || i === n - 1;
+    const cx = x(i), cy = y(d.rate);
+    return `<circle cx="${cx}" cy="${cy}" r="3.5" fill="#4b3fe3"><title>${d.day}：${d.rate}%（${d.correct}/${d.total}）</title></circle>`
+      + (show ? `<text x="${cx}" y="${cy - 9}" text-anchor="middle" font-size="10" fill="#4b3fe3">${d.rate}%</text>
+        <text x="${cx}" y="${H - padB + 14}" text-anchor="middle" font-size="9" fill="#9a9aab">${d.day.slice(5)}</text>` : '');
+  }).join('');
+
+  el.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="每日正确率成长曲线">
+      <defs>
+        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#4b3fe3" stop-opacity="0.22"/>
+          <stop offset="100%" stop-color="#4b3fe3" stop-opacity="0.02"/>
+        </linearGradient>
+      </defs>
+      ${grid}
+      ${n > 1 ? `<polygon points="${area}" fill="url(#areaGrad)"/>` : ''}
+      ${n > 1 ? `<polyline points="${pts}" fill="none" stroke="#4b3fe3" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>` : ''}
+      ${dots}
+    </svg>
+    <div style="font-size:12px;color:#9a9aab;margin-top:0.25rem;text-align:center;">共 ${n} 天有答题记录 · 圆点悬停可看当天明细</div>
+  `;
+}
+
+function renderErrorDist(dist) {
+  const el = document.getElementById('errorDist');
+  if (!dist || !dist.length) {
+    el.innerHTML = '<div class="empty">暂无错因数据（错因由助教在判答时用 record_history 补充）。</div>';
+    return;
+  }
+  el.innerHTML = dist.map(d => {
+    const info = ERROR_TYPES[d.error_type] || { label: d.error_type, color: '#6b6b80' };
+    return `
+      <div class="error-chip">
+        <div class="error-dot" style="background:${info.color}"></div>
+        <div class="error-label">${esc(info.label)}</div>
+        <div class="error-count">${d.count}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderAttempts(attempts) {
+  document.getElementById('attemptCountInfo').textContent = attempts && attempts.length ? `（最近 ${attempts.length} 条）` : '';
+  const body = document.getElementById('attemptBody');
+  const cards = document.getElementById('attemptCards');
+  if (!attempts || !attempts.length) {
+    body.innerHTML = '<tr><td colspan="5" class="empty" style="border:none;">还没有答题记录</td></tr>';
+    cards.innerHTML = '<div class="empty">还没有答题记录</div>';
+    return;
+  }
+  body.innerHTML = attempts.map(a => `
+    <tr>
+      <td>${fmtTime(a.created_at)}</td>
+      <td>${esc(a.topic || '—')}</td>
+      <td class="ans" title="${esc(a.user_answer)}">${esc(a.user_answer || '—')}</td>
+      <td class="${a.correct ? 'ok' : 'bad'}">${a.correct ? '✔ 正确' : '✘ 错误'}</td>
+      <td>${a.hint_count || 0}</td>
+    </tr>
+  `).join('');
+  cards.innerHTML = attempts.map(a => `
+    <div class="attempt-card">
+      <div class="attempt-card-head">
+        <span class="attempt-card-topic">${esc(a.topic || '未知主题')}</span>
+        <span class="${a.correct ? 'ok' : 'bad'}">${a.correct ? '✔ 正确' : '✘ 错误'}</span>
+      </div>
+      <div class="attempt-card-ans">作答：${esc(a.user_answer || '—')}</div>
+      <div class="attempt-card-meta">${fmtTime(a.created_at)} · 提示 ${a.hint_count || 0} 次</div>
+    </div>
+  `).join('');
+}
+
+function renderFacts(facts) {
+  const el = document.getElementById('factsSection');
+  if (!facts || !facts.length) {
+    el.innerHTML = '<div class="empty">助教还没有主动记下任何观察。</div>';
+    return;
+  }
+  el.innerHTML = `<div class="facts-list">${facts.map(f => `
+    <div class="fact-item">
+      <span class="fact-kind ${esc(f.kind)}">${KIND_LABELS[f.kind] || esc(f.kind)}</span>
+      <span class="fact-content">${esc(f.content)}</span>
+      <span class="fact-time">${relTime(f.created_at)}</span>
+    </div>
+  `).join('')}</div>`;
+}
+
+async function triggerConsolidate() {
+  const btn = document.getElementById('consolidateBtn');
+  const msg = document.getElementById('toolbarMsg');
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = '固化中...';
+  msg.textContent = '';
+  try {
+    const resp = await fetch('/api/memory/consolidate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const r = await resp.json();
+    if (r.error) { msg.textContent = '失败：' + r.error; }
+    else if (r.skipped) { msg.textContent = '数据不足，暂未固化（' + (r.reason || '') + '）'; }
+    else { msg.textContent = r.llm_ok ? '画像已更新 ✔' : '已按规则更新（LLM 调用失败，仅写入难度水位）'; loadAll(); }
+  } catch (e) {
+    msg.textContent = '失败：' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = old;
+  }
+}
+
+loadAll();
+setInterval(loadAll, 30000);
+</script>
+</body>
+</html>

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { SEED_PROMPTS } from './prompt-seeds.js';
 import { fileURLToPath } from 'url';
 import { PROBLEMS as BUILTIN_PROBLEMS } from './problems.js';
+import { MASTERY_HALFLIFE_DAYS, MASTERY_LEARNING_RATE } from './config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DB_PATH || path.resolve(__dirname, '..', 'xsolve.db');
@@ -132,6 +133,63 @@ function initSchema() {
       value TEXT NOT NULL DEFAULT '',
       updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
     );
+
+    -- ========== 学生记忆系统（P0：情景记忆 + 画像占位）==========
+    -- ① 情景记忆：每次答题流水（补上 record_history 过去只存内存、不落库的空缺）
+    CREATE TABLE IF NOT EXISTS student_attempts (
+      id           TEXT PRIMARY KEY,
+      student_id   TEXT NOT NULL DEFAULT 'me',
+      session_id   TEXT NOT NULL,
+      turn_id      TEXT,
+      problem_id   TEXT,
+      topic        TEXT,
+      user_answer  TEXT,
+      correct      INTEGER NOT NULL DEFAULT 0,
+      hint_count   INTEGER NOT NULL DEFAULT 0,
+      duration_ms  INTEGER,
+      error_type   TEXT,
+      created_at   INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+
+    -- 去重键：同一会话内「同题同答案」只记一次。
+    -- persistTurn 自动落库 与 record_history 工具可能同时触发，用 INSERT OR IGNORE 幂等去重。
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_attempts_session_problem_answer
+      ON student_attempts(session_id, problem_id, user_answer);
+    CREATE INDEX IF NOT EXISTS idx_attempts_student_time ON student_attempts(student_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_attempts_topic        ON student_attempts(student_id, topic);
+
+    -- ② 语义画像：按主题掌握度（规则增量更新，无 LLM）
+    CREATE TABLE IF NOT EXISTS topic_mastery (
+      student_id TEXT NOT NULL DEFAULT 'me',
+      topic      TEXT NOT NULL,
+      mastery    REAL NOT NULL DEFAULT 0,   -- 0~1；P0 用正确率近似，时间衰减留待 P1
+      attempts   INTEGER NOT NULL DEFAULT 0,
+      correct    INTEGER NOT NULL DEFAULT 0,
+      last_seen  INTEGER,
+      PRIMARY KEY (student_id, topic)
+    );
+
+    -- ③ 学生画像：一行一个学生
+    CREATE TABLE IF NOT EXISTS student_profile (
+      student_id     TEXT PRIMARY KEY DEFAULT 'me',
+      level          TEXT,   -- 难度水位：基础/巩固/挑战
+      independence   TEXT,   -- 独立性画像
+      error_patterns TEXT,   -- JSON: {计算:n, 概念:n, ...}
+      preferences    TEXT,   -- JSON: {线段图:true, ...}
+      narrative      TEXT,   -- LLM 综述（P1 consolidate 写入），注入 prompt 用
+      updated_at     INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+
+    -- ④ 交互记忆：AI 主动记下的零散定性事实
+    CREATE TABLE IF NOT EXISTS memory_facts (
+      id          TEXT PRIMARY KEY,
+      student_id  TEXT NOT NULL DEFAULT 'me',
+      kind        TEXT NOT NULL,   -- observation / preference / milestone
+      content     TEXT NOT NULL,
+      source_turn TEXT,
+      created_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_memory_facts_student ON memory_facts(student_id, created_at DESC);
   `);
 
   // Migration: add prompt_version_id to chat_turns if not exists
@@ -153,6 +211,18 @@ function initSchema() {
     db.prepare("SELECT sdk_session_id FROM chat_sessions LIMIT 0").get();
   } catch {
     db.exec("ALTER TABLE chat_sessions ADD COLUMN sdk_session_id TEXT");
+  }
+
+  // Migration: 学生记忆系统——工作记忆（长会话压缩摘要）列
+  try {
+    db.prepare("SELECT context_summary FROM chat_sessions LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE chat_sessions ADD COLUMN context_summary TEXT");
+  }
+  try {
+    db.prepare("SELECT summary_upto_turn FROM chat_sessions LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE chat_sessions ADD COLUMN summary_upto_turn INTEGER DEFAULT 0");
   }
 }
 
@@ -276,7 +346,7 @@ function listChatSessions(role) {
   return rows;
 }
 
-function updateChatSession(id, { title, current_problem_id, is_archived, sdk_session_id }) {
+function updateChatSession(id, { title, current_problem_id, is_archived, sdk_session_id, context_summary, summary_upto_turn }) {
   getDb();
   const sets = [];
   const vals = [];
@@ -284,6 +354,8 @@ function updateChatSession(id, { title, current_problem_id, is_archived, sdk_ses
   if (current_problem_id !== undefined) { sets.push('current_problem_id = ?'); vals.push(current_problem_id); }
   if (is_archived !== undefined) { sets.push('is_archived = ?'); vals.push(is_archived ? 1 : 0); }
   if (sdk_session_id !== undefined) { sets.push('sdk_session_id = ?'); vals.push(sdk_session_id); }
+  if (context_summary !== undefined) { sets.push('context_summary = ?'); vals.push(context_summary); }
+  if (summary_upto_turn !== undefined) { sets.push('summary_upto_turn = ?'); vals.push(summary_upto_turn); }
   sets.push("updated_at = strftime('%s','now')");
   vals.push(id);
   db.prepare(`UPDATE chat_sessions SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
@@ -869,6 +941,271 @@ function deleteSetting(key) {
   db.prepare('DELETE FROM settings WHERE key = ?').run(key);
 }
 
+// ========== Student Memory CRUD（学生记忆系统）==========
+
+const DEFAULT_STUDENT_ID = 'me';
+
+function safeJsonParse(s, fallback = null) {
+  if (s == null) return fallback;
+  try { return JSON.parse(s); } catch { return fallback; }
+}
+
+/**
+ * 记录一次答题（确定性，无 LLM）：
+ *   插入一行 student_attempts + 增量更新 topic_mastery。
+ * 去重：同一会话内「同题同答案」只记一次（persistTurn 自动落库与 record_history 工具可能重复触发）。
+ * 返回 { inserted, id }；inserted=false 表示命中去重、未写入、也未更新掌握度。
+ */
+function recordAttempt({ id, student_id, session_id, turn_id, problem_id, topic, user_answer, correct, hint_count, duration_ms, error_type }) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const attemptId = id || crypto.randomUUID();
+  const info = db.prepare(`
+    INSERT OR IGNORE INTO student_attempts
+      (id, student_id, session_id, turn_id, problem_id, topic, user_answer, correct, hint_count, duration_ms, error_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    attemptId, sid, session_id, turn_id ?? null, problem_id ?? null, topic ?? null,
+    user_answer ?? null, correct ? 1 : 0, hint_count || 0, duration_ms ?? null, error_type ?? null
+  );
+  if (info.changes > 0) {
+    if (topic) bumpTopicMastery(sid, topic, !!correct);
+  } else if (turn_id && problem_id != null && user_answer != null) {
+    // 命中去重（通常是 record_history 工具先写入、turn_id 为空）：
+    // 由随后的 persistTurn 自动落库回填 turn_id，便于把答题流水追溯回具体 turn。
+    db.prepare(`
+      UPDATE student_attempts SET turn_id = ?
+      WHERE session_id = ? AND problem_id = ? AND user_answer = ? AND turn_id IS NULL
+    `).run(turn_id, session_id, problem_id, user_answer);
+  }
+  return { inserted: info.changes > 0, id: attemptId };
+}
+
+/**
+ * 增量更新某主题的掌握度（P1：带时间衰减）。
+ *   1. 读取该主题现有掌握度，按「距上次作答的时间」做指数衰减（半衰期 MASTERY_HALFLIFE_DAYS 天）；
+ *   2. 用学习率 α 把本次作答结果（0/1）融合进去：mastery = prior + α·(outcome − prior)；
+ *   3. 累加 attempts / correct，刷新 last_seen。
+ * 首次作答直接用 outcome 作为掌握度。
+ */
+function bumpTopicMastery(student_id, topic, correct) {
+  getDb();
+  const now = Math.floor(Date.now() / 1000);
+  const outcome = correct ? 1 : 0;
+  const row = db.prepare(
+    'SELECT mastery, attempts, correct, last_seen FROM topic_mastery WHERE student_id = ? AND topic = ?'
+  ).get(student_id, topic);
+
+  if (!row) {
+    db.prepare(`
+      INSERT INTO topic_mastery (student_id, topic, mastery, attempts, correct, last_seen)
+      VALUES (?, ?, ?, 1, ?, ?)
+    `).run(student_id, topic, outcome, outcome, now);
+    return;
+  }
+
+  const prior = decayedMastery(row.mastery, row.last_seen, now);
+  const mastery = prior + MASTERY_LEARNING_RATE * (outcome - prior);
+  db.prepare(`
+    UPDATE topic_mastery
+    SET mastery = ?, attempts = attempts + 1, correct = correct + ?, last_seen = ?
+    WHERE student_id = ? AND topic = ?
+  `).run(mastery, outcome, now, student_id, topic);
+}
+
+// 把掌握度按「距 now 的时长」做指数衰减（无 last_seen 或时间未前进则不衰减）
+function decayedMastery(mastery, lastSeen, now) {
+  const m = Number(mastery) || 0;
+  if (!lastSeen) return m;
+  const elapsedDays = (now - Number(lastSeen)) / 86400;
+  if (elapsedDays <= 0) return m;
+  const halfLife = MASTERY_HALFLIFE_DAYS > 0 ? MASTERY_HALFLIFE_DAYS : 21;
+  return m * Math.pow(0.5, elapsedDays / halfLife);
+}
+
+/**
+ * 批量刷新该学生所有主题的掌握度衰减（不新增作答，仅随时间"遗忘"）。
+ * 由 consolidate 定期调用：让长期未练的主题掌握度自然回落，避免"吃老本"。
+ * 返回被更新的主题数。
+ */
+function applyMasteryDecay(student_id) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const now = Math.floor(Date.now() / 1000);
+  const rows = db.prepare(
+    'SELECT topic, mastery, last_seen FROM topic_mastery WHERE student_id = ?'
+  ).all(sid);
+  const upd = db.prepare('UPDATE topic_mastery SET mastery = ? WHERE student_id = ? AND topic = ?');
+  let n = 0;
+  const tx = db.transaction((rs) => {
+    for (const r of rs) {
+      const decayed = decayedMastery(r.mastery, r.last_seen, now);
+      if (decayed !== (Number(r.mastery) || 0)) {
+        upd.run(decayed, sid, r.topic);
+        n++;
+      }
+    }
+  });
+  tx(rows);
+  return n;
+}
+
+/**
+ * 答题总量统计（用于 consolidate 触发门控 / 画像输入）。
+ */
+function getAttemptStats(student_id) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const row = db.prepare(`
+    SELECT COUNT(*) AS total,
+           COALESCE(SUM(correct), 0) AS correct,
+           MAX(created_at) AS last_at
+    FROM student_attempts WHERE student_id = ?
+  `).get(sid);
+  return { total: row.total || 0, correct: row.correct || 0, last_at: row.last_at || null };
+}
+
+function getTopicMastery(student_id, { minAttempts = 0 } = {}) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  return db.prepare(`
+    SELECT topic, mastery, attempts, correct, last_seen
+    FROM topic_mastery
+    WHERE student_id = ? AND attempts >= ?
+    ORDER BY attempts DESC, last_seen DESC
+  `).all(sid, minAttempts);
+}
+
+function getRecentAttempts(student_id, limit = 50) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  return db.prepare(`
+    SELECT id, session_id, turn_id, problem_id, topic, user_answer, correct, hint_count, duration_ms, error_type, created_at
+    FROM student_attempts
+    WHERE student_id = ?
+    ORDER BY created_at DESC, rowid DESC
+    LIMIT ?
+  `).all(sid, limit);
+}
+
+function getAttemptsByTopic(student_id, topic, limit = 10) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  return db.prepare(`
+    SELECT id, session_id, turn_id, problem_id, topic, user_answer, correct, hint_count, created_at
+    FROM student_attempts
+    WHERE student_id = ? AND topic = ?
+    ORDER BY created_at DESC, rowid DESC
+    LIMIT ?
+  `).all(sid, topic, limit);
+}
+
+function getStudentProfile(student_id) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const row = db.prepare('SELECT * FROM student_profile WHERE student_id = ?').get(sid);
+  if (!row) return null;
+  return {
+    student_id: row.student_id,
+    level: row.level,
+    independence: row.independence,
+    error_patterns: safeJsonParse(row.error_patterns, null),
+    preferences: safeJsonParse(row.preferences, null),
+    narrative: row.narrative,
+    updated_at: row.updated_at,
+  };
+}
+
+// 仅在传入非 undefined 时覆盖对应字段（便于增量更新）
+function upsertStudentProfile({ student_id, level, independence, error_patterns, preferences, narrative }) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const toJson = (v) => (v == null ? null : (typeof v === 'string' ? v : JSON.stringify(v)));
+  db.prepare(`
+    INSERT INTO student_profile (student_id, level, independence, error_patterns, preferences, narrative, updated_at)
+    VALUES (@sid, @level, @ind, @ep, @pref, @narr, strftime('%s','now'))
+    ON CONFLICT(student_id) DO UPDATE SET
+      level          = COALESCE(excluded.level, level),
+      independence   = COALESCE(excluded.independence, independence),
+      error_patterns = COALESCE(excluded.error_patterns, error_patterns),
+      preferences    = COALESCE(excluded.preferences, preferences),
+      narrative      = COALESCE(excluded.narrative, narrative),
+      updated_at     = strftime('%s','now')
+  `).run({
+    sid,
+    level: level === undefined ? null : level,
+    ind: independence === undefined ? null : independence,
+    ep: toJson(error_patterns),
+    pref: toJson(preferences),
+    narr: narrative === undefined ? null : narrative,
+  });
+  return getStudentProfile(sid);
+}
+
+function insertMemoryFact({ id, student_id, kind, content, source_turn }) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const fid = id || crypto.randomUUID();
+  db.prepare(`
+    INSERT INTO memory_facts (id, student_id, kind, content, source_turn)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(fid, sid, kind || 'observation', content, source_turn ?? null);
+  return fid;
+}
+
+function getMemoryFacts(student_id, limit = 20) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  return db.prepare(`
+    SELECT id, kind, content, source_turn, created_at
+    FROM memory_facts
+    WHERE student_id = ?
+    ORDER BY created_at DESC, rowid DESC
+    LIMIT ?
+  `).all(sid, limit);
+}
+
+/**
+ * 按「天」聚合正确率（成长曲线用）。返回 [{ day:'YYYY-MM-DD', total, correct, rate }]，按日期升序。
+ * @param {string} student_id
+ * @param {number} days - 只取最近 N 天
+ */
+function getDailyAccuracy(student_id, days = 30) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const since = Math.floor(Date.now() / 1000) - days * 86400;
+  const rows = db.prepare(`
+    SELECT date(created_at, 'unixepoch', 'localtime') AS day,
+           COUNT(*) AS total,
+           COALESCE(SUM(correct), 0) AS correct
+    FROM student_attempts
+    WHERE student_id = ? AND created_at >= ?
+    GROUP BY day
+    ORDER BY day ASC
+  `).all(sid, since);
+  return rows.map((r) => ({
+    day: r.day,
+    total: r.total,
+    correct: r.correct,
+    rate: r.total ? Math.round((r.correct / r.total) * 100) : 0,
+  }));
+}
+
+/**
+ * 错因分布（仅统计答错且有 error_type 的答题）。返回 [{ error_type, count }]，按次数降序。
+ */
+function getErrorTypeDistribution(student_id) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  return db.prepare(`
+    SELECT error_type, COUNT(*) AS count
+    FROM student_attempts
+    WHERE student_id = ? AND correct = 0 AND error_type IS NOT NULL AND error_type <> ''
+    GROUP BY error_type
+    ORDER BY count DESC
+  `).all(sid);
+}
+
 // ========== Prompt Seed ==========
 
 function seedPromptVersions() {
@@ -925,4 +1262,18 @@ export {
   getSetting,
   upsertSetting,
   deleteSetting,
+  // Student Memory
+  recordAttempt,
+  bumpTopicMastery,
+  applyMasteryDecay,
+  getAttemptStats,
+  getTopicMastery,
+  getRecentAttempts,
+  getAttemptsByTopic,
+  getStudentProfile,
+  upsertStudentProfile,
+  insertMemoryFact,
+  getMemoryFacts,
+  getDailyAccuracy,
+  getErrorTypeDistribution,
 };

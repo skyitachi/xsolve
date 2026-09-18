@@ -1,9 +1,13 @@
 // 对话 turn controller（SSE 流式响应）
 import { sessions } from '../session.js';
-import { insertChatTurn, updateChatSession, getChatTurns } from '../db.js';
+import { insertChatTurn, updateChatSession, getChatTurns, getProblem, recordAttempt, getAttemptStats } from '../db.js';
+import { compareAnswer } from '../utils.js';
 import { judgeTurn } from '../eval/llm-judge.js';
 import { judgeSession } from '../eval/session-judge.js';
 import { evalStudent } from '../eval/student-eval.js';
+import { consolidateStudent } from '../memory/consolidate.js';
+import { maybeCompressSession } from '../memory/compress.js';
+import { MEMORY_CONSOLIDATE_INTERVAL } from '../config.js';
 
 // 每 N 个 turn 自动触发一次 session 级评估
 const SESSION_EVAL_INTERVAL = 5;
@@ -31,7 +35,9 @@ export function handleTurn(req, res) {
 
   // 累积 AI 输出和工具调用
   let aiTextAccumulator = '';
-  let toolCallsAccumulator = [];
+  // 工具调用按 tool_use.id 归并（stream_event 的 content_block_start 只有空 input，
+  // 完整入参由随后的 assistant 消息补齐）
+  const toolCallIndex = new Map(); // id -> { name, input }
   let inputTokens = 0;
   let outputTokens = 0;
   let turnError = null;
@@ -114,7 +120,17 @@ export function handleTurn(req, res) {
       if (data.type === 'stream_event' && data.event?.type === 'content_block_start') {
         const block = data.event.content_block;
         if (block?.type === 'tool_use') {
-          toolCallsAccumulator.push({ name: block.name, input: block.input || {} });
+          // 先占位（此时 input 通常为空），完整入参随后由 assistant 消息覆盖
+          const key = block.id || ('idx_' + data.event.index);
+          toolCallIndex.set(key, { name: block.name, input: block.input || {} });
+        }
+      } else if (data.type === 'assistant' && Array.isArray(data.message?.content)) {
+        // 完整的 assistant 消息：含每个 tool_use 的完整 input
+        for (const block of data.message.content) {
+          if (block?.type === 'tool_use') {
+            const key = block.id || (block.name + ':' + JSON.stringify(block.input || {}));
+            toolCallIndex.set(key, { name: block.name, input: block.input || {} });
+          }
         }
       } else if (data.type === 'stream_event' && data.event?.type === 'message_delta') {
         const usage = data.event.usage;
@@ -174,7 +190,8 @@ export function handleTurn(req, res) {
     try {
       const duration_ms = Date.now() - turnStartTime;
       const ai_message = aiTextAccumulator || null;
-      const tool_calls_json = JSON.stringify(toolCallsAccumulator);
+      const tool_calls = [...toolCallIndex.values()];
+      const tool_calls_json = JSON.stringify(tool_calls);
 
       const turnId = insertChatTurn({
         session_id: s.id,
@@ -188,6 +205,10 @@ export function handleTurn(req, res) {
         error: turnError,
         prompt_version_id: s.promptVersionId || null,
       });
+
+      // 记忆落库：把本轮 check_answer 的结果**确定性**写入 student_attempts（无 LLM）。
+      // 即使 AI 忘记调用 record_history 工具，答题流水也不会丢。
+      autoLogAttempts(s, turnId, tool_calls);
 
       // 如果是第一条 turn，更新 session title
       if (userMsg) {
@@ -221,6 +242,23 @@ export function handleTurn(req, res) {
             console.error(`[turn] Student Eval failed for session ${s.id}:`, err.message);
           });
         }
+
+        // 学生记忆 P1：每 MEMORY_CONSOLIDATE_INTERVAL 轮、且有作答时，LLM 固化语义画像
+        try {
+          const stats = getAttemptStats('me');
+          if (allTurns.length % MEMORY_CONSOLIDATE_INTERVAL === 0 && stats.total > 0) {
+            consolidateStudent('me').catch(err => {
+              console.error(`[turn] consolidate failed:`, err.message);
+            });
+          }
+        } catch (e) {
+          console.error('[turn] consolidate trigger error:', e.message);
+        }
+
+        // 学生记忆 P1：长会话压缩（turn 数超阈值时把早期轮次滚动摘要，异步不阻塞）
+        maybeCompressSession(s.id).catch(err => {
+          console.error(`[turn] compress failed:`, err.message);
+        });
       }
     } catch (e) {
       console.error('[turn] persist error:', e);
@@ -266,6 +304,31 @@ export function handleTurn(req, res) {
     sendSSE(res, 'error', { message: '消息入队失败: ' + (e.message || String(e)) });
     sendSSE(res, 'done', {});
     setImmediate(() => { try { res.end(); } catch { /* ignore */ } });
+  }
+}
+
+// 确定性落库：扫描本轮工具调用，把每个 check_answer 的结果写入 student_attempts。
+// 答案对错用 compareAnswer(user_answer, problem.answer) 判定，不依赖 AI 自报的 correct。
+function autoLogAttempts(session, turnId, toolCalls) {
+  for (const tc of toolCalls || []) {
+    if (!/check_answer$/.test(tc.name || '')) continue;
+    const pid = tc.input?.problem_id;
+    const ans = tc.input?.user_answer;
+    if (pid == null || ans == null) continue;
+    try {
+      const p = getProblem(pid);
+      recordAttempt({
+        student_id: 'me',
+        session_id: session.id,
+        turn_id: turnId,
+        problem_id: pid,
+        topic: p ? p.topic : null,
+        user_answer: String(ans),
+        correct: p ? compareAnswer(String(ans), p.answer) : false,
+      });
+    } catch (e) {
+      console.error('[turn] auto attempt log failed:', e.message);
+    }
   }
 }
 

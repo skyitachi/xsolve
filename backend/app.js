@@ -52,6 +52,12 @@ import {
   updateSettings,
   testSettings,
 } from './controllers/settingsController.js';
+import {
+  memoryOverview,
+  memoryAttempts,
+  memoryFacts,
+  memoryConsolidate,
+} from './controllers/memoryController.js';
 import { getStartupLogs } from './startup-logs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -150,6 +156,12 @@ export function createApp() {
   app.get('/api/settings', getSettings);
   app.put('/api/settings', updateSettings);
   app.post('/api/settings/test', testSettings);
+
+  // ========== 学生记忆（学习档案页数据源）==========
+  app.get('/api/memory/overview', memoryOverview);
+  app.get('/api/memory/attempts', memoryAttempts);
+  app.get('/api/memory/facts', memoryFacts);
+  app.post('/api/memory/consolidate', memoryConsolidate);
 
   // ========== 404 兜底 ==========
   app.use((req, res) => {
