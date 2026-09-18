@@ -1,0 +1,48 @@
+backend/app.js
+  h_5a1c62fd74efa2 55-60,160-165
+backend/config.js
+  h_5a1c62fd74efa2 30-42,53,55-56,70-76,218-219
+backend/controllers/memoryController.js
+  h_5a1c62fd74efa2 1-83
+backend/controllers/turnController.js
+  h_5a1c62fd74efa2 3-4,8-10,38-40,123-133,193-194,209-212,245-261,310-334
+backend/db.js
+  h_5a1c62fd74efa2 8,136-192,215-226,349,357-358,944-1208,1265-1278
+backend/mcp-tools.js
+  h_5a1c62fd74efa2 8,29-50,62-63,155,160,194-238,259-316
+backend/memory/compress.js
+  h_5a1c62fd74efa2 1-75
+backend/memory/consolidate.js
+  h_5a1c62fd74efa2 1-116
+backend/memory/digest.js
+  h_5a1c62fd74efa2 1-112
+backend/memory/llm.js
+  h_5a1c62fd74efa2 1-70
+backend/scripts/upgrade-memory-prompt.mjs
+  h_5a1c62fd74efa2 1-30
+backend/session.js
+  h_5a1c62fd74efa2 9,35-69,117,218,318,389
+docs/eval-framework-design/eval-framework-design.html
+  h_5a1c62fd74efa2 222,229,318,345-347,732
+docs/student-memory-design/_shared/js/mermaid.min.js
+  h_5a1c62fd74efa2 1-2314
+docs/student-memory-design/student-memory-design.html
+  h_5a1c62fd74efa2 1-628
+frontend/index.html
+  h_5a1c62fd74efa2 37-38,161
+frontend/student-eval.html
+  h_5a1c62fd74efa2 151
+frontend/student-memory.html
+  h_5a1c62fd74efa2 1-436
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0b2c2f77f7bc6b89be4415f06b885cbe5e80ac9c",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
