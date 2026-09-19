@@ -759,9 +759,45 @@ if (tlsState.tls) {
 
 <h3>A.6 仍需人工做的两步</h3>
 <ol>
-  <li>每台要访问的设备装一次 CA：手机浏览器打开 <code>http://192.168.0.112:8765/xsolve-ca.crt</code> 下载后按平台安装（iOS 别忘了最后一步「证书信任设置」）。</li>
+  <li>每台要访问的设备装一次 CA：手机浏览器打开 <code>http://192.168.0.112:8765/xsolve-ca.crt</code>（DER）下载后按平台安装（iOS 别忘了最后一步「证书信任设置」）。Android 若提示「无法安装」，换 PEM 版 <code>http://192.168.0.112:8765/xsolve-ca.pem</code>。</li>
   <li>建议在路由器给 NAS 绑定静态 IP（DHCP 保留）。换 IP 后只需在宿主机重跑一次证书脚本，Root CA 不变，客户端无需重装。</li>
 </ol>
+
+<h3>A.7 两个后续补的点</h3>
+
+<p><strong>① CA 同时导出 DER 与 PEM 两种编码。</strong>
+  原先只导出 DER 的 <code>xsolve-ca.crt</code>。iOS / iPadOS、macOS、Windows 都吃这个格式，
+  但部分 Android（尤其国产 ROM）在「设置 → 安全 → 安装证书 → CA 证书」时只认 PEM，
+  给 DER 会直接提示无法安装 —— 恰好卡在「照步骤做了却装不上」这一步，而且原因很难猜。
+  现在同一张证书导出两份（<code>xsolve-ca.crt</code> 与 <code>xsolve-ca.pem</code>，指纹一致），
+  启动日志把两个地址都打出来。<code>.gitignore</code> 无需改动：<code>*.pem</code> 已是全局规则。
+</p>
+
+<p><strong>② 把「PWA 到底生效没有」变成一条命令。</strong>
+  以前要人工开 DevTools → Application 看 Service Worker 面板。现在有
+  <code>scripts/check-sw.mjs</code>：无头 Chrome + CDP 直接问浏览器三件事 —— 是不是安全上下文、
+  <code>navigator.serviceWorker</code> 在不在、显式注册 <code>/sw.js</code> 能否成功、外壳缓存写了几项。
+</p>
+
+<pre><code>node scripts/check-sw.mjs https://192.168.0.112:8443/
+node scripts/check-sw.mjs https://192.168.0.112:8443/ "$SPKI"   # 未装 CA 时用 SPKI 白名单模拟已信任</code></pre>
+
+<p>
+  写这个脚本踩了三个坑，都会表现成同一个极具误导性的现象「<code>Page.enable</code> 超时」：
+  用 <code>/json/new</code> 建的标签页不响应 CDP 命令；把目标 URL 直接当 Chrome 启动参数会和
+  CDP 握手抢时序（ws 在 open 后立刻以 1006 断开）；在外层沙箱里跑时 Chrome 自己的 zygote
+  沙箱会初始化失败（GPU 进程 FATAL 退出）。三条都写在脚本头部注释里了。
+</p>
+
+<div class="callout">
+  <div class="callout-title">SPKI 会随证书刷新而改变</div>
+  <p>
+    <code>--ignore-certificate-errors-spki-list</code> 里的指纹取自服务器证书的<strong>公钥</strong>，
+    而每次重跑证书脚本都会重新生成密钥对 —— 所以 <strong>SPKI 不是常量</strong>，刷完证书必须重算，
+    否则 Chrome 会直接拒连，表现成页面加载失败（<code>chrome-error://chromewebdata/</code>）。
+    重算方法见 <code>scripts/check-sw.mjs</code> 头部注释。
+  </p>
+</div>
 
 <footer>
   <p>xsolve 局域网 PWA 方案 · 2026-09-19</p>
