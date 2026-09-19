@@ -1,0 +1,16 @@
+backend/scripts/setup-lan-https.mjs
+  h_5a1c62fd74efa2 294-299
+docs/lan-pwa/lan-pwa.html
+  h_5a1c62fd74efa2 537-546,549,553-559,565-579
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ead03a06c9fc8d85296591fda29b201a0884b4da",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
