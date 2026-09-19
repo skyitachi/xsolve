@@ -294,6 +294,7 @@ footer {
   <li><a href="#pitfalls">注意事项与坑</a></li>
   <li><a href="#compare">备选方案对比</a></li>
   <li><a href="#open">开放问题</a></li>
+  <li><a href="#nas">附录 A：部署到 NAS（fnos / Docker）实录</a></li>
 </ol>
 
 <!-- 1. Problem -->
@@ -655,7 +656,111 @@ if (tlsState.tls) {
   <li><strong>要不要做 HTTP → HTTPS 自动跳转？</strong> 目前刻意不做，避免打断局域网内其它设备/脚本的既有用法。若确认没有其它客户端依赖 HTTP，可在 <code>app.js</code> 加一条 301。</li>
   <li><strong>证书过期如何处理？</strong> 服务器证书 397 天到期后浏览器会开始报错。可考虑在 <code>startup-check.js</code> 里加一项「证书剩余有效期 &lt; 30 天则告警」，避免到期才发现。</li>
   <li><strong>CA 轮换的引导成本</strong>：一旦 <code>--rotate-ca</code>，所有已装旧 CA 的设备都要重装。是否需要在脚本里加二次确认，或干脆禁用该选项？</li>
-  <li><strong>是否需要把「局域网 IP 是否落在证书 SAN 里」做进启动检查？</strong> 这是「换网络后 PWA 突然失效」的头号原因，自动检测比人工重跑脚本更可靠。</li>
+  <li><strong>（已实现）把「局域网 IP 是否落在证书 SAN 里」做进启动检查。</strong> 这是「换网络后 PWA 突然失效」的头号原因。现由 <code>tls.js</code> 用内置 <code>crypto.X509Certificate</code> 读取证书 SAN（不依赖 openssl），启动时与当前局域网 IP 比对，不匹配直接告警。容器内改为只打印 SAN 并提示到宿主机核对 —— 容器里 <code>os.networkInterfaces()</code> 拿到的是 docker 网络地址（如 <code>172.18.0.2</code>），与宿主机 IP 无关，直接比对必然误报。</li>
+</ol>
+
+<!-- 附录 A -->
+<h2 id="nas">附录 A：部署到 NAS（fnos / Docker）实录</h2>
+
+<p>
+  同一套代码部署到局域网 NAS（fnOS，<code>192.168.0.112</code>）时，情况和开发机不同，额外处理了四件事。
+  这一节记录实际做了什么、为什么这么做，以及顺带挖出来的两个既有故障。
+</p>
+
+<h3>A.1 与开发机的关键差异</h3>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>项</th><th>开发机（macOS）</th><th>NAS（fnOS）</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>运行方式</td><td><code>node backend/server.js</code> 直接跑</td><td>Docker 容器，<code>docker compose</code> 管理</td></tr>
+    <tr><td>代码同步</td><td>本地工作区</td><td><code>git pull origin main</code> → build → up</td></tr>
+    <tr><td>证书位置</td><td>仓库内 <code>certs/</code>，服务直接读</td><td>宿主机 <code>certs/</code> 只读挂载到容器 <code>/app/certs</code></td></tr>
+    <tr><td>openssl</td><td>LibreSSL 3.3.6（不支持 <code>-addext</code>）</td><td>OpenSSL 3.0.20（真 OpenSSL）</td></tr>
+    <tr><td>mDNS 名</td><td>机器名 + <code>.local</code></td><td><code>morefine.local</code></td></tr>
+    <tr><td>80 / 443</td><td>空闲</td><td><strong>被 fnOS 系统 nginx 占用</strong>，不能动</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>A.2 具体改动</h3>
+<ol>
+  <li><code>docker-compose.yml</code>：新增 <code>"8443:8443"</code> 端口映射，并把 <code>./certs</code> 以只读方式挂到容器的 <code>/app/certs</code>。挂载点刻意对齐 <code>tls.js</code> 的默认证书路径，所以无需再配 <code>HTTPS_KEY</code> / <code>HTTPS_CERT</code>。</li>
+  <li>在<strong>宿主机</strong>执行 <code>node backend/scripts/setup-lan-https.mjs</code>。脚本枚举的是运行它的那台机器的网卡，所以 SAN 自动带上 <code>192.168.0.112</code> 与 <code>morefine.local</code>，不用手改。</li>
+  <li><code>.env</code> 增加 <code>HTTPS_ENABLED=true</code> 与 <code>HTTPS_PORT=8443</code>（<code>.env</code> 已在 <code>.gitignore</code> 里，<code>git pull</code> 不会覆盖）。</li>
+  <li><code>scripts/update.sh</code>：检测到 <code>HTTPS_ENABLED=true</code> 时，在 <code>build</code> <strong>之前</strong>用 <code>--quiet</code> 刷新证书。</li>
+</ol>
+
+<div class="callout">
+  <div class="callout-title">顺序不能反</div>
+  <p>
+    证书脚本还会把 CA 副本写到 <code>frontend/xsolve-ca.crt</code>，而 <code>frontend/</code> 是
+    <code>build</code> 时才 <code>COPY</code> 进镜像的。如果先 build 后跑脚本，手机再去下载 CA 就是 404。
+    这正是把刷新步骤放进 <code>update.sh</code>、且排在第 3 步（build 之前）的原因。
+  </p>
+</div>
+
+<h3>A.3 为什么不复用 fnOS 自带的反向代理</h3>
+<p>
+  fnOS 的系统 nginx 已经占着 80 / 443。改它意味着动 NAS 自己的管理入口，风险与收益不成比例；
+  而「容器内自带 HTTPS」是自包含的：不需要 sudo、不碰任何系统服务、换一台机器可以原样复制。
+  代价只是端口号从默认的 443 变成 8443。
+</p>
+
+<h3>A.4 验证结果（实测，非推断）</h3>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>检查项</th><th>结果</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>双端口并存</td><td>8765（HTTP）与 8443（HTTPS）同时监听，容器状态 healthy</td></tr>
+    <tr><td>证书链校验</td><td>下载 <code>/xsolve-ca.crt</code> 后 <code>curl --cacert</code> → HTTP 200 且 <code>ssl_verify=0</code></td></tr>
+    <tr><td>CA 下载点</td><td>200，<code>application/x-x509-ca-cert</code>，1387 B（DER）</td></tr>
+    <tr><td>mDNS 名可达</td><td><code>https://morefine.local:8443/</code> → 200</td></tr>
+    <tr><td><strong>无头 Chrome 判定</strong></td><td><code>isSecureContext=true</code>、<code>hasServiceWorker=true</code>、SW <strong>注册成功</strong>、scope 正确、缓存 <code>xsolve-shell-v1</code> <strong>25 项</strong>（与预缓存清单逐条吻合）</td></tr>
+    <tr><td>明文 HTTP 对照</td><td>全 false，<code>register=SKIPPED（serviceWorker 不存在）</code></td></tr>
+    <tr><td>服务启动自检</td><td>修复后 <strong>5 / 5 全绿</strong>（修复前 1/5 失败）</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>A.5 顺带修掉的两个既有故障</h3>
+<p>部署后读启动日志，发现两个与 PWA 无关、但一直在现网生效的问题：</p>
+<ol>
+  <li>
+    <strong>LLM 调用点协议误判 → 请求被打到 404。</strong>
+    <code>resolveApiFormat()</code> 无参调用时只认 <code>VISION_API_FORMAT</code> / <code>VISION_BASE_URL</code>，
+    再叠加「不是官方 anthropic.com 就降级 openai」的粗判，就会把
+    <code>https://api.deepseek.com/anthropic</code> 这类网关的请求打到
+    <code>{base}/v1/chat/completions</code> 上。实测：该路径 <strong>404</strong>，
+    <code>{base}/v1/messages</code> <strong>200</strong>。
+    受影响的是 turn 评分 / session 评分 / 学生评估 / 记忆固化与压缩 —— 其中记忆那条是<strong>静默</strong>的
+    （consolidate / compress 都有规则兜底，调用失败只会悄悄降级）。已在 6 个调用点统一改为传入实际 baseUrl，
+    并把「这个函数必须传 baseUrl」写进 <code>vision.js</code> 的 JSDoc。
+  </li>
+  <li>
+    <strong>启动日志里的假警报。</strong>
+    配置写在 <code>CLAUDE_API_KEY</code> 时，启动校验只认 <code>ANTHROPIC_*</code>，于是会打印
+    「未找到 API Key / 需要修复后才能正常使用」，而紧随其后的模块自检其实全是 200 —— 很吓人且误导排查方向。
+    已补上 <code>CLAUDE_*</code> 的识别，并让 auth 那行显示 Key 的真实来源变量。
+  </li>
+</ol>
+
+<div class="callout">
+  <div class="callout-title">一条可复用的经验</div>
+  <p>
+    容器内不要用 <code>os.networkInterfaces()</code> 去核对证书 SAN。容器看到的永远是自己所在的
+    docker 网络地址（例如 <code>172.18.0.2</code>），和宿主机对外 IP 没有关系，直接比对必然误报
+    「证书缺少当前 IP」。启动日志已改为：容器内只打印证书 SAN，并提示到宿主机上核对。
+  </p>
+</div>
+
+<h3>A.6 仍需人工做的两步</h3>
+<ol>
+  <li>每台要访问的设备装一次 CA：手机浏览器打开 <code>http://192.168.0.112:8765/xsolve-ca.crt</code> 下载后按平台安装（iOS 别忘了最后一步「证书信任设置」）。</li>
+  <li>建议在路由器给 NAS 绑定静态 IP（DHCP 保留）。换 IP 后只需在宿主机重跑一次证书脚本，Root CA 不变，客户端无需重装。</li>
 </ol>
 
 <footer>
