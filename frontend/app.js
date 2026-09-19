@@ -12,11 +12,31 @@ function setModeUI(mode) {
     .forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
 }
 
+// ========== 软键盘遮挡修复 ==========
+// iOS Safari 弹出软键盘时，`100dvh` 不会变（dvh 只跟随浏览器地址栏，不跟随键盘），
+// 于是底部固定的 Tab 栏和聊天输入框会被键盘盖住 —— 「AI 对话」在手机上最恼人的一点。
+// 用 visualViewport 算出键盘实际占了多高，写进 --kb 变量，布局据此收缩。
+function setupKeyboardInset() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const apply = () => {
+    const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    document.documentElement.style.setProperty("--kb", Math.round(inset) + "px");
+    // 键盘收起后帮助滚回可视区（iOS 有时会留下偏移）
+    if (inset < 40) window.scrollTo(0, 0);
+  };
+  vv.addEventListener("resize", apply);
+  vv.addEventListener("scroll", apply);
+  apply();
+}
+
 // ========== 应用初始化（所有模块加载完成后调用）==========
 function initApp() {
   // Canvas 尺寸初始化
+  // （resize / orientationchange 的监听已在 scratch.js 注册：那边做了防抖，
+  //   并且会在书写过程中跳过，避免把正在写的笔画清掉）
   resizeCanvas();
-  window.addEventListener("resize", resizeCanvas);
+  setupKeyboardInset();
 
   // Markdown 初始化
   initMarked();
@@ -203,16 +223,6 @@ function initApp() {
       switchTab(tab.dataset.tab);
     });
   });
-
-  // 做题区"更多工具"折叠展开
-  var toolsMoreBtn = document.querySelector("#tools-more-btn");
-  var workTools = document.querySelector(".work-tools");
-  if (toolsMoreBtn && workTools) {
-    toolsMoreBtn.addEventListener("click", function () {
-      workTools.classList.toggle("expanded");
-      toolsMoreBtn.textContent = workTools.classList.contains("expanded") ? "⋯ 收起" : "⋯ 更多";
-    });
-  }
 
   // 题目面板的上下题导航按钮（移动端专用）
   var prevBtnMobile = document.querySelector("#prev-problem-mobile");

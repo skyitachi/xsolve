@@ -136,6 +136,18 @@ async function startRecording() {
     : "";
   elManualInputText.value = finalTranscript;
 
+  // navigator.mediaDevices 只在**安全上下文**里存在（https:// 或 localhost）。
+  // 明文 http://<局域网IP> 下它是 undefined，原来会抛出一句
+  // 「Cannot read properties of undefined (reading 'getUserMedia')」，
+  // 看着像 bug，其实只是地址不对 —— 这里直接说清楚。
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showVoiceStatus(
+      "❌ 当前地址下用不了麦克风。语音输入需要 HTTPS —— 请改用 https:// 打开本应用。",
+      "error",
+    );
+    return;
+  }
+
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (e) {

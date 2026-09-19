@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <!-- 允许双指缩放：数学题的小字和图形需要能放大看。
+       手写画布自带 touch-action:none，所以写字时不会被误缩放。
+       interactive-widget=resizes-content：Android Chrome 软键盘弹出时压缩布局而非盖住输入框。 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>小学AI做题助手</title>
   <meta name="description" content="面向小学生的 AI 做题助手：题目展示、手写草稿与 AI 助教三合一。" />
   <meta name="theme-color" content="#4f46e5" />
@@ -65,7 +68,6 @@
     <section class="panel panel-work" data-tab-panel="work">
       <div class="panel-title">
         ✏️ 做题区
-        <button id="tools-more-btn" class="tools-more-btn" title="更多工具">⋯ 更多</button>
       </div>
       <div class="work-answer">
         <label>最终答案：</label>
@@ -73,17 +75,29 @@
         <button id="check-answer" class="submit-answer-btn">提交答案</button>
       </div>
       <div class="work-tools">
-        <button data-tool="pen" class="tool active">✒️ 画笔</button>
-        <button data-tool="eraser" class="tool">🧽 橡皮</button>
-        <button data-tool="clear" class="tool">🗑️ 清空</button>
-        <button class="tool" id="recognize-scratch" title="识别草稿板上的手写内容，让AI看到你的演算过程">👁️ 识别草稿</button>
-        <label class="tool upload-btn" title="上传你写在纸上的做题过程或答案，让 AI 检查">
-          📷 上传我的解答
-          <input id="upload-input" type="file" accept="image/*" capture="environment" data-mode="answer" hidden />
+        <!-- 「拍题」排在最前：这是移动端最常用的动作。
+             注意「拍照」与「相册」必须是两个 input —— 带 capture 的在手机上会
+             直接开相机，不给你选已有照片的机会。 -->
+        <label class="tool tool-primary" title="用相机拍下这道题，拍完可以裁剪再交给 AI 识别">
+          📷 拍题
+          <input id="upload-problem-camera" type="file" accept="image/*" capture="environment" hidden />
         </label>
-        <label class="tool upload-btn" title="上传一张题目图片，让 AI 识别并替换当前题">
-          📖 上传题目
-          <input id="upload-input-problem" type="file" accept="image/*" capture="environment" data-mode="problem" hidden />
+        <label class="tool" title="从相册选一张题目图片（老师发的截图、之前拍好的照片）">
+          🖼️ 相册选题
+          <input id="upload-problem-album" type="file" accept="image/*" hidden />
+        </label>
+        <button data-tool="pen" class="tool active" title="画笔">✒️ 画笔</button>
+        <button data-tool="eraser" class="tool" title="橡皮">🧽 橡皮</button>
+        <button data-tool="undo" class="tool" title="撤销上一笔">↩️ 撤销</button>
+        <button data-tool="clear" class="tool" title="清空草稿">🗑️ 清空</button>
+        <button class="tool" id="recognize-scratch" title="识别草稿板上的手写内容，让AI看到你的演算过程">👁️ 识别草稿</button>
+        <label class="tool" title="拍下你写在纸上的做题过程或答案，让 AI 检查">
+          📷 拍解答
+          <input id="upload-answer-camera" type="file" accept="image/*" capture="environment" hidden />
+        </label>
+        <label class="tool" title="从相册选一张纸面解答的图片">
+          🖼️ 相册选解答
+          <input id="upload-answer-album" type="file" accept="image/*" hidden />
         </label>
         <button class="tool" id="manual-input-btn" title="手动输入题目文本，让 AI 处理">✏️ 输入题目</button>
         <span class="hint">在下方草稿区写过程；或上传/输入题目</span>
@@ -234,6 +248,7 @@
   <script src="js/problem.js"></script>
   <script src="js/chat.js"></script>
   <script src="js/dialogs.js"></script>
+  <script src="js/crop.js"></script>
   <script src="js/upload.js"></script>
   <script src="js/voice.js"></script>
   <script src="js/panel-resizer.js"></script>

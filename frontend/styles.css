@@ -611,7 +611,6 @@ dialog h3 { margin: 0 0 8px 0; }
 
 /* ===== 桌面端隐藏移动端元素 ===== */
 .mobile-tabbar,
-.tools-more-btn,
 .title-nav-btn,
 .panel-title-actions { display: none; }
 
@@ -678,39 +677,39 @@ dialog h3 { margin: 0 0 8px 0; }
   .work-answer label { font-size: 12px; }
   .submit-answer-btn { padding: 5px 10px; font-size: 12px; }
 
-  /* 工具栏可折叠 */
+  /* 工具栏：单行横向滚动。
+     原来的写法是 max-height:36px + flex-wrap:nowrap + overflow:hidden，
+     在 390px 视口下实测把「上传我的解答」裁到右边界 400px（半截露在屏幕外）、
+     「上传题目」488px、「输入题目」576px 全在屏幕外，必须点「⋯ 更多」才够得到 ——
+     而拍题恰恰是移动端最核心的动作，藏在二级菜单里等于没有。
+     改成可横滑后：一屏内先看到「拍题 / 相册 / 画笔」，其余手指一划即达，
+     纵向仍然只占一行，把高度留给手写画布。 */
   .work-tools {
     padding: 6px 10px;
-    gap: 4px;
-    overflow: hidden;
-    max-height: 36px; /* 只显示第一行 */
-    transition: max-height .25s ease;
+    gap: 6px;
     flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    /* 右侧淡出，提示「右边还有，可以滑」 */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent);
   }
-  .work-tools.expanded {
-    max-height: 200px;
-    flex-wrap: wrap;
-  }
+  .work-tools::-webkit-scrollbar { display: none; }
   .work-tools .tool {
     font-size: 12px;
-    padding: 3px 8px;
+    padding: 4px 10px;
     white-space: nowrap;
+    flex: 0 0 auto;
+  }
+  .work-tools .tool-primary {
+    background: #4f46e5;
+    border-color: #4f46e5;
+    color: #fff;
+    font-weight: 600;
   }
   .work-tools .hint { display: none; }
-  .tools-more-btn {
-    display: inline-flex;
-    align-items: center;
-    background: #f3f4f6;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    padding: 3px 8px;
-    font-size: 12px;
-    cursor: pointer;
-    color: #6b7280;
-    margin-left: auto;
-    white-space: nowrap;
-  }
-  .tools-more-btn:active { background: #e5e7eb; }
 
   /* 草稿画板占满剩余空间 */
   #scratch { flex: 1; min-height: 200px; }
@@ -812,7 +811,6 @@ dialog h3 { margin: 0 0 8px 0; }
 /* ===== 大屏隐藏移动端元素（确保不影响桌面） ===== */
 @media (min-width: 769px) {
   .mobile-tabbar { display: none !important; }
-  .tools-more-btn { display: none !important; }
   .title-nav-btn,
   .panel-title-actions { display: none !important; }
   /* 恢复顶栏按钮文字 */
@@ -1012,11 +1010,13 @@ button, .tool, .mobile-tab, .chat-action-btn, .mode-btn, label.tool {
     padding-left: max(10px, env(safe-area-inset-left, 0px));
     padding-right: max(10px, env(safe-area-inset-right, 0px));
   }
-  /* 动态视口高度：避免移动端地址栏收起/展开导致布局跳动 */
+  /* 动态视口高度：避免移动端地址栏收起/展开导致布局跳动。
+     --kb 由 app.js 的 setupKeyboardInset() 写入（iOS 上 dvh 不跟随软键盘，
+     不减掉它的话键盘会盖住聊天输入框）。 */
   .layout {
     height: calc(
       100dvh - (46px + env(safe-area-inset-top, 0px)) -
-        (56px + env(safe-area-inset-bottom, 0px))
+        (56px + env(safe-area-inset-bottom, 0px)) - var(--kb, 0px)
     );
   }
   /* 底部 Tab：安全区适配（box-sizing:border-box，高度已含内边距） */
