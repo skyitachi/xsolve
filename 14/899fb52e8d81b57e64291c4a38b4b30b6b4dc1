@@ -1,0 +1,14 @@
+docs/lan-pwa/lan-pwa.html
+  h_5a1c62fd74efa2 292,624-704
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "14899fb52e8d81b57e64291c4a38b4b30b6b4dc1",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
