@@ -238,10 +238,16 @@ const missing = needV4.filter((ip) => !sansText.includes(ip));
 if (missing.length) warn(`SAN 里似乎缺少：${missing.join(', ')}`);
 else ok(`SAN 覆盖了当前全部局域网 IPv4：${needV4.join(', ')}`);
 
-// ---- 4. 导出给手机下载的 CA（DER 格式，iOS/Android 都吃）----
+// ---- 4. 导出给手机下载的 CA ----
+// 同一张证书导出两种编码，因为各平台「安装 CA」的入口对格式的宽容度不一样：
+//   · DER（.crt）：iOS / iPadOS、macOS、Windows 的原生格式，也是浏览器双击安装最顺的
+//   · PEM（.pem）：部分 Android（尤其国产 ROM）在「安装证书 → CA 证书」时只认 PEM，
+//                  给 DER 会直接提示「无法安装」；有 PEM 兜底可以少跑一趟
 const caCopy = getCaDownloadCopy();
+const caPemCopy = caCopy.replace(/\.crt$/, '.pem');
 openssl(['x509', '-in', CA_CERT, '-outform', 'der', '-out', caCopy], '导出 DER');
-ok(`已导出手机用 CA：${caCopy}`);
+openssl(['x509', '-in', CA_CERT, '-outform', 'pem', '-out', caPemCopy], '导出 PEM');
+ok(`已导出手机用 CA：${path.basename(caCopy)}（DER）、${path.basename(caPemCopy)}（PEM）`);
 
 // ---- 5. 指引 ----
 const port = getTlsConfig().port;
@@ -250,6 +256,7 @@ const mdns = getMdnsHostname();
 // CA 必须走**明文 HTTP** 下载（下载时客户端还没信任 CA，走 HTTPS 会先撞证书错误）
 const httpPort = process.env.PORT || 8765;
 const caUrl = `http://${ip}:${httpPort}/xsolve-ca.crt`;
+const caPemUrl = `http://${ip}:${httpPort}/xsolve-ca.pem`;
 
 if (QUIET) {
   log(`[https] 证书已刷新：SAN 覆盖 ${sans.ips.join(', ')}（HTTPS 端口 ${port}）`);
@@ -277,12 +284,13 @@ log();
 log('② 让「访问它的设备」信任这个 CA —— 必须在每台手机上做一次');
 log('   ⚠️  这是必需项，不是优化项：点证书警告页的「继续访问」，Chrome 会把这个地址');
 log('      标记为不安全，并**继续禁用 Service Worker** —— 表现就是「上了 HTTPS 也还是没效果」。');
-log(`   · iOS / iPadOS：手机浏览器打开 ${caUrl} 下载`);
+log(`   · iOS / iPadOS：手机浏览器打开 ${caUrl} 下载（DER 格式）`);
 log('       设置 → 通用 → VPN与设备管理 → 安装描述文件');
 log('       → 再到 设置 → 通用 → 关于本机 → 证书信任设置 → 打开该 CA 的完全信任');
 log('       （最后这一步最容易漏，漏了就等于没装）');
 log('   · Android：下载后 → 设置 → 安全 → 加密与凭据 → 安装证书 → 选「CA 证书」');
 log('       注意别选成「VPN 和应用用户证书」；部分厂商在 设置 → 安全 → 更多安全设置');
+log(`       若上面那个 .crt 提示「无法安装」，换 PEM 版再试：${caPemUrl}`);
 log('   · macOS 客户端：免 sudo，加到登录钥匙串即可');
 log(`       security add-trusted-cert -d -r trustRoot -k ~/Library/Keychains/login.keychain-db "${CA_CERT}"`);
 log('   · Windows 客户端：');

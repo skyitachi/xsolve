@@ -213,8 +213,12 @@ if (tlsState.tls) {
       );
     }
     if (fs.existsSync(getCaDownloadCopy())) {
+      // 两种编码都提供：iOS/macOS/Windows 用 DER(.crt) 最顺；部分 Android ROM 只认 PEM
       console.log(
-        `[https]   也可让手机直接下载：http://<本机IP>:${PORT}/xsolve-ca.crt`,
+        `[https]   也可让手机直接下载：http://<本机IP>:${PORT}/xsolve-ca.crt（DER）`,
+      );
+      console.log(
+        `[https]                                  http://<本机IP>:${PORT}/xsolve-ca.pem（PEM，Android 装不上 .crt 时用）`,
       );
     }
     // 换网络 / DHCP 重发 IP 后，旧证书对新 IP 就是「不受信任」；用户点「继续访问」会连带
