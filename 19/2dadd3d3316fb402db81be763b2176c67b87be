@@ -1,0 +1,14 @@
+backend/scripts/setup-lan-https.mjs
+  h_5a1c62fd74efa2 284-286,298-301
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "192dadd3d3316fb402db81be763b2176c67b87be",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
