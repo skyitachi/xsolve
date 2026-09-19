@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { getAllProblems, getProblem, insertProblem, updateProblemFigure, updateChatSession, recordAttempt, insertMemoryFact, getMemoryFacts, getTopicMastery, getAttemptsByTopic, getRecentAttempts, getStudentProfile } from './db.js';
 import { runVisionHttp } from './vision.js';
 import { SCRATCH_VISION_PROMPT } from './config.js';
+import { formatScratchForPrompt, parseScratchResult } from './scratch.js';
 import { compareAnswer, safeCalc, mcpOk, mcpErr } from './utils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -385,7 +386,7 @@ export function buildTutorMcp(session) {
       }),
 
       tool('recognize_scratch',
-        '识别学生草稿板上的手写内容（笔迹）。用视觉模型识别草稿图片，返回数学公式(LaTeX)、中文文字、最终答案和置信度。当你需要检查学生草稿上的计算过程时调用。',
+        '手动重新识别学生草稿板上的手写内容（笔迹）。**通常不需要调用**：系统已在每轮自动识别草稿并以「[系统注入·学生草稿内容]」注入给你。仅当你看到注入区标记「识别失败」，或学生刚改了草稿、你要立刻重看时才调用。返回数学公式(LaTeX)、中文文字、最终答案和置信度。',
         {},
         async () => {
           if (!session.scratchImage) return mcpErr('草稿板是空的：请让学生先在草稿区写字，或点击"识别草稿"按钮');
@@ -393,24 +394,20 @@ export function buildTutorMcp(session) {
           try {
             session.emit('ui_event', { type: 'scratch_recognition_started', model: visionModelDisplay() });
             const rawText = await runVisionHttp(session.scratchImage, session.emit.bind(session), SCRATCH_VISION_PROMPT);
-            // 尝试解析JSON
-            let parsed;
-            try {
-              const cleaned = rawText.replace(/```(?:json)?\s*/g, '').replace(/```\s*$/g, '').trim();
-              parsed = JSON.parse(cleaned);
-            } catch {
-              parsed = {
-                expressions: [],
-                text: rawText,
-                final_answer: null,
-                confidence: 'low',
-                summary: '识别结果（JSON解析失败，返回原始文本）',
-                raw: rawText
-              };
+            const parsed = parseScratchResult(rawText);
+            const { _fallback, ...clean } = parsed;
+            // 与 turnController 的自动识别共用同一份缓存：
+            // 手动识别过后，后续轮次不必再重复调视觉模型（直到草稿图变化）
+            const formatted = formatScratchForPrompt(parsed);
+            if (formatted) {
+              session.scratchOcr = formatted;
+              session.scratchOcrRevision = session.scratchRevision || null;
+              session.scratchOcrAt = Date.now();
             }
             session.emit('ui_event', { type: 'scratch_recognition_done', elapsed_ms: Date.now() - t0 });
             return mcpOk({
-              ...parsed,
+              ...clean,
+              ...(_fallback ? { raw: rawText } : {}),
               elapsed_ms: Date.now() - t0,
               model: visionModelDisplay()
             });

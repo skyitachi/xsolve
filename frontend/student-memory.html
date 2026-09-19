@@ -39,8 +39,20 @@ h2 { font-size: 1.15rem; font-weight: 600; margin: 1.75rem 0 0.75rem; }
 .summary-card .value small { font-size: 0.95rem; color: #6b6b80; font-weight: 500; }
 .summary-card .sub { font-size: 12px; color: #6b6b80; margin-top: 0.25rem; }
 
-/* Profile narrative */
-.profile-card {
+/* 动笔（草稿）习惯 */
+.scratch-card { background: #fff; border-radius: 12px; padding: 1.25rem 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.scratch-kpis { display: flex; gap: 2rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.scratch-kpi .k { font-size: 12px; color: #6b6b80; }
+.scratch-kpi .v { font-size: 1.4rem; font-weight: 700; color: #1a1a2e; line-height: 1.2; }
+.scratch-kpi .v small { font-size: 0.85rem; color: #6b6b80; font-weight: 500; }
+.scratch-bar-row { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.55rem; }
+.scratch-bar-label { width: 104px; flex: none; font-size: 12px; color: #6b6b80; }
+.scratch-bar-track { flex: 1; height: 10px; background: #f0f0f3; border-radius: 999px; overflow: hidden; }
+.scratch-bar-fill { height: 100%; border-radius: 999px; }
+.scratch-bar-val { width: 68px; flex: none; text-align: right; font-size: 12px; font-weight: 600; }
+.scratch-note { margin-top: 0.9rem; font-size: 12px; color: #6b6b80; border-top: 1px solid #f0f0f3; padding-top: 0.75rem; }
+
+/* Profile narrative */.profile-card {
   background: #fff; border-radius: 12px; padding: 1.25rem 1.5rem;
   box-shadow: 0 1px 3px rgba(0,0,0,0.06); border-left: 4px solid #4b3fe3;
 }
@@ -168,6 +180,9 @@ td.ans { font-family: ui-monospace, monospace; font-size: 12px; max-width: 220px
   <h2>错因分布</h2>
   <div id="errorDist" class="error-dist"><div class="loading">加载中...</div></div>
 
+  <h2>动笔习惯 <span id="scratchInfo" style="font-size:12px;color:#9a9aab;font-weight:400;"></span></h2>
+  <div id="scratchStats" class="scratch-card"><div class="loading">加载中...</div></div>
+
   <h2>答题流水 <span id="attemptCountInfo" style="font-size:12px;color:#9a9aab;font-weight:400;"></span></h2>
   <div class="table-wrap attempts">
     <table>
@@ -244,6 +259,7 @@ async function loadAll() {
     renderMastery(data.mastery);
     renderGrowth(data.daily);
     renderErrorDist(data.error_distribution);
+    renderScratch(data.scratch);
     renderAttempts(data.attempts);
     renderFacts(data.facts);
   } catch (e) {
@@ -382,8 +398,73 @@ function renderErrorDist(dist) {
   }).join('');
 }
 
-function renderAttempts(attempts) {
-  document.getElementById('attemptCountInfo').textContent = attempts && attempts.length ? `（最近 ${attempts.length} 条）` : '';
+// 动笔（草稿）习惯：动笔率 + 「动笔作答 / 不动笔作答」的正确率对比。
+// 数据来自 chat_turns.scratch_strokes / scratch_ocr 与 student_attempts.had_scratch。
+function renderScratch(s) {
+  const host = document.getElementById('scratchStats');
+  const info = document.getElementById('scratchInfo');
+  if (!s) {
+    info.textContent = '';
+    host.innerHTML = '<div class="empty">暂无数据</div>';
+    return;
+  }
+  const turnsTotal = s.turns_total || 0;
+  const turnsWith = s.turns_with_scratch || 0;
+  const ratio = Math.round((s.scratch_turn_ratio || 0) * 100);
+  const withN = s.attempts_with_scratch || 0;
+  const withoutN = s.attempts_without_scratch || 0;
+  const withAcc = s.accuracy_with_scratch == null ? null : Math.round(s.accuracy_with_scratch * 100);
+  const withoutAcc = s.accuracy_without_scratch == null ? null : Math.round(s.accuracy_without_scratch * 100);
+
+  info.textContent = turnsTotal ? `共 ${turnsTotal} 轮，其中 ${turnsWith} 轮在草稿上演算` : '';
+
+  if (turnsTotal === 0 && withN + withoutN === 0) {
+    host.innerHTML = '<div class="empty">还没有草稿记录。学生在草稿区写点东西后，系统会在下一轮自动识别并计入这里。</div>';
+    return;
+  }
+
+  const bar = (label, n, acc, color) => `
+    <div class="scratch-bar-row">
+      <div class="scratch-bar-label">${label}</div>
+      <div class="scratch-bar-track"><div class="scratch-bar-fill" style="width:${acc == null ? 0 : acc}%;background:${color};"></div></div>
+      <div class="scratch-bar-val">${acc == null ? '—' : acc + '%'}<span style="color:#9a9aab;font-weight:400;"> · ${n}次</span></div>
+    </div>`;
+
+  let note = '';
+  if (withAcc != null && withoutAcc != null && withN + withoutN > 0) {
+    if (withAcc > withoutAcc) {
+      note = `动笔时正确率高出 ${withAcc - withoutAcc} 个百分点 —— 先写演算再作答对这位学生有效。`;
+    } else if (withAcc < withoutAcc) {
+      note = `动笔时正确率反而更低 ${withoutAcc - withAcc} 个百分点 —— 值得留意是笔迹识别误差，还是演算过程本身出了问题。`;
+    } else {
+      note = '动笔与不动笔的正确率持平，可以鼓励多写过程，便于定位卡在哪一步。';
+    }
+  } else if (withN === 0 && turnsWith > 0) {
+    note = '有动笔记录但暂无可对比的作答样本，继续练习后这里会给出对比。';
+  }
+
+  host.innerHTML = `
+    <div class="scratch-kpis">
+      <div class="scratch-kpi">
+        <div class="k">动笔轮次</div>
+        <div class="v">${turnsWith}<small> / ${turnsTotal} 轮</small></div>
+      </div>
+      <div class="scratch-kpi">
+        <div class="k">动笔率</div>
+        <div class="v">${ratio}<small>%</small></div>
+      </div>
+      <div class="scratch-kpi">
+        <div class="k">草稿识别成功</div>
+        <div class="v">${s.turns_recognized || 0}<small> 轮</small></div>
+      </div>
+    </div>
+    ${bar('动笔作答', withN, withAcc, '#0a9e6a')}
+    ${bar('不动笔作答', withoutN, withoutAcc, '#efaa17')}
+    ${note ? `<div class="scratch-note">${esc(note)}</div>` : ''}
+  `;
+}
+
+function renderAttempts(attempts) {  document.getElementById('attemptCountInfo').textContent = attempts && attempts.length ? `（最近 ${attempts.length} 条）` : '';
   const body = document.getElementById('attemptBody');
   const cards = document.getElementById('attemptCards');
   if (!attempts || !attempts.length) {

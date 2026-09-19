@@ -18,8 +18,8 @@ const STUDENT_EVAL_PROMPT = `你是一个小学数学教育评估专家。请根
 评估维度（1-5 分）：
 1. accuracy（1-5）：学生答题正确率。5=全部正确，3=部分正确，1=全部错误。如果学生未提交答案，给3分。
 2. independence（1-5）：答题独立性。5=完全独立完成，3=需要少量提示，1=高度依赖AI提示。评估学生主动请求提示的频率。
-3. thinking_quality（1-5）：思维过程质量。5=思路清晰、步骤完整，3=有基本思路但不完整，1=直接写答案无过程或思路混乱。
-4. engagement（1-5）：学习参与度。5=高度投入、主动提问"为什么"，3=正常参与，1=被动应付或只说"不会"。
+3. thinking_quality（1-5）：思维过程质量。**以「学生草稿」里的演算步骤为主要依据**（草稿是学生手写演算的自动识别结果，可能有笔迹误读，判分时请宽容）：5=草稿步骤清晰完整（竖式、递等式、线段图等能看出解题思路），3=有基本思路但不完整，1=草稿空白或只有答案没有过程、或思路混乱。
+4. engagement（1-5）：学习参与度。5=高度投入、主动提问"为什么"、且持续在草稿上演算，3=正常参与，1=被动应付或只说"不会"。全程未动笔是参与度偏低的表现。
 5. error_type（分类值）：如果学生答错过，判断主要错误类型。取值：calculation（计算错误）、concept（概念错误）、comprehension（审题错误）、method（方法错误）、none（未答错）。
 
 请严格以 JSON 格式输出：
@@ -33,19 +33,26 @@ const STUDENT_EVAL_PROMPT = `你是一个小学数学教育评估专家。请根
 const HINT_PATTERNS = /不会|不懂|没思路|不知道怎么做|提示|帮帮我|帮|教我|答案是什么|怎么做|看不懂|想不出来|给点(思路|提示|帮助)/i;
 const ACTIVE_QUESTION_PATTERNS = /为什么|怎么样|是不是|对吗|可以这样吗|为什么不对|理解错了吗|哪里错了|什么原理/i;
 
-function calculateRuleMetrics(turns, session) {
+export function calculateRuleMetrics(turns, session) {
   const role = session.role || 'student';
   let hintRequests = 0;
   let activeQuestions = 0;
   let totalMessages = 0;
   let totalDuration = 0;
   let errorTurns = 0;
+  // 草稿（动手演算）信号：设计文档把「是否使用草稿纸」列为参与度观察项，
+  // 此前代码从未读取过。现在每轮 turn 都落了 scratch_strokes / scratch_ocr。
+  let scratchTurns = 0;
+  let scratchRecognizedTurns = 0;
 
   for (const t of turns) {
     const msg = (t.user_message || '').toLowerCase();
     totalMessages++;
     totalDuration += t.duration_ms || 0;
     if (t.error) errorTurns++;
+
+    if ((t.scratch_strokes || 0) > 0) scratchTurns++;
+    if (t.scratch_ocr) scratchRecognizedTurns++;
 
     // 统计提示请求
     if (HINT_PATTERNS.test(msg)) hintRequests++;
@@ -70,6 +77,12 @@ function calculateRuleMetrics(turns, session) {
   else if (activeRatio >= 0.15) engagementRule = 4;
   else if (activeRatio === 0 && totalMessages > 3) engagementRule = 2;
 
+  // 参与度叠加草稿信号（对应设计文档「是否使用草稿纸功能 → 反映动手意愿」）：
+  // 动笔轮次占比高 → 至少 4 分；全程一次没动笔且聊了 3 轮以上 → 扣 1 分。
+  const scratchRatio = totalMessages > 0 ? scratchTurns / totalMessages : 0;
+  if (scratchRatio >= 0.5) engagementRule = Math.min(5, Math.max(engagementRule, 4));
+  else if (scratchRatio === 0 && totalMessages > 3) engagementRule = Math.max(1, engagementRule - 1);
+
   return {
     hint_requests: hintRequests,
     active_questions: activeQuestions,
@@ -78,17 +91,27 @@ function calculateRuleMetrics(turns, session) {
     error_turns: errorTurns,
     independence_rule: independenceRule,
     engagement_rule: engagementRule,
+    scratch_turns: scratchTurns,
+    scratch_recognized_turns: scratchRecognizedTurns,
+    scratch_ratio: Math.round(scratchRatio * 100) / 100,
   };
 }
 
 // ========== LLM 评估 ==========
 
-function buildConversationSummary(turns, session, problem) {
+export function buildConversationSummary(turns, session, problem) {
   const parts = [];
   for (let i = 0; i < turns.length; i++) {
     const t = turns[i];
     const lines = [`[Turn ${i + 1}]`];
     if (t.user_message) lines.push(`学生: ${t.user_message.slice(0, 400)}`);
+    // 草稿：thinking_quality（思维过程质量）此前只能从聊天文本推断，
+    // 学生把演算写在草稿板上就等于对评估不可见。这里把草稿识别结果带上。
+    if (t.scratch_ocr) {
+      lines.push(`学生草稿: ${String(t.scratch_ocr).slice(0, 200)}`);
+    } else if ((t.scratch_strokes || 0) > 0) {
+      lines.push(`学生草稿: （有 ${t.scratch_strokes} 笔手写，未识别）`);
+    }
     if (t.ai_message) lines.push(`AI: ${t.ai_message.slice(0, 300)}`);
     const tools = JSON.parse(t.tool_calls_json || '[]');
     if (tools.length > 0) {
@@ -211,6 +234,7 @@ Turn 总数：${turns.length}
 总耗时：${ruleMetrics.total_duration_s} 秒
 提示请求次数：${ruleMetrics.hint_requests}
 主动提问次数：${ruleMetrics.active_questions}
+动笔（草稿）轮次：${ruleMetrics.scratch_turns}/${ruleMetrics.total_messages}（识别成功 ${ruleMetrics.scratch_recognized_turns} 轮）
 
 ${problemInfo ? `【题目信息】\n${problemInfo}\n` : ''}
 
@@ -237,7 +261,7 @@ ${conversationSummary}
   const thinkingQuality = llmResult.thinking_quality?.score ?? 3;
   const thinkingComment = llmResult.thinking_quality?.comment || '未评估';
   const engagement = llmResult.engagement?.score ?? ruleMetrics.engagement_rule;
-  const engagementComment = llmResult.engagement?.comment || `主动提问 ${ruleMetrics.active_questions} 次`;
+  const engagementComment = llmResult.engagement?.comment || `主动提问 ${ruleMetrics.active_questions} 次，动笔 ${ruleMetrics.scratch_turns} 轮`;
   const errorType = llmResult.error_type?.comment || 'none';
   const errorTypeComment = errorType;
 
@@ -254,6 +278,10 @@ ${conversationSummary}
     { dimension: 'hint_requests', value: ruleMetrics.hint_requests, comment: '提示请求次数' },
     { dimension: 'active_questions', value: ruleMetrics.active_questions, comment: '主动提问次数' },
     { dimension: 'total_duration_s', value: ruleMetrics.total_duration_s, comment: 'session 总耗时（秒）' },
+    // 草稿信号：动笔轮次数与占比（0~1）。单独作为数据维度存下来，
+    // 与 1-5 分的评分维度区分开，避免前端把它当成分数渲染。
+    { dimension: 'scratch_turns', value: ruleMetrics.scratch_turns, comment: '动笔（草稿）轮次数' },
+    { dimension: 'scratch_ratio', value: ruleMetrics.scratch_ratio, comment: '动笔轮次占比（0~1）' },
   ];
 
   // 如果有题目信息，记录按 topic 的正确率
@@ -290,6 +318,9 @@ ${conversationSummary}
       active_questions: ruleMetrics.active_questions,
       total_duration_s: ruleMetrics.total_duration_s,
       total_messages: ruleMetrics.total_messages,
+      scratch_turns: ruleMetrics.scratch_turns,
+      scratch_recognized_turns: ruleMetrics.scratch_recognized_turns,
+      scratch_ratio: ruleMetrics.scratch_ratio,
     },
     raw: rawText,
     turn_count: turns.length,

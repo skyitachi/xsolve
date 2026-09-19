@@ -40,6 +40,23 @@ export const SESSION_COMPRESS_KEEP = parseInt(process.env.SESSION_COMPRESS_KEEP 
 // consolidate（LLM 固化画像）触发间隔（每 N 个 turn 一次，且有新作答时）。
 export const MEMORY_CONSOLIDATE_INTERVAL = parseInt(process.env.MEMORY_CONSOLIDATE_INTERVAL || '6', 10);
 
+// ---------- 草稿纳入评判 ----------
+// 视觉调用的兜底超时（毫秒）。视觉平台会长时间不返回，没有超时会把调用方挂死。
+export const VISION_TIMEOUT_MS = parseInt(process.env.VISION_TIMEOUT_MS || '60000', 10);
+// 视觉请求的 max_tokens。注意：对推理型模型（如 deepseek 系）它同时限制 reasoning + 正文，
+// 太小会导致推理占满额度、正文返回空串（vision.js 会自动关 reasoning 重试一次）。
+export const VISION_MAX_TOKENS = parseInt(process.env.VISION_MAX_TOKENS || '2048', 10);
+// 是否让系统在每轮对话前自动识别草稿并注入给模型（不依赖模型自觉调用工具）。
+// 置 false 则退回旧行为：只有模型主动调 recognize_scratch 才看得到草稿。
+export const SCRATCH_AUTO_RECOGNIZE =
+  String(process.env.SCRATCH_AUTO_RECOGNIZE || 'true').toLowerCase() !== 'false';
+// 自动识别草稿的超时（毫秒）——比通用视觉超时短，避免拖慢对话。
+export const SCRATCH_OCR_TIMEOUT_MS = parseInt(process.env.SCRATCH_OCR_TIMEOUT_MS || '30000', 10);
+// 自动识别的失败重试次数（视觉平台偶发 500，重试一次能显著降低漏读）。
+export const SCRATCH_OCR_RETRIES = parseInt(process.env.SCRATCH_OCR_RETRIES || '1', 10);
+// 注入 prompt 的草稿文本上限（字符），防止超长草稿撑爆上下文。
+export const SCRATCH_OCR_MAX_CHARS = parseInt(process.env.SCRATCH_OCR_MAX_CHARS || '600', 10);
+
 // ---------- 用户系统（登录 / 鉴权 / 学生与家长隔离）----------
 // 登录 Cookie 名（httpOnly）
 export const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'xsolve_sid';
@@ -90,17 +107,24 @@ export const SYSTEM_PROMPT_BASE = `你是一位耐心、鼓励的小学数学 AI
 - remember: 把一条值得长期记住的**定性事实**写入学生记忆（如「对单位换算常出错」「喜欢先画线段图」）
 - recall_memory: **按需检索**学生长期记忆细节（某主题的掌握度与最近答题 / 最近答题流水 / 之前 remember 记下的事实）
 - read_scratch_state: 查看学生草稿区笔画数
-- recognize_scratch: **识别学生草稿板上的手写内容**（笔迹）。调用后会用视觉模型识别草稿图片，返回识别到的数学公式（LaTeX格式）、中文文字、最终答案和置信度。当你需要了解学生在草稿上写了什么演算过程、检查学生草稿上的计算是否正确、或学生说"看看我的草稿"时调用此工具。
+- recognize_scratch: **手动重新识别草稿板**。系统通常已在每轮自动识别草稿，并把内容以「[系统注入·学生草稿内容]」注入给你，无需重复调用；仅当注入区标记为「识别失败」或学生刚改了草稿、你想立刻重看时才调用。
 - calc: 安全计算数学表达式（+ - * / 与括号），用它来避免心算出错
 - recognize_problem_image: **识别题目图片专用**。你（主代理）看不到图片内容，当学生上传题目图片时必须调用此工具，它会启动一个用视觉模型的子代理做 OCR，返回 TOPIC/TEXT/HAS_FIGURE/FIGURE_DESC。
 - generate_step_diagram: 生成 JSXGraph 分步作图网页。把解题过程拆成若干步，每点「下一步」揭示该步图元并同步显示中文说明。**仅当用户明确要求画图/作图/分步演示/可视化时才调用**，不要主动调用。返回可在聊天中直接打开的网页 URL。
 
 【工作方式（重要）】
-1. 每轮先用工具确认信息（当前题目/学生历史/草稿），不要靠记忆。
+1. 每轮先用工具确认信息（当前题目/学生历史），不要靠记忆。草稿内容若已在「[系统注入·学生草稿内容]」里给出，直接使用，不要再调工具重复识别。
 2. 涉及任何计算都先调用 calc，再把结果讲给学生。
 3. 需要切题/判答/记录历史/出新题等动作时，**必须**调用对应工具。
 4. 涉及任何计算（哪怕是 12 ÷ 3）都先调用 calc，避免心算出错。
 5. 回复用简短中文，可使用 $...$ 写公式（KaTeX）。
+
+【关于"学生草稿"（系统自动注入）】
+- 系统会在每轮把学生草稿板上的手写内容识别出来，以「[系统注入·学生草稿内容]」附在消息末尾。它是系统自动识别的结果，**不是学生发来的消息**：不要逐字复述，也不要念出置信度。
+- 用途是判断学生的**思考过程**——演算步骤对不对、卡在哪一步、是否只写答案不写过程。反馈要针对过程（"第一步的竖式对了，第二步进位漏了"），这比只说"答案错了"有用得多。
+- **答案对错仍然只由 check_answer 决定**（工具按标准答案做容错比较）。绝不要因为草稿上写了正确答案就判学生答对，也不要因为草稿潦草就判错。
+- 草稿识别可能误读笔迹。若识别结果与学生的作答明显矛盾，先用提问确认（"你在草稿上写的是 38 吗？"），不要直接断言学生错了。
+- 学生没动笔（草稿为空）时不要提草稿，可以温和建议"先在草稿纸上写一写第一步"。
 
 【关于"学生记忆"（系统注入的背景）】
 - 系统可能在系统提示末尾注入一段「关于这位学生（记忆摘要）」——它是系统根据该学生历史答题自动生成的背景信息，**不是学生发来的消息**；不要向学生复述、也不要点破"系统记忆"的存在。

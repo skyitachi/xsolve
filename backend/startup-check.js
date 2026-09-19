@@ -17,6 +17,9 @@ import { getChatApiConfig, getJudgeApiConfig, isOfficialAnthropic } from './api-
 import { getDb, getActivePromptVersion } from './db.js';
 
 const TIMEOUT_MS = 20000;
+// 视觉平台的排队/冷启动可能远超 20s（实测 SiliconFlow 上的 VL 模型有单次 42s 的记录），
+// 用主对话的超时去探测视觉会稳定误报，所以给视觉项单独放宽。
+const VISION_TIMEOUT_MS = 45000;
 function getJudgeModel() {
   return process.env.JUDGE_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
 }
@@ -43,13 +46,13 @@ function resolveVisionModelSafe(format, baseUrl) {
  * 发一个最小 chat 请求探测接入
  * @returns {Promise<{label:string, ok:boolean, detail:string, elapsedMs:number}>}
  */
-async function pingChat({ label, baseUrl, apiKey, model, format }) {
+async function pingChat({ label, baseUrl, apiKey, model, format, timeoutMs = TIMEOUT_MS }) {
   if (!apiKey) return { label, ok: false, detail: '未配置 API Key', elapsedMs: 0 };
   if (!model) return { label, ok: false, detail: '未配置模型名（跳过探测）', elapsedMs: 0 };
 
   const t0 = Date.now();
   const ac = new AbortController();
-  const to = setTimeout(() => ac.abort(), TIMEOUT_MS);
+  const to = setTimeout(() => ac.abort(), timeoutMs);
 
   let url, headers, payload;
   if (format === 'anthropic') {
@@ -157,14 +160,38 @@ export async function runStartupChecks() {
     baseUrl: chat.baseUrl, apiKey: chat.apiKey, model: chatModel, format: 'anthropic',
   }));
 
-  // 4. 视觉子代理（按其自身配置与格式）
+  // 4. 视觉子代理（按其自身配置与格式；地址也参与格式推断）
   const vcfg = getVisionApiConfig();
-  const vfmt = resolveApiFormat();
+  const vfmt = resolveApiFormat(vcfg.baseUrl);
   const vmodel = resolveVisionModelSafe(vfmt, vcfg.baseUrl);
-  results.push(await pingChat({
+  const vres = await pingChat({
     label: '视觉子代理 (Vision)',
     baseUrl: vcfg.baseUrl, apiKey: vcfg.apiKey, model: vmodel, format: vfmt,
-  }));
+    timeoutMs: VISION_TIMEOUT_MS,
+  });
+  // 按推断出的协议失败时，再用另一种协议复测一次：
+  // 若另一种能通，说明只是 VISION_API_FORMAT 配错（而不是服务不可用），直接给出修法。
+  let vfinal = vres;
+  if (!vres.ok && vmodel && vcfg.apiKey) {
+    const alt = vfmt === 'openai' ? 'anthropic' : 'openai';
+    const altRes = await pingChat({
+      label: vres.label,
+      baseUrl: vcfg.baseUrl, apiKey: vcfg.apiKey, model: vmodel, format: alt,
+      timeoutMs: VISION_TIMEOUT_MS,
+    });
+    if (altRes.ok) {
+      vfinal = {
+        label: vres.label,
+        ok: true,
+        detail: `接口可达，但当前按 ${vfmt} 探测失败、${alt} 成功 —— 协议配错了，` +
+                `请在 .env 设置 VISION_API_FORMAT=${alt}`,
+        elapsedMs: altRes.elapsedMs,
+      };
+    } else if (!/超时|网络错误/.test(altRes.detail || '')) {
+      vfinal = { ...vres, detail: `${vres.detail}；另试 ${alt} 格式同样失败：${altRes.detail}` };
+    }
+  }
+  results.push(vfinal);
 
   // 5. LLM Judge（使用独立的 Judge API 配置 + JUDGE_MODEL）
   const jcfg = getJudgeApiConfig();

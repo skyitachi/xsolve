@@ -1,4 +1,5 @@
 // 会话管理 controller
+import crypto from 'node:crypto';
 import {
   sessions,
   createSession,
@@ -221,12 +222,34 @@ export async function resetSessionHandler(req, res) {
   }
 }
 
+// 草稿图的指纹：图一变（新笔画 / 擦除 / 清空）指纹就变。
+// turnController 用它判断缓存的识别结果是否还有效，避免每轮都调视觉模型。
+function scratchRevisionOf(image) {
+  if (!image) return null;
+  return crypto.createHash('md5').update(String(image)).digest('hex').slice(0, 12);
+}
+
+// 草稿图变化时作废旧的识别缓存（下一轮会重新识别）
+function invalidateScratchOcr(s) {
+  const rev = scratchRevisionOf(s.scratchImage);
+  if (rev !== (s.scratchRevision || null)) {
+    s.scratchOcr = null;
+    s.scratchOcrRevision = null;
+  }
+  s.scratchRevision = rev;
+}
+
 // POST /api/session/:id/scratch
 export function syncScratch(req, res) {
   const s = ownedSession(req, res, req.params.id);
   if (!s) return;
   const body = req.body || {};
   s.scratchStrokes = body.strokes || 0;
+  // 笔画数归零 = 画布被清空，服务端缓存图与识别结果一并作废
+  if (s.scratchStrokes === 0 && s.scratchImage) {
+    s.scratchImage = null;
+    invalidateScratchOcr(s);
+  }
   res.json({ ok: true });
 }
 
@@ -236,7 +259,8 @@ export function syncScratchImage(req, res) {
   if (!s) return;
   const body = req.body || {};
   if (body.image !== undefined) {
-    s.scratchImage = body.image;
+    s.scratchImage = body.image || null; // null = 前端画布已清空
+    invalidateScratchOcr(s);
   }
   if (typeof body.strokes === 'number') s.scratchStrokes = body.strokes;
   res.json({ ok: true });

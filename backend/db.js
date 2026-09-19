@@ -78,6 +78,8 @@ function initSchema() {
       output_tokens INTEGER DEFAULT 0,
       duration_ms INTEGER DEFAULT 0,
       error TEXT,
+      scratch_strokes INTEGER NOT NULL DEFAULT 0,
+      scratch_ocr TEXT,
       created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
       FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
     );
@@ -155,6 +157,7 @@ function initSchema() {
       hint_count   INTEGER NOT NULL DEFAULT 0,
       duration_ms  INTEGER,
       error_type   TEXT,
+      had_scratch  INTEGER NOT NULL DEFAULT 0,
       created_at   INTEGER NOT NULL DEFAULT (strftime('%s','now'))
     );
 
@@ -310,6 +313,28 @@ function initSchema() {
     db.prepare("SELECT prompt_version_id FROM chat_turns LIMIT 0").get();
   } catch {
     db.exec("ALTER TABLE chat_turns ADD COLUMN prompt_version_id TEXT");
+  }
+
+  // Migration: 草稿纳入评判——把草稿笔迹与识别结果随 turn 落库。
+  // scratch_strokes 记录该轮学生草稿板上的笔画数（0 = 没动笔）；
+  // scratch_ocr 记录本轮实际注入给模型的草稿识别文本（未识别则 NULL）。
+  // 评估层据此判断「是否动手演算」，不再只能看对话文本。
+  try {
+    db.prepare("SELECT scratch_strokes FROM chat_turns LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE chat_turns ADD COLUMN scratch_strokes INTEGER NOT NULL DEFAULT 0");
+  }
+  try {
+    db.prepare("SELECT scratch_ocr FROM chat_turns LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE chat_turns ADD COLUMN scratch_ocr TEXT");
+  }
+
+  // Migration: 答题流水记录「这次作答有没有动笔」，用于统计动笔率
+  try {
+    db.prepare("SELECT had_scratch FROM student_attempts LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE student_attempts ADD COLUMN had_scratch INTEGER NOT NULL DEFAULT 0");
   }
 
   // Migration: add prompt_version_id to eval_scores if not exists
@@ -509,19 +534,21 @@ function deleteChatSession(id) {
 
 // ========== Chat Turn CRUD ==========
 
-function insertChatTurn({ id, session_id, role, user_message, ai_message, tool_calls_json, input_tokens, output_tokens, duration_ms, error, prompt_version_id }) {
+function insertChatTurn({ id, session_id, role, user_message, ai_message, tool_calls_json, input_tokens, output_tokens, duration_ms, error, prompt_version_id, scratch_strokes, scratch_ocr }) {
   getDb();
   const turnId = id || crypto.randomUUID();
   db.prepare(`
-    INSERT INTO chat_turns (id, session_id, role, user_message, ai_message, tool_calls_json, input_tokens, output_tokens, duration_ms, error, prompt_version_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO chat_turns (id, session_id, role, user_message, ai_message, tool_calls_json, input_tokens, output_tokens, duration_ms, error, prompt_version_id, scratch_strokes, scratch_ocr)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     turnId, session_id, role || 'student',
     user_message || null, ai_message || null,
     tool_calls_json || '[]',
     input_tokens || 0, output_tokens || 0, duration_ms || 0,
     error || null,
-    prompt_version_id || null
+    prompt_version_id || null,
+    scratch_strokes || 0,
+    scratch_ocr || null
   );
   // 更新 session 的 updated_at
   updateChatSession(session_id, {});
@@ -1097,27 +1124,29 @@ function safeJsonParse(s, fallback = null) {
  * 去重：同一会话内「同题同答案」只记一次（persistTurn 自动落库与 record_history 工具可能重复触发）。
  * 返回 { inserted, id }；inserted=false 表示命中去重、未写入、也未更新掌握度。
  */
-function recordAttempt({ id, student_id, session_id, turn_id, problem_id, topic, user_answer, correct, hint_count, duration_ms, error_type }) {
+function recordAttempt({ id, student_id, session_id, turn_id, problem_id, topic, user_answer, correct, hint_count, duration_ms, error_type, had_scratch }) {
   getDb();
   const sid = student_id || DEFAULT_STUDENT_ID;
   const attemptId = id || crypto.randomUUID();
   const info = db.prepare(`
     INSERT OR IGNORE INTO student_attempts
-      (id, student_id, session_id, turn_id, problem_id, topic, user_answer, correct, hint_count, duration_ms, error_type)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, student_id, session_id, turn_id, problem_id, topic, user_answer, correct, hint_count, duration_ms, error_type, had_scratch)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     attemptId, sid, session_id, turn_id ?? null, problem_id ?? null, topic ?? null,
-    user_answer ?? null, correct ? 1 : 0, hint_count || 0, duration_ms ?? null, error_type ?? null
+    user_answer ?? null, correct ? 1 : 0, hint_count || 0, duration_ms ?? null, error_type ?? null,
+    had_scratch ? 1 : 0
   );
   if (info.changes > 0) {
     if (topic) bumpTopicMastery(sid, topic, !!correct);
   } else if (turn_id && problem_id != null && user_answer != null) {
     // 命中去重（通常是 record_history 工具先写入、turn_id 为空）：
-    // 由随后的 persistTurn 自动落库回填 turn_id，便于把答题流水追溯回具体 turn。
+    // 由随后的 persistTurn 自动落库回填 turn_id，便于把答题流水追溯回具体 turn；
+    // had_scratch 取两次写入的较大值（任一路径知道学生动过笔就算动过）。
     db.prepare(`
-      UPDATE student_attempts SET turn_id = ?
+      UPDATE student_attempts SET turn_id = ?, had_scratch = MAX(had_scratch, ?)
       WHERE session_id = ? AND problem_id = ? AND user_answer = ? AND turn_id IS NULL
-    `).run(turn_id, session_id, problem_id, user_answer);
+    `).run(turn_id, had_scratch ? 1 : 0, session_id, problem_id, user_answer);
   }
   return { inserted: info.changes > 0, id: attemptId };
 }
@@ -1345,6 +1374,57 @@ function getErrorTypeDistribution(student_id) {
     GROUP BY error_type
     ORDER BY count DESC
   `).all(sid);
+}
+
+/**
+ * 草稿（动手演算）使用情况统计。
+ * 数据来自两个落点：chat_turns（每轮是否动笔 / 是否成功识别）与
+ * student_attempts.had_scratch（作答时是否动笔）。
+ *
+ * 返回「动笔轮次占比」以及「动笔作答 vs 不动笔作答」的正确率对比 ——
+ * 后者是草稿是否帮上忙的直接证据，也供评估层与学习档案页使用。
+ */
+function getScratchUsageStats(student_id) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+
+  const turns = db.prepare(`
+    SELECT
+      COUNT(*)                                              AS turns_total,
+      SUM(CASE WHEN scratch_strokes > 0 THEN 1 ELSE 0 END)  AS turns_with_scratch,
+      SUM(CASE WHEN scratch_ocr IS NOT NULL AND scratch_ocr <> '' THEN 1 ELSE 0 END) AS turns_recognized
+    FROM chat_turns t
+    JOIN chat_sessions s ON s.id = t.session_id
+    WHERE s.student_id = ?
+  `).get(sid) || {};
+
+  const attempts = db.prepare(`
+    SELECT
+      COUNT(*)                                            AS attempts_total,
+      SUM(CASE WHEN had_scratch = 1 THEN 1 ELSE 0 END)    AS attempts_with_scratch,
+      SUM(CASE WHEN had_scratch = 1 AND correct = 1 THEN 1 ELSE 0 END) AS correct_with_scratch,
+      SUM(CASE WHEN had_scratch = 0 THEN 1 ELSE 0 END)    AS attempts_without_scratch,
+      SUM(CASE WHEN had_scratch = 0 AND correct = 1 THEN 1 ELSE 0 END) AS correct_without_scratch
+    FROM student_attempts
+    WHERE student_id = ?
+  `).get(sid) || {};
+
+  const turnsTotal = turns.turns_total || 0;
+  const turnsWith = turns.turns_with_scratch || 0;
+  const attemptsWith = attempts.attempts_with_scratch || 0;
+  const attemptsWithout = attempts.attempts_without_scratch || 0;
+
+  return {
+    turns_total: turnsTotal,
+    turns_with_scratch: turnsWith,
+    turns_recognized: turns.turns_recognized || 0,
+    scratch_turn_ratio: turnsTotal > 0 ? turnsWith / turnsTotal : 0,
+    attempts_total: attempts.attempts_total || 0,
+    attempts_with_scratch: attemptsWith,
+    attempts_without_scratch: attemptsWithout,
+    accuracy_with_scratch: attemptsWith > 0 ? (attempts.correct_with_scratch || 0) / attemptsWith : null,
+    accuracy_without_scratch: attemptsWithout > 0 ? (attempts.correct_without_scratch || 0) / attemptsWithout : null,
+  };
 }
 
 // ========== 用户系统 CRUD ==========
@@ -1919,6 +1999,7 @@ export {
   getMemoryFacts,
   getDailyAccuracy,
   getErrorTypeDistribution,
+  getScratchUsageStats,
   // 用户系统
   sanitizeUser,
   createUser,

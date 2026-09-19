@@ -7,13 +7,22 @@ import { judgeSession } from '../eval/session-judge.js';
 import { evalStudent } from '../eval/student-eval.js';
 import { consolidateStudent } from '../memory/consolidate.js';
 import { maybeCompressSession } from '../memory/compress.js';
-import { MEMORY_CONSOLIDATE_INTERVAL, GUEST_MAX_TURNS } from '../config.js';
+import { runVisionHttp } from '../vision.js';
+import { formatScratchForPrompt, parseScratchResult } from '../scratch.js';
+import {
+  MEMORY_CONSOLIDATE_INTERVAL,
+  GUEST_MAX_TURNS,
+  SCRATCH_VISION_PROMPT,
+  SCRATCH_AUTO_RECOGNIZE,
+  SCRATCH_OCR_TIMEOUT_MS,
+  SCRATCH_OCR_RETRIES,
+} from '../config.js';
 
 // 每 N 个 turn 自动触发一次 session 级评估
 const SESSION_EVAL_INTERVAL = 5;
 
 // POST /api/session/:id/turn
-export function handleTurn(req, res) {
+export async function handleTurn(req, res) {
   const id = req.params.id;
   const s = sessions.get(id);
   if (!s) return res.status(404).json({ error: 'session not found' });
@@ -64,6 +73,8 @@ export function handleTurn(req, res) {
   let outputTokens = 0;
   let turnError = null;
   let connectionClosed = false;
+  // 本轮草稿（自动识别的结果）：既注入给模型，也随 turn 落库供评估层使用
+  let turnScratch = { strokes: Number(s.scratchStrokes) || 0, ocr: null, skipped: 'pending' };
 
   // SSE headers
   res.writeHead(200, {
@@ -227,11 +238,15 @@ export function handleTurn(req, res) {
         duration_ms,
         error: turnError,
         prompt_version_id: s.promptVersionId || null,
+        // 草稿纳入评判：把「这轮有没有动笔」和识别出的草稿内容一起落库，
+        // 评估层（thinking_quality / engagement）与学习档案页才有据可依。
+        scratch_strokes: turnScratch.strokes || 0,
+        scratch_ocr: turnScratch.ocr || null,
       });
 
       // 记忆落库：把本轮 check_answer 的结果**确定性**写入 student_attempts（无 LLM）。
       // 即使 AI 忘记调用 record_history 工具，答题流水也不会丢。
-      autoLogAttempts(s, turnId, tool_calls);
+      autoLogAttempts(s, turnId, tool_calls, turnProblemId, (turnScratch.strokes || 0) > 0);
 
       // 如果是第一条 turn，更新 session title
       if (userMsg) {
@@ -250,6 +265,8 @@ export function handleTurn(req, res) {
           ai_message,
           tool_calls_json,
           prompt_version_id: s.promptVersionId || null,
+          scratch_strokes: turnScratch.strokes || 0,
+          scratch_ocr: turnScratch.ocr || null,
         }, s.id, turnProblemId).catch(err => {
           console.error(`[turn] LLM Judge failed for turn ${turnId}:`, err.message);
         });
@@ -290,7 +307,8 @@ export function handleTurn(req, res) {
   }
 
   // 客户端断开时清理订阅
-  res.on('close', () => { unsubscribe(); });
+  let clientGone = false;
+  res.on('close', () => { clientGone = true; unsubscribe(); });
 
   // 构造消息内容并入队
   try {
@@ -315,6 +333,34 @@ export function handleTurn(req, res) {
         '。凡涉及判答 / 记录 / 讲解，都必须针对这道题；' +
         '不要沿用历史对话里出现过的其它题目 id，除非你先调用 set_current_problem 切换。';
     }
+
+    // 草稿纳入评判：自动识别当前草稿并注入本轮上下文。
+    // 与「题目锚点」同源的问题——模型在长驻 SDK 会话里看不见「学生刚在草稿板上写了什么」，
+    // 不注入就只靠它自觉调 recognize_scratch（实测时调时不调）。
+    turnScratch = await ensureTurnScratch(s);
+    if (turnScratch.strokes > 0) {
+      const head = effectiveText ? '\n\n' : '';
+      if (turnScratch.ocr) {
+        effectiveText += head +
+          '[系统注入·学生草稿内容] 这是学生草稿板上手写内容的自动识别结果（可能有笔迹误读），' +
+          '用于判断他的思考过程与演算步骤：\n' + turnScratch.ocr + '\n' +
+          '答案对错只以 check_answer 的判定为准，不要因为草稿上写了正确答案就判他答对；' +
+          '也不要在回复里逐字复述草稿内容或念出置信度。';
+      } else {
+        effectiveText += head +
+          `[系统注入·学生草稿内容] 草稿板上有 ${turnScratch.strokes} 笔内容，但自动识别失败` +
+          (turnScratch.skipped === 'disabled' ? '（本部署关闭了自动识别）' : '') +
+          '。需要查看时请调用 recognize_scratch；否则不要提起草稿。';
+      }
+    }
+
+    // 草稿自动识别是异步的（最长 SCRATCH_OCR_TIMEOUT_MS），期间客户端可能已经离开。
+    // 离开后没有订阅者，这一轮即使跑了也无人接收、不会被落库 —— 直接不入队，省掉一次模型调用。
+    if (clientGone) {
+      console.warn('[turn] 客户端在草稿识别期间断开，本轮不入队');
+      return;
+    }
+
     const content = [];
     if (audioBody && audioBody.data) {
       content.push({ type: 'audio', source: { type: 'base64', media_type: audioBody.mediaType || 'audio/webm', data: audioBody.data } });
@@ -359,7 +405,7 @@ export function anchorToolCallProblemId(tc, turnProblemId) {
 // 确定性落库：扫描本轮工具调用，把每个 check_answer 的结果写入 student_attempts。
 // 答案对错用 compareAnswer(user_answer, problem.answer) 判定，不依赖 AI 自报的 correct。
 // 归属学生取 session.studentId（学生=自己；家长=被辅导的孩子）；无归属时跳过落库。
-function autoLogAttempts(session, turnId, toolCalls, turnProblemId) {
+function autoLogAttempts(session, turnId, toolCalls, turnProblemId, hadScratch) {
   const studentId = session.studentId;
   if (!studentId) return;
   for (const tc of toolCalls || []) {
@@ -378,11 +424,69 @@ function autoLogAttempts(session, turnId, toolCalls, turnProblemId) {
         topic: p ? p.topic : null,
         user_answer: String(ans),
         correct: p ? compareAnswer(String(ans), p.answer) : false,
+        // 作答时草稿板上有笔迹 → 这次作答是「动了笔的」
+        had_scratch: !!hadScratch,
       });
     } catch (e) {
       console.error('[turn] auto attempt log failed:', e.message);
     }
   }
+}
+
+// ========== 草稿纳入评判 ==========
+
+/**
+ * 保证本轮拿到「当前草稿」的识别文本。
+ *
+ * 目的：让草稿真正进入判答上下文，而不是指望模型自觉去调 recognize_scratch。
+ *  - 草稿为空 / 开关关闭 → 不识别
+ *  - 草稿图指纹未变 → 命中 session 缓存，复用上次结果，不重复调视觉模型
+ *  - 指纹变了 → 调视觉模型识别，成功则更新缓存
+ *  - 识别失败 → 降级返回，不抛异常、不阻塞对话，由注入文本告知模型「识别失败」
+ *
+ * @param {object} session 会话对象
+ * @param {{runVision?: Function}} [deps] 可注入的视觉实现（自测用）
+ * @returns {Promise<{strokes:number, ocr:string|null, cached?:boolean, error?:string, skipped?:string}>}
+ */
+export async function ensureTurnScratch(session, deps = {}) {
+  const runVision = deps.runVision || runVisionHttp;
+  const strokes = Number(session.scratchStrokes) || 0;
+
+  if (!SCRATCH_AUTO_RECOGNIZE) return { strokes, ocr: null, skipped: 'disabled' };
+  if (!session.scratchImage || strokes <= 0) return { strokes, ocr: null, skipped: 'empty' };
+
+  // 草稿没变过 → 复用缓存（这是避免每轮都付一次视觉调用的关键）
+  if (session.scratchOcr && session.scratchOcrRevision &&
+      session.scratchOcrRevision === session.scratchRevision) {
+    return { strokes, ocr: session.scratchOcr, cached: true };
+  }
+
+  const attempts = Math.max(0, SCRATCH_OCR_RETRIES) + 1;
+  let lastErr = null;
+  for (let i = 0; i < attempts; i++) {
+    const t0 = Date.now();
+    try {
+      session.emit('ui_event', { type: 'scratch_recognition_started', auto: true, attempt: i + 1 });
+      const raw = await runVision(
+        session.scratchImage,
+        session.emit.bind(session),
+        SCRATCH_VISION_PROMPT,
+        { timeoutMs: SCRATCH_OCR_TIMEOUT_MS }
+      );
+      const ocr = formatScratchForPrompt(parseScratchResult(raw));
+      if (!ocr) throw new Error('识别结果为空');
+      session.scratchOcr = ocr;
+      session.scratchOcrRevision = session.scratchRevision;
+      session.scratchOcrAt = Date.now();
+      session.emit('ui_event', { type: 'scratch_recognition_done', auto: true, elapsed_ms: Date.now() - t0 });
+      return { strokes, ocr };
+    } catch (e) {
+      lastErr = e;
+      console.error(`[turn] 草稿自动识别失败 (第 ${i + 1}/${attempts} 次):`, e.message || String(e));
+    }
+  }
+  session.emit('ui_event', { type: 'scratch_recognition_done', auto: true, failed: true });
+  return { strokes, ocr: null, error: lastErr ? (lastErr.message || String(lastErr)) : 'unknown' };
 }
 
 function sendSSE(res, event, data) {

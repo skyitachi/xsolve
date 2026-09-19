@@ -173,6 +173,12 @@ export function createSession(opts = {}) {
     history: [],
     scratchStrokes: 0,
     scratchImage: null,
+    // 草稿纳入评判：revision 是当前草稿图的指纹（图一变就变），
+    // scratchOcr 缓存该指纹对应的识别文本，避免每轮都重复调用视觉模型。
+    scratchRevision: null,
+    scratchOcr: null,
+    scratchOcrRevision: null,
+    scratchOcrAt: 0,
     pendingDelete: null,
     proposedProblems: [],
     lastImage: null,
@@ -286,6 +292,12 @@ export function restoreSession(id, user) {
     history: [],
     scratchStrokes: 0,
     scratchImage: null,
+    // 草稿纳入评判：revision 是当前草稿图的指纹（图一变就变），
+    // scratchOcr 缓存该指纹对应的识别文本，避免每轮都重复调用视觉模型。
+    scratchRevision: null,
+    scratchOcr: null,
+    scratchOcrRevision: null,
+    scratchOcrAt: 0,
     pendingDelete: null,
     proposedProblems: [],
     lastImage: null,
@@ -393,6 +405,10 @@ export async function clearSessionHistory(s) {
   s.history = [];
   s.scratchStrokes = 0;
   s.scratchImage = null;
+  s.scratchRevision = null;
+  s.scratchOcr = null;
+  s.scratchOcrRevision = null;
+  s.scratchOcrAt = 0;
   s.pendingDelete = null;
   s.proposedProblems = [];
   s.lastImage = null;

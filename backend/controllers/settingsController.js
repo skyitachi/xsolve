@@ -52,7 +52,8 @@ export async function testSettings(req, res) {
   if (mod === 'vision') {
     cfg = getVisionApiConfig();
     effectiveModel = process.env.VISION_MODEL || process.env.CLAUDE_MODEL || null;
-    format = resolveApiFormat();
+    // 用实际要请求的地址判定协议：表单里填了新地址时以它为准（如 SiliconFlow → openai）
+    format = resolveApiFormat((baseUrl && String(baseUrl).trim()) || cfg.baseUrl);
   } else if (mod === 'judge') {
     cfg = getJudgeApiConfig();
     effectiveModel = process.env.JUDGE_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';

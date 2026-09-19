@@ -3,7 +3,7 @@
 //   学生账号 → 只能是自己；家长 → 必须是已绑定的孩子；管理员 → 任意（须传 studentId）。
 import {
   getStudentProfile, getTopicMastery, getRecentAttempts, getMemoryFacts,
-  getAttemptStats, getDailyAccuracy, getErrorTypeDistribution,
+  getAttemptStats, getDailyAccuracy, getErrorTypeDistribution, getScratchUsageStats,
 } from '../db.js';
 import { consolidateStudent } from '../memory/consolidate.js';
 
@@ -52,6 +52,8 @@ export function memoryOverview(req, res) {
       facts,
       daily,
       error_distribution: errorDist,
+      // 草稿（动手演算）习惯：动笔率 + 动笔/不动笔作答的正确率对比
+      scratch: getScratchUsageStats(sid),
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

@@ -59,6 +59,9 @@ export async function judgeSession(sessionId) {
   const conversationSummary = turns.map((t, i) => {
     const parts = [`[Turn ${i + 1}]`];
     if (t.user_message) parts.push(`学生: ${t.user_message.slice(0, 500)}`);
+    // 草稿：让 judge 看得到学生在草稿纸上的演算，判断 AI 是否利用了这些过程信息
+    if (t.scratch_ocr) parts.push(`学生草稿: ${String(t.scratch_ocr).slice(0, 200)}`);
+    else if ((t.scratch_strokes || 0) > 0) parts.push(`学生草稿: （有 ${t.scratch_strokes} 笔手写，未识别）`);
     if (t.ai_message) parts.push(`AI: ${t.ai_message.slice(0, 500)}`);
     const tools = JSON.parse(t.tool_calls_json || '[]');
     if (tools.length > 0) {
@@ -84,6 +87,8 @@ export async function judgeSession(sessionId) {
   }), { input: 0, output: 0 });
   const totalDuration = turns.reduce((acc, t) => acc + (t.duration_ms || 0), 0);
   const errorTurns = turns.filter(t => t.error).length;
+  // 草稿（动手演算）轮次：判断 AI 是否在学生动笔时结合了演算过程来辅导
+  const scratchTurns = turns.filter(t => (t.scratch_strokes || 0) > 0).length;
 
   const userPrompt = `请评估以下 AI 助教在整个 session 中的辅导质量：
 
@@ -93,6 +98,7 @@ Turn 总数：${turns.length}
 总耗时：${(totalDuration / 1000).toFixed(1)} 秒
 Token 消耗：输入 ${totalTokens.input}，输出 ${totalTokens.output}
 错误 turn 数：${errorTurns}
+动笔（草稿）轮次：${scratchTurns}/${turns.length}
 
 ${problemInfo ? `【题目信息】\n${problemInfo}\n` : ''}
 
