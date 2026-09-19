@@ -4,7 +4,7 @@
 // 规则计算 + LLM 评估混合模式
 import { CLAUDE_MODEL } from '../config.js';
 import { resolveApiFormat } from '../vision.js';
-import { getJudgeApiConfig, isOfficialAnthropic } from '../api-config.js';
+import { getJudgeApiConfig } from '../api-config.js';
 import {
   getChatTurns, getChatSession, getProblem,
   insertSessionEvalScore, deleteSessionEvalScores,
@@ -126,11 +126,10 @@ async function callLLM(userPrompt, systemPrompt) {
   const { baseUrl, apiKey } = getJudgeApiConfig();
   if (!apiKey) throw new Error('Student Eval 需要 API Key，请设置 CLAUDE_API_KEY 或 ANTHROPIC_API_KEY');
 
-  const apiFormat = resolveApiFormat();
-  let effectiveFormat = apiFormat;
-  if (effectiveFormat === 'anthropic' && !isOfficialAnthropic(baseUrl)) {
-    effectiveFormat = 'openai';
-  }
+  // 必须把实际要请求的 baseUrl 传进去：无参调用会被 VISION_* 配置污染，
+  // 而「非官方 anthropic.com 就降级 openai」的粗判会把 DeepSeek 的 /anthropic 网关
+  // 打到 /v1/chat/completions 上（实测 404，而 /v1/messages 是 200）。详见 vision.js。
+  const effectiveFormat = resolveApiFormat(baseUrl);
 
   let url, headers, payload;
   if (effectiveFormat === 'anthropic') {

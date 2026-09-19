@@ -71,10 +71,16 @@ export function isOpenAiCompatibleUrl(baseUrl) {
  * - 默认使用 Anthropic 格式（因为主 SDK 只支持 Anthropic 格式，代理必须兼容此格式）
  * - 设置 VISION_API_FORMAT=openai / anthropic 可强制指定（最高优先级）
  * - 传入 baseUrl 时，若该地址属于已知的 OpenAI 兼容平台，自动判为 openai
+ *   （注意 isOpenAiCompatibleUrl 里有一条硬规则：路径含 /anthropic 一律按 anthropic）
  * - 视觉单独配置了 VISION_BASE_URL 时，默认 anthropic
  * - 未单独配置视觉地址时：只设了 OPENAI_BASE_URL 而没设 ANTHROPIC_BASE_URL，使用 OpenAI 格式
  *
- * @param {string} [baseUrl] 实际要请求的地址；传入可让判断更准确（推荐视觉/判卷调用点传）
+ * ⚠️ 除纯视觉调用点，其它调用点（主对话 / Judge / 记忆 LLM / 管理页自测）也**必须传 baseUrl**：
+ *    无参调用时本函数只看 VISION_API_FORMAT / VISION_BASE_URL 这几个变量，会被视觉配置污染。
+ *    判错协议的后果不是「降级」而是直接 404 —— 实测 https://api.deepseek.com/anthropic
+ *    只吃 Anthropic 协议：POST {base}/v1/messages 返回 200，POST {base}/v1/chat/completions 返回 404。
+ *
+ * @param {string} [baseUrl] 实际要请求的地址；传入可让判断更准确（所有调用点都应传）
  */
 export function resolveApiFormat(baseUrl) {
   const explicit = process.env.VISION_API_FORMAT;

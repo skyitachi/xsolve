@@ -24,11 +24,13 @@ function getJudgeModel() {
   return process.env.JUDGE_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
 }
 
-// Judge 的有效格式：anthropic 格式但第三方代理 → 降级为 openai（同 llm-judge.js 逻辑）
+// Judge 的有效格式：与 llm-judge.js 保持一致 —— 按**实际要请求的 baseUrl** 判定。
+// 不要再用「不是官方 anthropic.com 就降级 openai」这种粗判：带 /anthropic 路径的网关
+// （如 https://api.deepseek.com/anthropic）只吃 Anthropic 协议，降级后请求会打到
+// /v1/chat/completions 上，实测 404（而 /v1/messages 是 200）。
+// isOpenAiCompatibleUrl 里已经有「路径含 /anthropic 一律按 anthropic」的判断，直接用。
 function resolveJudgeFormat(baseUrl) {
-  let f = resolveApiFormat();
-  if (f === 'anthropic' && !isOfficialAnthropic(baseUrl)) f = 'openai';
-  return f;
+  return resolveApiFormat(baseUrl);
 }
 
 // 视觉模型名解析（复刻 vision.js 内部 resolveVisionModel，未导出）

@@ -57,8 +57,9 @@ export async function testSettings(req, res) {
   } else if (mod === 'judge') {
     cfg = getJudgeApiConfig();
     effectiveModel = process.env.JUDGE_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
-    format = resolveApiFormat();
-    if (format === 'anthropic' && !isOfficialAnthropic(cfg.baseUrl)) format = 'openai';
+    // 与 llm-judge.js 保持一致：按实际 baseUrl 判定，别用「非官方 anthropic.com 就降级
+    // openai」的粗判 —— 带 /anthropic 路径的网关只吃 Anthropic 协议，降级后必然 404
+    format = resolveApiFormat(cfg.baseUrl);
   } else {
     // chat — 主对话代理固定 anthropic 格式
     cfg = getChatApiConfig();

@@ -1,7 +1,7 @@
 // Session-level LLM Judge: 对整个 session 的辅导质量进行整体评估
 // 与 turn-level judge 并行，关注跨 turn 的连续性、适应性和整体效果
 import { resolveApiFormat } from '../vision.js';
-import { getJudgeApiConfig, isOfficialAnthropic } from '../api-config.js';
+import { getJudgeApiConfig } from '../api-config.js';
 import {
   getChatTurns, getChatSession, getProblem,
   getActivePromptVersion,
@@ -49,11 +49,10 @@ export async function judgeSession(sessionId) {
   const role = session.role || 'student';
 
   // 聚合 session 上下文
-  const apiFormat = resolveApiFormat();
-  let effectiveFormat = apiFormat;
-  if (effectiveFormat === 'anthropic' && !isOfficialAnthropic(baseUrl)) {
-    effectiveFormat = 'openai';
-  }
+  // 必须把实际要请求的 baseUrl 传进去：无参调用会被 VISION_* 配置污染，
+  // 而「非官方 anthropic.com 就降级 openai」的粗判会把 DeepSeek 的 /anthropic 网关
+  // 打到 /v1/chat/completions 上（实测 404，而 /v1/messages 是 200）。详见 vision.js。
+  const effectiveFormat = resolveApiFormat(baseUrl);
 
   // 构建 session 对话摘要
   const conversationSummary = turns.map((t, i) => {

@@ -35,9 +35,16 @@ function validateConfig() {
   const warnings = [];
   const errors = [];
 
+  // 主对话的 Key / 地址既可能配在 ANTHROPIC_*（SDK 原生名），也可能配在 CLAUDE_*
+  // （本项目文档与 .env 里用的名字）。之前只认 ANTHROPIC_*，于是在「CLAUDE_API_KEY +
+  // CLAUDE_BASE_URL 接第三方」这种部署上会误报「未找到 API Key / 需要修复后才能正常使用」，
+  // 而紧随其后的启动自检其实全是 200 —— 属于吓人的假警报。
   const apiKey =
-    process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
-  const baseUrl = process.env.ANTHROPIC_BASE_URL || "";
+    process.env.ANTHROPIC_API_KEY ||
+    process.env.ANTHROPIC_AUTH_TOKEN ||
+    process.env.CLAUDE_API_KEY;
+  const baseUrl =
+    process.env.ANTHROPIC_BASE_URL || process.env.CLAUDE_BASE_URL || "";
   const isCustomBase = (() => {
     if (!baseUrl) return false;
     try {
@@ -72,8 +79,8 @@ function validateConfig() {
     );
   }
 
-  // 3. OpenAI 格式视觉必须设置 VISION_MODEL
-  const visionFormat = resolveApiFormat();
+  // 3. OpenAI 格式视觉必须设置 VISION_MODEL（按视觉实际地址判定，见 resolveApiFormat 的说明）
+  const visionFormat = resolveApiFormat(getVisionApiConfig().baseUrl);
   if (visionFormat === "openai" && !process.env.VISION_MODEL) {
     errors.push(
       "使用 OpenAI 兼容格式时必须设置 VISION_MODEL。\n" +
@@ -98,9 +105,16 @@ const server = app.listen(PORT, async () => {
   const cfg = validateConfig();
 
   console.log(`[selflearning] http://localhost:${PORT}`);
-  console.log(
-    `[selflearning] auth: ${cfg.apiKeySet ? "ANTHROPIC_API_KEY (env)" : "checking ~/.claude/settings.json"}`,
-  );
+  // 说清楚 Key 到底来自哪个变量：之前不管来源一律写 ANTHROPIC_API_KEY，
+  // 而实际常见的是 CLAUDE_API_KEY，日志会误导排查方向
+  const keySource = process.env.ANTHROPIC_API_KEY
+    ? "ANTHROPIC_API_KEY (env)"
+    : process.env.ANTHROPIC_AUTH_TOKEN
+      ? "ANTHROPIC_AUTH_TOKEN (env)"
+      : process.env.CLAUDE_API_KEY
+        ? "CLAUDE_API_KEY (env)"
+        : "checking ~/.claude/settings.json";
+  console.log(`[selflearning] auth: ${keySource}`);
   console.log(
     `[selflearning] api base: ${cfg.baseUrl}${cfg.isCustomBase ? " (custom proxy)" : " (default)"}`,
   );
@@ -125,7 +139,7 @@ const server = app.listen(PORT, async () => {
   } catch {
     isAnthropicOfficial = false;
   }
-  const visionFormat = resolveApiFormat();
+  const visionFormat = resolveApiFormat(visionBase);
 
   if (!process.env.VISION_MODEL) {
     if (visionFormat === "anthropic") {
@@ -177,12 +191,27 @@ if (tlsState.tls) {
     console.error(`[https] 启动失败（端口 ${tlsState.port}）：${e.message}`);
   });
   httpsServer.listen(tlsState.port, () => {
+    // Docker 里 os.networkInterfaces() 看到的是 docker 网络地址（如 172.18.0.2），客户端
+    // 根本不会用它访问；而证书 SAN 里写的是宿主机 IP —— 直接比对必然「缺 IP」误报。
+    const inContainer = fs.existsSync("/.dockerenv");
     console.log(`[https] 已启用（PWA 可用），端口 ${tlsState.port}`);
+    if (inContainer) {
+      console.log(
+        "[https]   注意：容器内运行，下面列的是容器内部地址；客户端请用**宿主机**的 IP 或 mDNS 名访问",
+      );
+    }
     for (const h of listAccessHosts()) {
       console.log(`[https]   https://${h}:${tlsState.port}/`);
     }
-    const caPath = getCaCertPath();
-    console.log(`[https] 其它设备（手机/平板）首次访问前需先安装本地 CA：${caPath}`);
+    if (inContainer) {
+      console.log(
+        "[https]   证书与 CA 都在**宿主机**上：<仓库>/certs 与 ~/.xsolve-ca/rootCA.pem（只读挂载进容器）",
+      );
+    } else {
+      console.log(
+        `[https] 其它设备（手机/平板）首次访问前需先安装本地 CA：${getCaCertPath()}`,
+      );
+    }
     if (fs.existsSync(getCaDownloadCopy())) {
       console.log(
         `[https]   也可让手机直接下载：http://<本机IP>:${PORT}/xsolve-ca.crt`,
@@ -191,7 +220,16 @@ if (tlsState.tls) {
     // 换网络 / DHCP 重发 IP 后，旧证书对新 IP 就是「不受信任」；用户点「继续访问」会连带
     // 禁用 Service Worker（PWA 照旧无效）。这种失效是静默的，所以启动时主动比对一次。
     const cov = checkCertCoverage(tlsState.certPath);
-    if (cov.checked && !cov.ok) {
+    if (!cov.checked) {
+      // 读不出 SAN（证书异常等），不表态，避免误导
+    } else if (inContainer) {
+      // 容器里枚举到的是 docker 网络地址，证书里当然没有 —— 属误报。
+      // 真正要核对的是宿主机 IP，只能在宿主机上跑 setup 脚本。
+      console.log(`[https] ✔ 证书 SAN：${cov.certIps.join(", ")}`);
+      console.log(
+        "[https]   容器内枚举不到宿主机 IP，换网络后请在宿主机重跑 node backend/scripts/setup-lan-https.mjs",
+      );
+    } else if (!cov.ok) {
       console.warn(
         `[https] ⚠️  证书 SAN 不含当前局域网 IP：${cov.missing.join(", ")}`,
       );
@@ -201,7 +239,7 @@ if (tlsState.tls) {
       console.warn(
         "[https]    修复：node backend/scripts/setup-lan-https.mjs（Root CA 不变，客户端无需重装）",
       );
-    } else if (cov.checked) {
+    } else {
       console.log("[https] ✔ 证书 SAN 已覆盖当前全部局域网 IP");
     }
   });

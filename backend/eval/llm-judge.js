@@ -2,7 +2,7 @@
 // 自动检测 API 格式（Anthropic / OpenAI 兼容），复用主对话模型的 API 配置
 // Judge prompt 从 DB prompt_versions 表读取（支持版本管理）
 import { resolveApiFormat } from '../vision.js';
-import { getJudgeApiConfig, isOfficialAnthropic } from '../api-config.js';
+import { getJudgeApiConfig } from '../api-config.js';
 import { insertEvalScore, getProblem, getActivePromptVersion, getPromptVersion } from '../db.js';
 
 function getJudgeModel() {
@@ -60,14 +60,15 @@ export async function judgeTurn(turn, sessionId, currentProblemId) {
   const { baseUrl, apiKey } = getJudgeApiConfig();
   if (!apiKey) throw new Error('LLM Judge 需要 API Key，请设置 CLAUDE_API_KEY 或 ANTHROPIC_API_KEY');
 
-  const apiFormat = resolveApiFormat();
-
-  // 如果 resolveApiFormat 返回 anthropic 但 base URL 不是 anthropic.com，
-  // 说明是第三方代理，需要检测是否实际支持 Anthropic 格式
-  let effectiveFormat = apiFormat;
-  if (effectiveFormat === 'anthropic' && !isOfficialAnthropic(baseUrl)) {
-    effectiveFormat = 'openai';
-  }
+  // 必须把**实际要请求的 baseUrl** 传进去，两个理由：
+  //  1) 不传会被别的配置污染：本函数只认 VISION_API_FORMAT / VISION_BASE_URL 等变量，
+  //     实测在「主对话=DeepSeek、视觉=硅基流动」的部署上，judge 会被判成 anthropic
+  //     （只因为 VISION_BASE_URL 恰好有值），而不是按 judge 自己的地址判断；
+  //  2) 不能再按「不是官方 anthropic.com 就降级 openai」这种粗判：带 /anthropic 路径的网关
+  //     （如 https://api.deepseek.com/anthropic）**只吃 Anthropic 协议**，降级后请求会打到
+  //     /v1/chat/completions 上 —— 实测该路径 404、/v1/messages 200。
+  // isOpenAiCompatibleUrl 里已有「路径含 /anthropic 一律按 anthropic」的判断，直接复用。
+  const effectiveFormat = resolveApiFormat(baseUrl);
 
   const role = turn.role || 'student';
   const userMsg = turn.user_message || '';

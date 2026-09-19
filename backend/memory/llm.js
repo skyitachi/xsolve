@@ -1,7 +1,7 @@
 // 记忆系统共用的 LLM 调用封装。
 // 复用 eval 的 judge 配置（getJudgeApiConfig）+ 双格式请求（Anthropic / OpenAI 兼容），
 // 供 consolidate（固化画像）与 compress（会话压缩）复用，避免重复代码。
-import { getJudgeApiConfig, isOfficialAnthropic } from '../api-config.js';
+import { getJudgeApiConfig } from '../api-config.js';
 import { resolveApiFormat } from '../vision.js';
 
 // 从 LLM 输出里尽力抽出 JSON（容忍 ```json 围栏与前后噪声）
@@ -27,11 +27,11 @@ export async function callMemoryLLM(userPrompt, systemPrompt, { maxTokens = 1024
   const { baseUrl, apiKey } = getJudgeApiConfig();
   if (!apiKey) throw new Error('记忆系统需要 API Key（CLAUDE_API_KEY / ANTHROPIC_API_KEY）');
 
-  const apiFormat = resolveApiFormat();
-  let effectiveFormat = apiFormat;
-  if (effectiveFormat === 'anthropic' && !isOfficialAnthropic(baseUrl)) {
-    effectiveFormat = 'openai';
-  }
+  // 必须把实际要请求的 baseUrl 传进去：无参调用会被 VISION_* 配置污染，
+  // 而「非官方 anthropic.com 就降级 openai」的粗判会把 DeepSeek 的 /anthropic 网关
+  // 打到 /v1/chat/completions 上（实测 404，而 /v1/messages 是 200）。详见 vision.js。
+  // 这条路径出错是**静默**的：consolidate / compress 都有规则兜底，调用失败只会悄悄降级。
+  const effectiveFormat = resolveApiFormat(baseUrl);
   const model = process.env.JUDGE_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
 
   let url, headers, payload;
