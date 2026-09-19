@@ -1,0 +1,36 @@
+.env.example
+  h_5a1c62fd74efa2 1-79
+.gitignore
+  h_5a1c62fd74efa2 119-123
+Dockerfile
+  h_5a1c62fd74efa2 40-41
+backend/app.js
+  h_5a1c62fd74efa2 123-126
+backend/scripts/setup-lan-https.mjs
+  h_5a1c62fd74efa2 1-305
+backend/server.js
+  h_5a1c62fd74efa2 5,14-20,168-216,220
+backend/tls.js
+  h_5a1c62fd74efa2 1-154
+docker-compose.yml
+  h_5a1c62fd74efa2 6-12,19-20,29-32
+docs/lan-pwa/_shared/js/mermaid.min.js
+  h_5a1c62fd74efa2 1-2314
+docs/lan-pwa/lan-pwa.html
+  h_5a1c62fd74efa2 1-667
+package.json
+  h_5a1c62fd74efa2 9-10
+scripts/update.sh
+  h_5a1c62fd74efa2 9,13,16-32,35-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4069ecfdfb286421e368ae7b4975bcdcd9873e9b",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
