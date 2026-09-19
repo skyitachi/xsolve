@@ -534,17 +534,48 @@ if (tlsState.tls) {
 
 <h3>6.2 还需要手动做的两步</h3>
 
+<div class="callout">
+  <div class="callout-title">要装的是「你要访问的那台服务器」的 CA</div>
+  <p>
+    每台跑 <code>setup-lan-https.mjs</code> 的机器都会生成**自己的一张 Root CA**（同名 <code>CN=xsolve Local CA</code>，
+    但指纹不同）。所以客户端要装的是<strong>它在访问的那台机器</strong>的 CA：
+    Mac 访问 NAS 的 8443，就要装 <strong>NAS 那张</strong>（从 NAS 的 HTTP 端口下载），
+    装 Mac 本地 <code>~/.xsolve-ca/rootCA.pem</code> 是没用的。两张证书同名，靠 SHA256 指纹区分。
+  </p>
+</div>
+
 <p><strong>第一步：让这台 Mac 信任本地 CA</strong>（免 sudo，加到登录钥匙串）：</p>
 
-<div class="code-block">security add-trusted-cert -d -r trustRoot \
+<div class="code-block">security add-trusted-cert -r trustRoot \
   -k ~/Library/Keychains/login.keychain-db \
   ~/.xsolve-ca/rootCA.pem</div>
 
-<p>若 Chrome 仍不认（个别系统配置下 Chrome 只看系统钥匙串）：</p>
+<p>
+  注意<strong>不要加 <code>-d</code></strong>：<code>-d</code> 的语义是「写入 admin cert store」，
+  需要 root —— 和「免 sudo」自相矛盾（照抄带 <code>-d</code> 的版本会失败）。
+  不带 <code>-d</code> 默认写入<strong>用户域</strong>信任设置，当前用户（含 Chrome）即生效。
+</p>
+
+<p>若确实需要系统级（作用于所有用户），才用 <code>-d</code> 并配 sudo + System.keychain：</p>
 
 <div class="code-block">sudo security add-trusted-cert -d -r trustRoot \
   -k /Library/Keychains/System.keychain \
   ~/.xsolve-ca/rootCA.pem</div>
+
+<p>
+  验证装上了：<code>security find-certificate -a -c "xsolve Local CA" ~/Library/Keychains/login.keychain-db</code>；
+  用完想撤销：<code>security delete-certificate -c "xsolve Local CA" ~/Library/Keychains/login.keychain-db</code>。
+</p>
+
+<div class="callout">
+  <div class="callout-title">装 Root CA 是安全决策，不是纯便利</div>
+  <p>
+    Root CA 的信任<strong>不限定主机名</strong>：装上之后，任何用这张 CA 私钥签发的证书都会被这台机器接受。
+    而这把私钥就放在服务器的 <code>~/.xsolve-ca/rootCA.key</code> 上（NAS 或 Mac）。
+    所以在「不需要 PWA 的设备上干脆不装」是合理选择 —— 比如台式机可以继续用明文 8765，
+    只在真正要装到主屏的手机上装一次。
+  </p>
+</div>
 
 <p><strong>第二步：手机也装一次 CA</strong>（见第 7 节）。手机不装 CA 就访问 <code>https://&lt;IP&gt;:8443</code>，会看到证书警告；点「继续」跳过后 Service Worker 依然被禁用。</p>
 
