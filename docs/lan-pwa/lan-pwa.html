@@ -289,7 +289,7 @@ footer {
   <li><a href="#impl">实现改动</a></li>
   <li><a href="#pki">证书体系</a></li>
   <li><a href="#steps">落地步骤</a></li>
-  <li><a href="#mobile">手机端安装 CA</a></li>
+  <li><a href="#mobile">手机端安装 CA</a> · <a href="#android-install">7.1 安卓安装失败排查</a></li>
   <li><a href="#verify">验证记录</a></li>
   <li><a href="#pitfalls">注意事项与坑</a></li>
   <li><a href="#compare">备选方案对比</a></li>
@@ -620,6 +620,87 @@ if (tlsState.tls) {
 </div>
 
 <p>装好后手机访问 <code>https://&lt;本机IP&gt;:8443/</code>，地址栏应出现锁图标；顶栏会出现安装按钮，或 Chrome 菜单里出现「安装应用」。装到主屏后从图标打开，地址栏消失（standalone 模式）即为成功。</p>
+
+<h3 id="android-install">7.1 安卓上「弹了安装应用，却没进桌面」怎么排</h3>
+
+<p>这个现象有一个反直觉之处：<strong>它和服务器几乎无关</strong>。已复核过部署侧的全部前置条件 ——
+<code>/manifest.webmanifest</code> 返回 <code>application/manifest+json</code> 且 JSON 合法、
+<code>display: standalone</code>、<code>name</code>/<code>short_name</code> 齐全；三个图标
+<code>icon-192.png</code> / <code>icon-512.png</code> / <code>maskable-512.png</code>
+都是<strong>尺寸正确的真实 PNG</strong>；<code>/sw.js</code> 与首页均 200。
+「弹出了安装框」本身就说明 <code>beforeinstallprompt</code> 已触发、manifest 已被浏览器接受。
+所以排查方向只有两个：<strong>图标装到哪去了</strong>，以及<strong>是不是压根没装上</strong>。</p>
+
+<p><strong>第一步（只有一条命令）：</strong>打开 <code>设置 → 应用管理</code>，搜索
+<code>AI做题助手</code>。注意搜的是 manifest 里的 <code>short_name</code>，
+<strong>不是</strong>页面标题「小学AI做题助手」—— 搜错名字会直接把它误判成「没装上」。</p>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>搜索结果</th><th>含义</th><th>处理</th></tr>
+</thead>
+<tbody>
+<tr>
+  <td><strong>搜得到</strong></td>
+  <td>其实<strong>装成功了</strong>，只是图标没被放到桌面</td>
+  <td>先去<strong>应用抽屉</strong>里找（上滑或点抽屉按钮，别只看桌面），长按图标拖到桌面；也可用桌面的搜索直接搜出来</td>
+</tr>
+<tr>
+  <td><strong>搜不到</strong></td>
+  <td>安装<strong>真的失败了</strong></td>
+  <td>见下表，按概率从高到低排查</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<p>确认是真失败后，按下面四条依次检查。<strong>这四条有一个共同特征：外部表现完全一样 —— 弹框、点安装、静默结束、不报错。</strong>
+只有 Chrome 的开发者工具控制台里才看得到线索（<code>Failed to install WebAPK</code>）。</p>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr><th>#</th><th>原因</th><th>机制 / 为什么</th><th>处理</th></tr>
+</thead>
+<tbody>
+<tr>
+  <td>1</td>
+  <td><strong>手机连不上 Google</strong><br/>（国内最常见）</td>
+  <td>Chrome 的「安装应用」装的是 <strong>WebAPK</strong>：由 Google 的<strong>铸造服务器</strong>现场打包并签名一个 APK 再推回手机。请求出不去就整体失败。<strong>注意这一条有 GMS、也登录了 Play 商店都绕不过 —— 铸造服务器本身要能连上。</strong>
+      失败时 Chrome 可能补一个「手动添加到主屏幕」的兜底提示。</td>
+  <td>改用<strong>没有铸造服务器</strong>的浏览器走本地创建快捷方式：<br/>· 小米自带浏览器 → 菜单「添加到桌面」<br/>· Firefox for Android → 菜单「添加到主屏幕」<br/>这两条完全不经过 Google</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td>Chrome 的「安装应用」权限被禁</td>
+  <td>Chrome 对「安装应用」有独立的站点权限，可能被误关</td>
+  <td>Chrome → 设置 → 隐私和安全 → 网站设置 → 权限 → <strong>安装应用</strong> → 选「允许来自任何网站」，并确认本站点没被单独拉黑</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td>未登录 Play 商店</td>
+  <td>Google 官方支持页明确要求登录 Play 账号，否则 APK 无法安装</td>
+  <td>登录 Play 商店账号后重试</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td>缺「安装未知应用」权限</td>
+  <td>WebAPK 本质是一个 APK，Chrome 需要该权限</td>
+  <td>设置 → 应用管理 → Chrome → 安装未知应用 → 允许。系统首次会弹窗，<strong>一旦点了「禁止」就不再弹</strong></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<p><strong>顺带一条：</strong>如果最后落到「快捷方式」这条路（没 GMS / 没用 Chrome / 上面第 1 条命中），
+还可能被 MIUI 拦一道 —— <strong>MIUI 14+ 的「创建桌面快捷方式」权限默认关闭，且不主动弹窗申请</strong>。
+表现同样是「点了没反应、桌面不出图标」。路径：<code>设置 → 应用管理 → 该浏览器 → 权限管理 → 创建桌面快捷方式</code>，
+打开后重启浏览器。</p>
+
+<p><strong>怎么分辨最后装成的是哪一种：</strong>WebAPK 会出现在「设置 → 应用管理」里、有独立任务卡片；
+快捷方式则<strong>不会</strong>出现在应用列表、图标带浏览器小角标。<strong>两种都能按 standalone 全屏运行</strong>，
+对「能用」这件事没有区别，不必为了 WebAPK 去折腾 Google 连通性。</p>
 
 <!-- 8. Verify -->
 <h2 id="verify">8. 验证记录</h2>
