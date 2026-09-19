@@ -1,0 +1,14 @@
+docs/app-client-tech-proposal/app-client-tech-proposal.html
+  h_5a1c62fd74efa2 215,678-776
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cb8d9186c97f827818a6a1d4530e76dcbd1e44a8",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
