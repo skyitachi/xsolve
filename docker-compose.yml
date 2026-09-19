@@ -3,12 +3,21 @@
 #   1. 复制 .env.example 为 .env，填入你的 API Key 等配置
 #   2. docker compose up -d
 #   3. 浏览器访问 http://localhost:8765
+#
+# 局域网 PWA（装到手机主屏 / 离线可用）需要「安全上下文」，即 https:// 或 localhost。
+# 明文 http://<局域网IP> 不是安全上下文，Service Worker 会被浏览器直接禁用（且是静默失败）。
+# 开法：
+#   node backend/scripts/setup-lan-https.mjs   # ① 生成证书（必须先于 build）
+#   # 在 .env 里加 HTTPS_ENABLED=true 与 HTTPS_PORT=8443
+#   docker compose up -d --build               # ② 再构建启动
 services:
   xsolve:
     build: .
     container_name: xsolve
     ports:
       - "8765:8765"
+      # HTTPS：局域网 PWA 用。不用 HTTPS 时删掉这行即可，不影响 8765
+      - "8443:8443"
     # 从 .env 文件读取环境变量（推荐：密钥不写在 compose 文件中）
     env_file:
       - .env
@@ -17,6 +26,10 @@ services:
     #   - CLAUDE_MODEL=claude-sonnet-4-20250514
     volumes:
       - xsolve-data:/data
+      # 本地 CA 签发的服务器证书。刻意挂到 /app/certs —— tls.js 的默认证书路径就是
+      # <仓库根>/certs，这样无需再配 HTTPS_KEY / HTTPS_CERT。
+      # 目录不存在时 Docker 会自动建一个空目录，服务退回「仅 HTTP」并在启动日志说明原因。
+      - ./certs:/app/certs:ro
     restart: unless-stopped
     healthcheck:
       test:

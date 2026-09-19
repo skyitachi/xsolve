@@ -2,6 +2,7 @@
 // 小学 AI 做题助手 后端入口
 import "./env.js"; // 必须最先导入：加载 .env 文件到 process.env
 import fs from "node:fs";
+import https from "node:https";
 import os from "node:os";
 import path from "node:path";
 import { PORT } from "./config.js";
@@ -10,6 +11,13 @@ import { sessions, destroySession } from "./session.js";
 import { createApp } from "./app.js";
 import { runStartupChecks } from "./startup-check.js";
 import { initSettings } from "./settings.js";
+import {
+  loadTlsOptions,
+  listAccessHosts,
+  getCaCertPath,
+  getCaDownloadCopy,
+  checkCertCoverage,
+} from "./tls.js";
 
 // 把管理页保存的配置（DB settings 表）覆盖到 process.env，须在创建 app / 惰性读取前执行
 initSettings();
@@ -157,9 +165,59 @@ const server = app.listen(PORT, async () => {
   });
 });
 
+// ---------- 局域网 HTTPS（PWA 的前置条件）----------
+// PWA 依赖 Service Worker，而它只在「安全上下文」（https:// 或 localhost）里可用。
+// 明文 http://<局域网 IP> 不是安全上下文，那种地址下 PWA 会静默失效 —— 所以这里额外起一个
+// HTTPS 端口，与原来的 HTTP 端口并存，互不影响。
+const tlsState = loadTlsOptions();
+let httpsServer = null;
+if (tlsState.tls) {
+  httpsServer = https.createServer(tlsState.tls, app);
+  httpsServer.on("error", (e) => {
+    console.error(`[https] 启动失败（端口 ${tlsState.port}）：${e.message}`);
+  });
+  httpsServer.listen(tlsState.port, () => {
+    console.log(`[https] 已启用（PWA 可用），端口 ${tlsState.port}`);
+    for (const h of listAccessHosts()) {
+      console.log(`[https]   https://${h}:${tlsState.port}/`);
+    }
+    const caPath = getCaCertPath();
+    console.log(`[https] 其它设备（手机/平板）首次访问前需先安装本地 CA：${caPath}`);
+    if (fs.existsSync(getCaDownloadCopy())) {
+      console.log(
+        `[https]   也可让手机直接下载：http://<本机IP>:${PORT}/xsolve-ca.crt`,
+      );
+    }
+    // 换网络 / DHCP 重发 IP 后，旧证书对新 IP 就是「不受信任」；用户点「继续访问」会连带
+    // 禁用 Service Worker（PWA 照旧无效）。这种失效是静默的，所以启动时主动比对一次。
+    const cov = checkCertCoverage(tlsState.certPath);
+    if (cov.checked && !cov.ok) {
+      console.warn(
+        `[https] ⚠️  证书 SAN 不含当前局域网 IP：${cov.missing.join(", ")}`,
+      );
+      console.warn(
+        "[https]    这些地址会被浏览器判为不受信任，点「继续访问」会连 Service Worker 一起禁用。",
+      );
+      console.warn(
+        "[https]    修复：node backend/scripts/setup-lan-https.mjs（Root CA 不变，客户端无需重装）",
+      );
+    } else if (cov.checked) {
+      console.log("[https] ✔ 证书 SAN 已覆盖当前全部局域网 IP");
+    }
+  });
+} else if (tlsState.enabled) {
+  console.warn(`[https] 未启动：${tlsState.reason}`);
+  console.warn("[https] 生成证书：node backend/scripts/setup-lan-https.mjs");
+} else {
+  console.log(
+    "[https] 未启用。局域网要用 PWA（装到主屏 / 离线）必须开 HTTPS，见 node backend/scripts/setup-lan-https.mjs",
+  );
+}
+
 process.on("SIGINT", async () => {
   console.log("shutting down...");
   server.close();
+  if (httpsServer) httpsServer.close();
   for (const s of sessions.values()) await destroySession(s);
   process.exit(0);
 });

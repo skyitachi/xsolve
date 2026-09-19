@@ -120,6 +120,10 @@ export function createApp() {
         if (filePath.endsWith('sw.js')) {
           res.setHeader('Cache-Control', 'no-cache');
         }
+        // 导出给手机安装的本地 CA：给对 MIME，iOS/Android 才会当成证书处理
+        if (filePath.endsWith('.crt')) {
+          res.setHeader('Content-Type', 'application/x-x509-ca-cert');
+        }
       },
     }),
   );

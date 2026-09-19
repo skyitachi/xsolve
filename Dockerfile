@@ -37,6 +37,8 @@ ENV DB_PATH=/data/xsolve.db
 ENV IS_SANDBOX=1
 
 EXPOSE 8765
+# 8443：可选 HTTPS 端口（局域网 PWA 用）。需在 .env 里设 HTTPS_ENABLED=true 并挂载 ./certs
+EXPOSE 8443
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD node -e "fetch('http://localhost:8765/healthz').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"

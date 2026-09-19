@@ -116,3 +116,8 @@ images
 .workbuddy
 diagrams
 sandbox/.env.docker
+
+# ===== 局域网 HTTPS 证书（*.pem / *.key 已被上面的规则覆盖）=====
+certs/
+# 导出给手机下载的 CA 副本（只是公钥证书，但没必要入库）
+frontend/xsolve-ca.crt
