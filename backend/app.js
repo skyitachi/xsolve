@@ -58,6 +58,45 @@ import {
   memoryFacts,
   memoryConsolidate,
 } from './controllers/memoryController.js';
+import {
+  register,
+  login,
+  logout,
+  me,
+  invite,
+  invites,
+  children,
+  changePassword,
+  guestLogin,
+} from './controllers/authController.js';
+import {
+  familyChildren,
+  familyChildSessions,
+  createBindCode,
+  listBindCodes,
+  bindByCode,
+  unbindChild,
+  myInvites,
+} from './controllers/familyController.js';
+import {
+  adminListUsers,
+  adminGetUser,
+  adminCreateUser,
+  adminResetPassword,
+  adminSetStatus,
+  adminSetAdmin,
+  adminPatchUser,
+  adminDeleteUser,
+  adminAuditLogs,
+  adminPurgeGuests,
+} from './controllers/adminController.js';
+import {
+  requireAuth,
+  requireRole,
+  requireAdmin,
+  requireParentOf,
+  resolveTargetStudent,
+} from './middleware/auth.js';
 import { getStartupLogs } from './startup-logs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -98,70 +137,107 @@ export function createApp() {
   app.get('/healthz', healthCheck);
   app.get('/api/health', healthCheck);
 
-  // ========== 题目管理 ==========
-  app.get('/api/problems', listProblems);
-  app.delete('/api/problem/:id', removeProblem);
+  // ========== 认证（登录 / 注册 / 登出 / 当前用户）==========
+  // 公开：注册 / 登录 / 游客试用；其余需登录
+  app.post('/api/auth/register', register);
+  app.post('/api/auth/login', login);
+  app.post('/api/auth/guest', guestLogin);
+  app.post('/api/auth/logout', requireAuth, logout);
+  app.get('/api/auth/me', requireAuth, me);
+  app.post('/api/auth/password', requireAuth, changePassword);
+  // 家长专属：邀请码与学生绑定
+  app.post('/api/auth/invite', requireAuth, requireRole('parent'), invite);
+  app.get('/api/auth/invites', requireAuth, requireRole('parent'), invites);
+  app.get('/api/children', requireAuth, requireRole('parent'), children);
 
-  // ========== 会话列表 ==========
-  app.get('/api/sessions', listSessions);
+  // ========== 家长与孩子（P1）==========
+  app.get('/api/family/children', requireAuth, familyChildren);
+  app.get('/api/family/children/:studentId/sessions', requireAuth, requireParentOf((req) => req.params.studentId), familyChildSessions);
+  app.get('/api/family/bind-codes', requireAuth, listBindCodes);
+  app.post('/api/family/bind-codes', requireAuth, createBindCode);
+  app.post('/api/family/bind', requireAuth, requireRole('parent'), bindByCode);
+  app.delete('/api/family/children/:studentId', requireAuth, requireParentOf((req) => req.params.studentId), unbindChild);
+  app.get('/api/family/invites', requireAuth, requireRole('parent'), myInvites);
 
-  // ========== 会话管理 ==========
-  app.post('/api/session', createSessionHandler);
-  app.get('/api/session/:id/history', getSessionHistory);
-  app.get('/api/session/:id', getSessionOrRestore);
-  app.delete('/api/session/:id', deleteSessionWithDb);
-  app.post('/api/session/:id/clear', clearSession);
-  app.post('/api/session/:id/reset', resetSessionHandler);
-  app.post('/api/session/:id/archive', archiveSession);
-  app.patch('/api/session/:id', patchSession);
+  // ========== 账号管理（P2，管理员）==========
+  app.get('/api/admin/users', requireAuth, requireAdmin, adminListUsers);
+  app.post('/api/admin/users', requireAuth, requireAdmin, adminCreateUser);
+  app.get('/api/admin/users/:id', requireAuth, requireAdmin, adminGetUser);
+  app.patch('/api/admin/users/:id', requireAuth, requireAdmin, adminPatchUser);
+  app.post('/api/admin/users/:id/password', requireAuth, requireAdmin, adminResetPassword);
+  app.post('/api/admin/users/:id/status', requireAuth, requireAdmin, adminSetStatus);
+  app.post('/api/admin/users/:id/admin', requireAuth, requireAdmin, adminSetAdmin);
+  app.delete('/api/admin/users/:id', requireAuth, requireAdmin, adminDeleteUser);
+  app.get('/api/admin/audit', requireAuth, requireAdmin, adminAuditLogs);
+  app.post('/api/admin/guests/purge', requireAuth, requireAdmin, adminPurgeGuests);
 
-  // ========== 草稿同步 ==========
-  app.post('/api/session/:id/scratch', syncScratch);
-  app.post('/api/session/:id/scratch-image', syncScratchImage);
+  // ========== 题目管理（需登录）==========
+  app.get('/api/problems', requireAuth, listProblems);
+  app.delete('/api/problem/:id', requireAuth, requireAdmin, removeProblem);
 
-  // ========== 确认操作 ==========
-  app.post('/api/session/:id/delete-confirm', deleteConfirm);
-  app.post('/api/session/:id/proposal', proposalConfirm);
+  // ========== 会话列表（需登录）==========
+  app.get('/api/sessions', requireAuth, listSessions);
 
-  // ========== 对话 turn（SSE 流式） ==========
-  app.post('/api/session/:id/turn', handleTurn);
+  // ========== 会话管理（需登录 + 归属校验在 controller 内）==========
+  app.post('/api/session', requireAuth, createSessionHandler);
+  app.get('/api/session/:id/history', requireAuth, getSessionHistory);
+  app.get('/api/session/:id', requireAuth, getSessionOrRestore);
+  app.delete('/api/session/:id', requireAuth, deleteSessionWithDb);
+  app.post('/api/session/:id/clear', requireAuth, clearSession);
+  app.post('/api/session/:id/reset', requireAuth, resetSessionHandler);
+  app.post('/api/session/:id/archive', requireAuth, archiveSession);
+  app.patch('/api/session/:id', requireAuth, patchSession);
 
-  // ========== 评估 ==========
-  app.get('/api/eval/dashboard', evalDashboard);
-  app.get('/api/eval/turns', evalTurns);
-  app.get('/api/eval/scores/turn/:turnId', getTurnScores);
-  app.get('/api/eval/scores/session/:sessionId', getSessionScores);
-  app.post('/api/eval/judge/:turnId', triggerJudge);
+  // ========== 草稿同步（需登录）==========
+  app.post('/api/session/:id/scratch', requireAuth, syncScratch);
+  app.post('/api/session/:id/scratch-image', requireAuth, syncScratchImage);
 
-  // session 级评估
-  app.get('/api/eval/session/:sessionId/scores', getSessionEvalScoresHandler);
-  app.post('/api/eval/session/:sessionId/judge', triggerSessionJudge);
-  app.get('/api/eval/session-summary', sessionEvalSummary);
-  app.get('/api/eval/sessions', sessionEvalList);
+  // ========== 确认操作（需登录）==========
+  app.post('/api/session/:id/delete-confirm', requireAuth, deleteConfirm);
+  app.post('/api/session/:id/proposal', requireAuth, proposalConfirm);
 
-  // 学生评估
-  app.get('/api/eval/student/summary', studentEvalSummary);
-  app.get('/api/eval/student/sessions', studentEvalList);
-  app.post('/api/eval/student/judge/:sessionId', triggerStudentEval);
+  // ========== 对话 turn（SSE 流式，需登录）==========
+  app.post('/api/session/:id/turn', requireAuth, handleTurn);
 
-  // ========== Prompt 版本管理 ==========
-  app.get('/api/prompts', listPrompts);
-  app.get('/api/prompts/roles/list', listRoles);
-  app.get('/api/prompts/:id', getPrompt);
-  app.post('/api/prompts', createPrompt);
-  app.post('/api/prompts/:id/activate', activatePrompt);
-  app.delete('/api/prompts/:id', deletePrompt);
+  // ========== 评估（管理员）==========
+  app.get('/api/eval/dashboard', requireAuth, requireAdmin, evalDashboard);
+  app.get('/api/eval/turns', requireAuth, requireAdmin, evalTurns);
+  app.get('/api/eval/scores/turn/:turnId', requireAuth, requireAdmin, getTurnScores);
+  app.get('/api/eval/scores/session/:sessionId', requireAuth, requireAdmin, getSessionScores);
+  app.post('/api/eval/judge/:turnId', requireAuth, requireAdmin, triggerJudge);
 
-  // ========== 运行时配置管理（API Key / Base URL / 模型）==========
-  app.get('/api/settings', getSettings);
-  app.put('/api/settings', updateSettings);
-  app.post('/api/settings/test', testSettings);
+  // session 级评估（管理员）
+  app.get('/api/eval/session/:sessionId/scores', requireAuth, requireAdmin, getSessionEvalScoresHandler);
+  app.post('/api/eval/session/:sessionId/judge', requireAuth, requireAdmin, triggerSessionJudge);
+  app.get('/api/eval/session-summary', requireAuth, requireAdmin, sessionEvalSummary);
+  app.get('/api/eval/sessions', requireAuth, requireAdmin, sessionEvalList);
+
+  // 学生评估（管理员）
+  app.get('/api/eval/student/summary', requireAuth, requireAdmin, studentEvalSummary);
+  app.get('/api/eval/student/sessions', requireAuth, requireAdmin, studentEvalList);
+  app.post('/api/eval/student/judge/:sessionId', requireAuth, requireAdmin, triggerStudentEval);
+
+  // ========== Prompt 版本管理（管理员）==========
+  app.get('/api/prompts', requireAuth, requireAdmin, listPrompts);
+  app.get('/api/prompts/roles/list', requireAuth, requireAdmin, listRoles);
+  app.get('/api/prompts/:id', requireAuth, requireAdmin, getPrompt);
+  app.post('/api/prompts', requireAuth, requireAdmin, createPrompt);
+  app.post('/api/prompts/:id/activate', requireAuth, requireAdmin, activatePrompt);
+  app.delete('/api/prompts/:id', requireAuth, requireAdmin, deletePrompt);
+
+  // ========== 运行时配置管理（管理员）==========
+  app.get('/api/settings', requireAuth, requireAdmin, getSettings);
+  app.put('/api/settings', requireAuth, requireAdmin, updateSettings);
+  app.post('/api/settings/test', requireAuth, requireAdmin, testSettings);
 
   // ========== 学生记忆（学习档案页数据源）==========
-  app.get('/api/memory/overview', memoryOverview);
-  app.get('/api/memory/attempts', memoryAttempts);
-  app.get('/api/memory/facts', memoryFacts);
-  app.post('/api/memory/consolidate', memoryConsolidate);
+  // 目标学生按账号角色解析：学生=自己；家长=已绑定孩子；管理员=须传 studentId
+  const pickStudent = (req) =>
+    req.query.studentId || req.query.student_id || req.body?.studentId || req.body?.student_id || null;
+  app.get('/api/memory/overview', requireAuth, resolveTargetStudent(pickStudent), memoryOverview);
+  app.get('/api/memory/attempts', requireAuth, resolveTargetStudent(pickStudent), memoryAttempts);
+  app.get('/api/memory/facts', requireAuth, resolveTargetStudent(pickStudent), memoryFacts);
+  app.post('/api/memory/consolidate', requireAuth, resolveTargetStudent(pickStudent), memoryConsolidate);
 
   // ========== 404 兜底 ==========
   app.use((req, res) => {

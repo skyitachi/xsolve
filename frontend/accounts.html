@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>账号管理 · 小学AI做题助手</title>
+  <meta name="theme-color" content="#4f46e5" />
+  <meta name="color-scheme" content="light" />
+  <style>
+    :root {
+      --brand: #4f46e5; --brand-dark: #4338ca;
+      --bg: #f5f6fb; --card: #fff; --text: #1f2333; --muted: #6b7080;
+      --line: #e3e5ee; --danger: #dc2626; --ok: #059669; --warn: #d97706;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+      font-size: 14px; line-height: 1.55; }
+    .container { max-width: 1180px; margin: 0 auto; padding: 20px 16px calc(40px + env(safe-area-inset-bottom, 0px)); }
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    h1 { font-size: 21px; margin: 0 0 4px; }
+    .subtitle { margin: 0; color: var(--muted); font-size: 13px; }
+    .head-nav { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    .back-link { color: var(--brand); text-decoration: none; font-size: 13px; }
+    .back-link:hover { text-decoration: underline; }
+    h2 { font-size: 15px; margin: 26px 0 10px; }
+    h2 .hint { font-size: 12px; color: #9a9aab; font-weight: 400; }
+
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+    .scard { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+    .scard .v { font-size: 20px; font-weight: 700; }
+    .scard .k { font-size: 12px; color: var(--muted); }
+
+    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-top: 16px; }
+    button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line);
+      background: #fff; color: var(--text); padding: 7px 11px; touch-action: manipulation; }
+    button:hover { border-color: var(--brand); color: var(--brand); }
+    button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+    button.primary:hover { background: var(--brand-dark); color: #fff; }
+    button.danger { color: var(--danger); }
+    button.danger:hover { border-color: var(--danger); color: var(--danger); }
+    button.sm { padding: 4px 8px; font-size: 12.5px; }
+    button:disabled { opacity: .55; cursor: default; }
+    select, input { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; background: #fff; }
+    select:focus, input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
+
+    .msg { font-size: 12.5px; color: var(--muted); flex: 1 1 100%; min-height: 16px; }
+    .msg.err { color: var(--danger); }
+    .msg.ok { color: var(--ok); }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+    table { width: 100%; border-collapse: collapse; min-width: 860px; }
+    th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--line); font-size: 13px; white-space: nowrap; }
+    th { background: #fafbfe; color: var(--muted); font-weight: 600; position: sticky; top: 0; }
+    tr:last-child td { border-bottom: 0; }
+    tr.disabled-row td { opacity: .55; }
+    .badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #eef0f7; color: #4b4f60; }
+    .badge.admin { background: #ede9fe; color: #5b21b6; }
+    .badge.parent { background: #dbeafe; color: #1d4ed8; }
+    .badge.student { background: #dcfce7; color: #15803d; }
+    .badge.guest { background: #fef3c7; color: #b45309; }
+    .badge.off { background: #fee2e2; color: #b91c1c; }
+    .acts { display: flex; gap: 5px; flex-wrap: wrap; }
+    .empty { color: var(--muted); font-size: 13px; padding: 14px; text-align: center; }
+    .muted { color: var(--muted); font-size: 12.5px; }
+    .self-note { font-size: 11px; color: #9a9aab; }
+    dialog { border: 0; border-radius: 14px; padding: 20px; max-width: 440px; width: calc(100vw - 32px); box-shadow: 0 12px 48px rgba(31,35,51,.18); }
+    dialog::backdrop { background: rgba(31,35,51,.35); }
+    dialog h3 { margin: 0 0 10px; font-size: 17px; }
+    dialog label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+    dialog input, dialog select { width: 100%; }
+    dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; margin: 18px 0 0; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div>
+      <h1>🗂 账号管理</h1>
+      <p class="subtitle">管理本机所有账号：重置密码 · 启用停用 · 管理员权限 · 删除 · 审计日志</p>
+    </div>
+    <div class="head-nav">
+      <a class="back-link" href="/eval.html">📊 评估面板</a>
+      <a class="back-link" href="/prompts.html">📝 Prompt 管理</a>
+      <a class="back-link" href="/settings.html">🔑 模型配置</a>
+      <a class="back-link" href="/index.html">返回主应用</a>
+      <span class="topbar-actions" style="display:inline-flex;gap:6px;align-items:center;"></span>
+    </div>
+  </header>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="toolbar">
+    <button class="primary" id="btnCreate">➕ 新建账号</button>
+    <button id="btnPurgeGuests">🧹 清理到期游客</button>
+    <select id="roleFilter">
+      <option value="">全部角色</option>
+      <option value="student">学生</option>
+      <option value="parent">家长</option>
+    </select>
+    <label style="display:inline-flex;gap:6px;align-items:center;font-size:13px;color:#6b6b80;">
+      <input type="checkbox" id="showGuests" style="width:auto;" checked /> 显示游客
+    </label>
+    <button id="btnRefresh">刷新</button>
+    <div class="msg" id="toolbarMsg"></div>
+  </div>
+
+  <h2>账号列表 <span class="hint" id="userCount"></span></h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>账号</th><th>角色</th><th>状态</th><th>会话</th><th>孩子</th>
+          <th>答题 / 正确</th><th>最后登录</th><th>创建时间</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="userBody"><tr><td colspan="9" class="empty">加载中…</td></tr></tbody>
+    </table>
+  </div>
+
+  <h2>审计日志 <span class="hint">（登录 / 注册 / 改密 / 绑定 / 管理操作）</span></h2>
+  <div class="toolbar" style="margin-top:0;">
+    <select id="auditFilter">
+      <option value="">全部动作</option>
+      <option value="login_success">登录成功</option>
+      <option value="login_failed">登录失败</option>
+      <option value="login_blocked">登录被限流</option>
+      <option value="logout">登出</option>
+      <option value="register">注册</option>
+      <option value="guest_start">开启试用</option>
+      <option value="password_change">修改密码</option>
+      <option value="password_reset">重置密码</option>
+      <option value="child_bind">绑定孩子</option>
+      <option value="child_unbind">解绑孩子</option>
+      <option value="bind_code_create">生成绑定码</option>
+      <option value="invite_create">生成邀请码</option>
+      <option value="account_create">创建账号</option>
+      <option value="account_disable">停用账号</option>
+      <option value="account_enable">启用账号</option>
+      <option value="account_delete">删除账号</option>
+      <option value="admin_grant">授予管理员</option>
+      <option value="admin_revoke">撤销管理员</option>
+    </select>
+    <button id="btnAuditRefresh">刷新日志</button>
+    <div class="msg" id="auditMsg"></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>时间</th><th>操作人</th><th>动作</th><th>目标</th><th>详情</th><th>IP</th></tr></thead>
+      <tbody id="auditBody"><tr><td colspan="6" class="empty">加载中…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<dialog id="createDialog">
+  <h3>➕ 新建账号</h3>
+  <label for="c-role">角色</label>
+  <select id="c-role">
+    <option value="student">学生</option>
+    <option value="parent">家长</option>
+  </select>
+  <label for="c-username">用户名（3-32 位字母/数字/下划线）</label>
+  <input id="c-username" type="text" placeholder="如 xiaoming" />
+  <label for="c-display">昵称</label>
+  <input id="c-display" type="text" placeholder="如 小明" />
+  <label for="c-password">初始密码（至少 6 位）</label>
+  <input id="c-password" type="text" placeholder="建议生成一个随机密码" />
+  <label style="display:flex;gap:6px;align-items:center;">
+    <input type="checkbox" id="c-admin" style="width:auto;" /> 设为管理员
+  </label>
+  <p class="msg" id="createMsg"></p>
+  <menu>
+    <button value="cancel" id="c-cancel">取消</button>
+    <button class="primary" id="c-submit">创建</button>
+  </menu>
+</dialog>
+
+<script src="js/auth.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var users = [];
+  var totals = {};
+  var me = null;
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function fmt(ts) {
+    if (!ts) return '—';
+    var d = new Date(ts * 1000);
+    return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
+      String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+  function relTime(ts) {
+    if (!ts) return '从未';
+    var diff = Math.floor(Date.now() / 1000) - Number(ts);
+    if (diff < 60) return '刚刚';
+    if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前';
+    if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前';
+    return Math.floor(diff / 86400) + ' 天前';
+  }
+  function setMsg(id, text, kind) {
+    var el = document.getElementById(id);
+    el.textContent = text || '';
+    el.className = 'msg' + (kind ? ' ' + kind : '');
+  }
+  function api(url, opts) { return (window.XsolveAuth ? XsolveAuth.api(url, opts) : fetch(url, opts)); }
+  function jpost(url, body, method) {
+    return api(url, { method: method || 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, d: d }; }); });
+  }
+
+  function roleBadge(u) {
+    var label = u.role === 'parent' ? '家长' : (u.role === 'admin' ? '管理员' : '学生');
+    var cls = u.role === 'parent' ? 'parent' : 'student';
+    var out = '<span class="badge ' + cls + '">' + label + '</span>';
+    if (u.is_guest) out += ' <span class="badge guest">游客</span>';
+    if (u.is_admin) out += ' <span class="badge admin">管理员</span>';
+    return out;
+  }
+
+  function renderSummary() {
+    var items = [
+      { k: '账号总数', v: totals.all },
+      { k: '管理员', v: totals.admins },
+      { k: '学生', v: totals.students },
+      { k: '家长', v: totals.parents },
+      { k: '游客', v: totals.guests },
+    ];
+    document.getElementById('summary').innerHTML = items.map(function (i) {
+      return '<div class="scard"><div class="v">' + (i.v == null ? '—' : i.v) + '</div><div class="k">' + i.k + '</div></div>';
+    }).join('');
+  }
+
+  function visibleUsers() {
+    var role = document.getElementById('roleFilter').value;
+    var showGuests = document.getElementById('showGuests').checked;
+    return users.filter(function (u) {
+      if (role && u.role !== role) return false;
+      if (!showGuests && u.is_guest) return false;
+      return true;
+    });
+  }
+
+  function renderUsers() {
+    var rows = visibleUsers();
+    document.getElementById('userCount').textContent = '（' + rows.length + ' 个）';
+    var body = document.getElementById('userBody');
+    if (!rows.length) { body.innerHTML = '<tr><td colspan="9" class="empty">没有匹配的账号</td></tr>'; return; }
+
+    body.innerHTML = rows.map(function (u) {
+      var isSelf = me && u.id === me.id;
+      var disabled = u.status !== 'active';
+      return '<tr' + (disabled ? ' class="disabled-row"' : '') + '>' +
+        '<td><strong>' + esc(u.display_name || u.username) + '</strong>' +
+          '<div class="muted">@' + esc(u.username) + (isSelf ? ' <span class="self-note">（我）</span>' : '') + '</div></td>' +
+        '<td>' + roleBadge(u) + '</td>' +
+        '<td>' + (disabled ? '<span class="badge off">已停用</span>' : '正常') + '</td>' +
+        '<td>' + (u.session_count || 0) + '</td>' +
+        '<td>' + (u.child_count || 0) + (u.parent_count ? ' <span class="muted">/' + u.parent_count + ' 家长</span>' : '') + '</td>' +
+        '<td>' + (u.attempt_count || 0) + (u.attempt_count ? ' <span class="muted">/ ' + u.correct_count + '</span>' : '') + '</td>' +
+        '<td>' + relTime(u.last_login_at) + '</td>' +
+        '<td class="muted">' + fmt(u.created_at) + '</td>' +
+        '<td><div class="acts">' +
+          '<button class="sm" data-act="pw" data-id="' + u.id + '">重置密码</button>' +
+          '<button class="sm" data-act="rename" data-id="' + u.id + '">改昵称</button>' +
+          '<button class="sm" data-act="toggle-admin" data-id="' + u.id + '"' + (isSelf ? ' disabled title="不能撤销自己的管理员权限"' : '') + '>' +
+            (u.is_admin ? '撤管理员' : '设为管理员') + '</button>' +
+          '<button class="sm' + (disabled ? '' : ' danger') + '" data-act="toggle-status" data-id="' + u.id + '"' + (isSelf ? ' disabled title="不能停用自己"' : '') + '>' +
+            (disabled ? '启用' : '停用') + '</button>' +
+          '<button class="sm danger" data-act="delete" data-id="' + u.id + '"' + (isSelf ? ' disabled title="不能删除自己"' : '') + '>删除</button>' +
+        '</div></td>' +
+      '</tr>';
+    }).join('');
+
+    body.querySelectorAll('button[data-act]').forEach(function (b) {
+      b.addEventListener('click', function () { onAction(b.getAttribute('data-act'), b.getAttribute('data-id')); });
+    });
+  }
+
+  function findUser(id) { return users.filter(function (u) { return u.id === id; })[0]; }
+
+  function onAction(act, id) {
+    var u = findUser(id);
+    if (!u) return;
+
+    if (act === 'pw') {
+      var pw = prompt('为「' + (u.display_name || u.username) + '」设置新密码（至少 6 位）。\n留空表示自动生成随机密码：', '');
+      if (pw === null) return;
+      setMsg('toolbarMsg', '重置中…');
+      jpost('/api/admin/users/' + id + '/password', pw ? { password: pw } : { force_random: true })
+        .then(function (res) {
+          if (!res.ok) { setMsg('toolbarMsg', '重置失败：' + (res.d.error || ''), 'err'); return; }
+          setMsg('toolbarMsg', res.d.generated
+            ? ('已生成随机密码：' + res.d.password + '（请尽快转告并让对方自行修改）')
+            : '密码已重置，该账号的其它登录已失效', 'ok');
+        });
+    } else if (act === 'rename') {
+      var name = prompt('新的昵称：', u.display_name || '');
+      if (name === null) return;
+      jpost('/api/admin/users/' + id, { display_name: name }, 'PATCH')
+        .then(function (res) {
+          if (!res.ok) { setMsg('toolbarMsg', '改名失败：' + (res.d.error || ''), 'err'); return; }
+          setMsg('toolbarMsg', '昵称已更新', 'ok');
+          loadUsers();
+        });
+    } else if (act === 'toggle-admin') {
+      var toAdmin = !u.is_admin;
+      if (!confirm((toAdmin ? '授予' : '撤销') + '「' + (u.display_name || u.username) + '」的管理员权限？')) return;
+      jpost('/api/admin/users/' + id + '/admin', { is_admin: toAdmin })
+        .then(function (res) {
+          if (!res.ok) { setMsg('toolbarMsg', '操作失败：' + (res.d.error || ''), 'err'); return; }
+          setMsg('toolbarMsg', toAdmin ? '已授予管理员' : '已撤销管理员', 'ok');
+          loadUsers();
+        });
+    } else if (act === 'toggle-status') {
+      var disabled = u.status !== 'active';
+      if (!confirm((disabled ? '启用' : '停用') + '「' + (u.display_name || u.username) + '」？' +
+        (disabled ? '' : '\n\n停用后该账号将无法登录，已有登录态会被清除。'))) return;
+      jpost('/api/admin/users/' + id + '/status', { status: disabled ? 'active' : 'disabled' })
+        .then(function (res) {
+          if (!res.ok) { setMsg('toolbarMsg', '操作失败：' + (res.d.error || ''), 'err'); return; }
+          setMsg('toolbarMsg', disabled ? '账号已启用' : '账号已停用', 'ok');
+          loadUsers();
+        });
+    } else if (act === 'delete') {
+      if (!confirm('⚠️ 删除「' + (u.display_name || u.username) + '」？\n\n会一并删除该账号的对话记录、答题记录与学习记忆，且不可恢复。')) return;
+      if (!confirm('再次确认：真的要删除这个账号吗？')) return;
+      api('/api/admin/users/' + id, { method: 'DELETE' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.error) { setMsg('toolbarMsg', '删除失败：' + d.error, 'err'); return; }
+          setMsg('toolbarMsg', '账号已删除', 'ok');
+          loadUsers();
+        })
+        .catch(function (e) { setMsg('toolbarMsg', '删除失败：' + e.message, 'err'); });
+    }
+  }
+
+  function loadUsers() {
+    return api('/api/admin/users').then(function (r) { return r.json(); }).then(function (d) {
+      if (d.error) { setMsg('toolbarMsg', '加载失败：' + d.error, 'err'); return; }
+      users = d.users || [];
+      totals = d.totals || {};
+      renderSummary();
+      renderUsers();
+    }).catch(function (e) { setMsg('toolbarMsg', '加载失败：' + e.message, 'err'); });
+  }
+
+  function loadAudit() {
+    var action = document.getElementById('auditFilter').value;
+    var url = '/api/admin/audit?limit=150' + (action ? '&action=' + encodeURIComponent(action) : '');
+    return api(url).then(function (r) { return r.json(); }).then(function (d) {
+      var body = document.getElementById('auditBody');
+      if (d.error) { body.innerHTML = '<tr><td colspan="6" class="empty">加载失败：' + esc(d.error) + '</td></tr>'; return; }
+      var logs = d.logs || [];
+      if (!logs.length) { body.innerHTML = '<tr><td colspan="6" class="empty">暂无日志</td></tr>'; return; }
+      body.innerHTML = logs.map(function (l) {
+        return '<tr>' +
+          '<td class="muted">' + fmt(l.created_at) + '</td>' +
+          '<td>' + esc(l.actor_username || '—') + (l.actor_role ? ' <span class="muted">' + esc(l.actor_role) + '</span>' : '') + '</td>' +
+          '<td><span class="badge">' + esc(l.action) + '</span></td>' +
+          '<td class="muted">' + esc(l.target_type || '') + (l.target_id ? ' ' + esc(String(l.target_id).slice(0, 10)) : '') + '</td>' +
+          '<td class="muted">' + esc(l.detail || '') + '</td>' +
+          '<td class="muted">' + esc(l.ip || '') + '</td>' +
+        '</tr>';
+      }).join('');
+    }).catch(function (e) {
+      document.getElementById('auditBody').innerHTML = '<tr><td colspan="6" class="empty">加载失败：' + esc(e.message) + '</td></tr>';
+    });
+  }
+
+  // ---------- 新建账号 ----------
+  function openCreate() {
+    document.getElementById('c-username').value = '';
+    document.getElementById('c-display').value = '';
+    document.getElementById('c-admin').checked = false;
+    document.getElementById('c-password').value = 'xs' + Math.random().toString(36).slice(2, 8);
+    setMsg('createMsg', '');
+    var dlg = document.getElementById('createDialog');
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+  }
+
+  function submitCreate() {
+    var payload = {
+      role: document.getElementById('c-role').value,
+      username: document.getElementById('c-username').value.trim(),
+      display_name: document.getElementById('c-display').value.trim(),
+      password: document.getElementById('c-password').value,
+      is_admin: document.getElementById('c-admin').checked,
+    };
+    if (!payload.username || !payload.password) { setMsg('createMsg', '请填写用户名和密码', 'err'); return; }
+    setMsg('createMsg', '创建中…');
+    jpost('/api/admin/users', payload).then(function (res) {
+      if (!res.ok) { setMsg('createMsg', '创建失败：' + (res.d.error || ''), 'err'); return; }
+      document.getElementById('createDialog').close();
+      setMsg('toolbarMsg', '已创建账号 ' + payload.username + '（初始密码：' + payload.password + '）', 'ok');
+      loadUsers();
+      loadAudit();
+    });
+  }
+
+  // ---------- 事件 ----------
+  document.getElementById('btnRefresh').addEventListener('click', function () { setMsg('toolbarMsg', ''); loadUsers(); });
+  document.getElementById('btnAuditRefresh').addEventListener('click', loadAudit);
+  document.getElementById('auditFilter').addEventListener('change', loadAudit);
+  document.getElementById('roleFilter').addEventListener('change', renderUsers);
+  document.getElementById('showGuests').addEventListener('change', renderUsers);
+  document.getElementById('btnCreate').addEventListener('click', openCreate);
+  document.getElementById('c-cancel').addEventListener('click', function () { document.getElementById('createDialog').close(); });
+  document.getElementById('c-submit').addEventListener('click', submitCreate);
+  document.getElementById('btnPurgeGuests').addEventListener('click', function () {
+    if (!confirm('清理所有已到期的游客账号（连带其对话与记忆）？')) return;
+    jpost('/api/admin/guests/purge').then(function (res) {
+      if (!res.ok) { setMsg('toolbarMsg', '清理失败：' + (res.d.error || ''), 'err'); return; }
+      setMsg('toolbarMsg', '已清理 ' + res.d.removed + ' 个到期游客账号', 'ok');
+      loadUsers(); loadAudit();
+    });
+  });
+
+  // ---------- 启动 ----------
+  (async function boot() {
+    try {
+      if (window.XsolveAuth && XsolveAuth.ready) {
+        me = await XsolveAuth.ready;
+        if (me && !me.is_admin) {
+          document.getElementById('userBody').innerHTML =
+            '<tr><td colspan="9" class="empty">需要管理员权限</td></tr>';
+          return;
+        }
+      }
+    } catch (e) { /* 未登录时 auth.js 会跳转 */ }
+    loadUsers();
+    loadAudit();
+  })();
+})();
+</script>
+</body>
+</html>

@@ -5,6 +5,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>xsolve 学习档案</title>
+<script src="/js/auth.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -130,8 +131,9 @@ td.ans { font-family: ui-monospace, monospace; font-size: 12px; max-width: 220px
       <p class="subtitle">AI 助教对这位学生跨会话的长期记忆（掌握度 · 成长 · 错因 · 画像）</p>
     </div>
     <div class="head-nav">
-      <a class="back-link" href="/student-eval.html">学生能力评估</a>
-      <a class="back-link" href="/eval.html">AI 质量评估</a>
+      <a class="back-link topbar-admin" href="/student-eval.html">学生能力评估</a>
+      <a class="back-link topbar-admin" href="/eval.html">AI 质量评估</a>
+      <a class="back-link" href="/my-children.html" id="my-children-link" hidden>我的孩子</a>
       <a class="back-link" href="/index.html">返回主应用</a>
     </div>
   </header>
@@ -146,6 +148,7 @@ td.ans { font-family: ui-monospace, monospace; font-size: 12px; max-width: 220px
     </select>
     <button class="primary" onclick="loadAll()">刷新</button>
     <button class="ghost" id="consolidateBtn" onclick="triggerConsolidate()" title="用 LLM 根据近期作答重新归纳学生画像">重新固化画像</button>
+    <select id="childSelect" onchange="switchChild(this.value)" hidden style="margin-left:4px;"></select>
     <span id="toolbarMsg" style="font-size:12px;color:#6b6b80;"></span>
   </div>
 
@@ -193,6 +196,22 @@ const ERROR_TYPES = {
 };
 const KIND_LABELS = { observation: '观察', preference: '偏好', milestone: '里程碑' };
 
+// ---- 目标学生（家长可看多个孩子）----
+//   优先用 URL ?studentId=；否则家长回落到账户菜单选中的孩子；学生/管理员留空由后端解析
+const _qs = new URLSearchParams(location.search);
+let TARGET_STUDENT = _qs.get('studentId') || _qs.get('student_id') || null;
+
+function withStudent(url) {
+  if (!TARGET_STUDENT) return url;
+  return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'studentId=' + encodeURIComponent(TARGET_STUDENT);
+}
+
+function switchChild(sid) {
+  TARGET_STUDENT = sid || null;
+  if (window.XsolveAuth && XsolveAuth.setViewStudentId) XsolveAuth.setViewStudentId(sid);
+  loadAll();
+}
+
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 function fmtTime(ts) {
   if (!ts) return '-';
@@ -217,7 +236,7 @@ function masterySolid(pct) { return pct >= 80 ? '#0a9e6a' : pct >= 60 ? '#efaa17
 async function loadAll() {
   const days = document.getElementById('daysSelect').value;
   try {
-    const resp = await fetch(`/api/memory/overview?days=${days}`);
+    const resp = await fetch(withStudent(`/api/memory/overview?days=${days}`));
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     renderSummary(data);
@@ -416,7 +435,7 @@ async function triggerConsolidate() {
   btn.textContent = '固化中...';
   msg.textContent = '';
   try {
-    const resp = await fetch('/api/memory/consolidate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const resp = await fetch(withStudent('/api/memory/consolidate'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     const r = await resp.json();
     if (r.error) { msg.textContent = '失败：' + r.error; }
     else if (r.skipped) { msg.textContent = '数据不足，暂未固化（' + (r.reason || '') + '）'; }
@@ -429,8 +448,40 @@ async function triggerConsolidate() {
   }
 }
 
-loadAll();
-setInterval(loadAll, 30000);
+// ---- 启动：解析登录态与目标孩子，再加载数据 ----
+(async function boot() {
+  try {
+    if (window.XsolveAuth && XsolveAuth.ready) {
+      const me = await XsolveAuth.ready;
+      if (me) {
+        if (me.role === 'parent' || (me.children && me.children.length)) {
+          const link = document.getElementById('my-children-link');
+          if (link) link.hidden = false;
+
+          if (!TARGET_STUDENT && XsolveAuth.viewStudentId) TARGET_STUDENT = XsolveAuth.viewStudentId();
+
+          // 多孩子时提供切换下拉
+          const kids = me.children || [];
+          const sel = document.getElementById('childSelect');
+          if (sel && kids.length > 1) {
+            sel.hidden = false;
+            sel.innerHTML = kids.map(function (c) {
+              const name = c.display_name || c.username;
+              return '<option value="' + c.id + '"' + (c.id === TARGET_STUDENT ? ' selected' : '') + '>' + esc(name) + '</option>';
+            }).join('');
+          }
+          const kid = kids.find(function (c) { return c.id === TARGET_STUDENT; });
+          if (kid) {
+            const sub = document.querySelector('.subtitle');
+            if (sub) sub.textContent = '正在查看：' + (kid.display_name || kid.username) + ' 的学习档案（只读）';
+          }
+        }
+      }
+    }
+  } catch (e) { /* 未登录时 auth.js 会跳转 */ }
+  loadAll();
+  setInterval(loadAll, 30000);
+})();
 </script>
 </body>
 </html>

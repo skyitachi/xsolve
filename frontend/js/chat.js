@@ -250,11 +250,21 @@ function finishToolCard(card, result, isError = false) {
 // ========== 会话管理 ==========
 
 // 创建新会话（绑定角色）
+// 后端按登录账号角色强制派生 mode 与归属；家长需带 studentId（要辅导的孩子）
+function sessionScopeBody(extra) {
+  const body = Object.assign({}, extra || {});
+  if (window.XsolveAuth) {
+    const sid = XsolveAuth.viewStudentId();
+    if (sid) body.studentId = sid;
+  }
+  return body;
+}
+
 async function createSession(mode = state.mode || "student") {
   const resp = await fetch("/api/session", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ mode }),
+    body: JSON.stringify(sessionScopeBody({ mode })),
   });
   if (!resp.ok) throw new Error("创建会话失败: " + resp.status);
   const data = await resp.json();
@@ -316,7 +326,7 @@ async function newChatOverride() {
   const resp = await fetch(`/api/session/${oldId}/reset`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ mode: state.mode }),
+    body: JSON.stringify(sessionScopeBody({ mode: state.mode })),
   });
   if (!resp.ok) throw new Error("新建对话失败: " + resp.status);
   const data = await resp.json();
@@ -827,9 +837,13 @@ function submitAnswer() {
     alert("请先输入答案");
     return;
   }
+  // 显式带上当前题目 id：模型在长驻会话里会沿用上一题的 id，
+  // 不锚定的话「切题后再提交」会判到上一题。
+  const cp = state.problems[state.idx];
+  const anchor = cp ? `（当前题目 id 是 ${cp.id}，请只按这道题判答，不要用历史里的其它题目 id）` : "";
   // 直接交给 agent 评判，由 AI 用工具判答 + 鼓励
   addUserMsg(`我的答案是：${userAns}`);
   runTurn(
-    `请用工具 check_answer 判断我的答案"${userAns}"是否正确，然后记录到我的历史，并给我反馈。如果错了请给我提示，不要直接告诉我答案。`,
+    `请用工具 check_answer 判断我的答案"${userAns}"是否正确${anchor}，然后记录到我的历史，并给我反馈。如果错了请给我提示，不要直接告诉我答案。`,
   );
 }

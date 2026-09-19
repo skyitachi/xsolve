@@ -265,6 +265,11 @@ function initApp() {
 
   // 启动：加载题库、恢复或创建会话
   (async function boot() {
+    // 鉴权守卫：未登录会被重定向到 /login.html，这里直接结束初始化
+    if (window.XsolveAuth) {
+      const user = await XsolveAuth.ready;
+      if (!user) return;
+    }
     try {
       await loadProblems();
     } catch (e) {

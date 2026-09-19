@@ -1,5 +1,5 @@
 // 对话 turn controller（SSE 流式响应）
-import { sessions } from '../session.js';
+import { sessions, canAccessSession } from '../session.js';
 import { insertChatTurn, updateChatSession, getChatTurns, getProblem, recordAttempt, getAttemptStats } from '../db.js';
 import { compareAnswer } from '../utils.js';
 import { judgeTurn } from '../eval/llm-judge.js';
@@ -7,7 +7,7 @@ import { judgeSession } from '../eval/session-judge.js';
 import { evalStudent } from '../eval/student-eval.js';
 import { consolidateStudent } from '../memory/consolidate.js';
 import { maybeCompressSession } from '../memory/compress.js';
-import { MEMORY_CONSOLIDATE_INTERVAL } from '../config.js';
+import { MEMORY_CONSOLIDATE_INTERVAL, GUEST_MAX_TURNS } from '../config.js';
 
 // 每 N 个 turn 自动触发一次 session 级评估
 const SESSION_EVAL_INTERVAL = 5;
@@ -17,6 +17,22 @@ export function handleTurn(req, res) {
   const id = req.params.id;
   const s = sessions.get(id);
   if (!s) return res.status(404).json({ error: 'session not found' });
+  if (!canAccessSession(req.user, s)) {
+    return res.status(403).json({ error: '无权访问该会话' });
+  }
+
+  // 游客试用限额：避免被当作免费 API 长期占用
+  if (req.user && req.user.is_guest && GUEST_MAX_TURNS > 0) {
+    let used = 0;
+    try { used = getChatTurns(s.id).length; } catch { used = 0; }
+    if (used >= GUEST_MAX_TURNS) {
+      return res.status(403).json({
+        error: `试用已用完（${GUEST_MAX_TURNS} 轮），注册账号后可继续`,
+        guest_limit: true,
+        limit: GUEST_MAX_TURNS,
+      });
+    }
+  }
 
   const body = req.body || {};
   const userMsg = (body.message || '').trim();
@@ -29,6 +45,12 @@ export function handleTurn(req, res) {
   // 同步前端状态到 session
   if (typeof body.currentProblemId === 'string') s.currentProblemId = body.currentProblemId;
   if (typeof body.scratchStrokes === 'number') s.scratchStrokes = body.scratchStrokes;
+
+  // 本轮题目锚点快照：AI 处理期间学生若又切了题，本轮的判答落库仍按“提交时”那道题算。
+  // 同时写到 session.turnProblemId，让 MCP 工具层（check_answer / record_history）
+  // 在一轮对话进行中也能拿到稳定的锚点。
+  const turnProblemId = s.currentProblemId || null;
+  s.turnProblemId = turnProblemId;
 
   // 记录 turn 开始时间
   const turnStartTime = Date.now();
@@ -190,7 +212,8 @@ export function handleTurn(req, res) {
     try {
       const duration_ms = Date.now() - turnStartTime;
       const ai_message = aiTextAccumulator || null;
-      const tool_calls = [...toolCallIndex.values()];
+      const tool_calls = [...toolCallIndex.values()]
+        .map(tc => anchorToolCallProblemId(tc, turnProblemId));
       const tool_calls_json = JSON.stringify(tool_calls);
 
       const turnId = insertChatTurn({
@@ -227,7 +250,7 @@ export function handleTurn(req, res) {
           ai_message,
           tool_calls_json,
           prompt_version_id: s.promptVersionId || null,
-        }, s.id, s.currentProblemId).catch(err => {
+        }, s.id, turnProblemId).catch(err => {
           console.error(`[turn] LLM Judge failed for turn ${turnId}:`, err.message);
         });
 
@@ -245,9 +268,10 @@ export function handleTurn(req, res) {
 
         // 学生记忆 P1：每 MEMORY_CONSOLIDATE_INTERVAL 轮、且有作答时，LLM 固化语义画像
         try {
-          const stats = getAttemptStats('me');
-          if (allTurns.length % MEMORY_CONSOLIDATE_INTERVAL === 0 && stats.total > 0) {
-            consolidateStudent('me').catch(err => {
+          const sid = s.studentId;
+          const stats = sid ? getAttemptStats(sid) : { total: 0 };
+          if (sid && allTurns.length % MEMORY_CONSOLIDATE_INTERVAL === 0 && stats.total > 0) {
+            consolidateStudent(sid).catch(err => {
               console.error(`[turn] consolidate failed:`, err.message);
             });
           }
@@ -279,6 +303,18 @@ export function handleTurn(req, res) {
         effectiveText = '（学生上传了一张图片，请调用 recognize_problem_image 工具识别图片内容。）';
       }
     }
+
+    // 当前题目锚点：SDK 会话是长驻的，模型看不到「网页上换题了」这件事，
+    // 不注入的话它会接着用历史里那道题的 id 去判答（表现为「切题后提交答案判的是上一题」）。
+    // 每轮显式告知当前题，让它不必也不该去猜。
+    if (turnProblemId) {
+      const tp = getProblem(turnProblemId);
+      effectiveText += (effectiveText ? '\n\n' : '') +
+        `[系统注入·当前题目锚点] 网页上正在显示的题目 id = ${turnProblemId}` +
+        (tp ? `，主题「${tp.topic}」` : '') +
+        '。凡涉及判答 / 记录 / 讲解，都必须针对这道题；' +
+        '不要沿用历史对话里出现过的其它题目 id，除非你先调用 set_current_problem 切换。';
+    }
     const content = [];
     if (audioBody && audioBody.data) {
       content.push({ type: 'audio', source: { type: 'base64', media_type: audioBody.mediaType || 'audio/webm', data: audioBody.data } });
@@ -307,18 +343,35 @@ export function handleTurn(req, res) {
   }
 }
 
+// 判答/记录类工具：其 problem_id 一律锚定到“本轮题目”。
+// 模型在长驻 SDK 会话里很容易沿用历史对话里的旧题目 id，会让「切题后再提交答案」
+// 判到上一题，并把错题记到错误的题目上。MCP 工具层（mcp-tools.js anchorProblem）
+// 做了同样的锚定，这里同步一遍是为了让落库的 tool_calls_json 与实际判答一致。
+const PROBLEM_ANCHORED_TOOL = /(check_answer|record_history)$/;
+export function anchorToolCallProblemId(tc, turnProblemId) {
+  if (!tc || !turnProblemId) return tc;
+  if (!PROBLEM_ANCHORED_TOOL.test(tc.name || '')) return tc;
+  const input = tc.input || {};
+  if (input.problem_id === turnProblemId) return tc;
+  return { ...tc, input: { ...input, problem_id: turnProblemId } };
+}
+
 // 确定性落库：扫描本轮工具调用，把每个 check_answer 的结果写入 student_attempts。
 // 答案对错用 compareAnswer(user_answer, problem.answer) 判定，不依赖 AI 自报的 correct。
-function autoLogAttempts(session, turnId, toolCalls) {
+// 归属学生取 session.studentId（学生=自己；家长=被辅导的孩子）；无归属时跳过落库。
+function autoLogAttempts(session, turnId, toolCalls, turnProblemId) {
+  const studentId = session.studentId;
+  if (!studentId) return;
   for (const tc of toolCalls || []) {
     if (!/check_answer$/.test(tc.name || '')) continue;
-    const pid = tc.input?.problem_id;
+    // 与工具层一致：以本轮题目为准，避免 AI 的旧 id 污染答题流水
+    const pid = turnProblemId || tc.input?.problem_id;
     const ans = tc.input?.user_answer;
     if (pid == null || ans == null) continue;
     try {
       const p = getProblem(pid);
       recordAttempt({
-        student_id: 'me',
+        student_id: studentId,
         session_id: session.id,
         turn_id: turnId,
         problem_id: pid,

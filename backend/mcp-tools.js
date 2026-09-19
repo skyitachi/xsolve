@@ -27,14 +27,16 @@ function visionModelDisplay() {
 }
 
 // 难度自适应（P1）：据学生整体水位与该主题掌握度，给 AI 一条出题难度建议。
-function difficultyHint(topic) {
+// studentId = 本会话归属的学生（学生账号=自己；家长=被辅导的孩子）
+function difficultyHint(topic, studentId) {
+  if (!studentId) return '';
   const parts = [];
   try {
-    const profile = getStudentProfile('me');
+    const profile = getStudentProfile(studentId);
     if (profile?.level) parts.push(`学生整体难度水位「${profile.level}」`);
   } catch { /* ignore */ }
   try {
-    const rows = getTopicMastery('me');
+    const rows = getTopicMastery(studentId);
     const m = topic ? rows.find((r) => r.topic === topic) : null;
     if (m && (m.attempts || 0) >= 2) {
       const pct = Math.round((m.mastery || 0) * 100);
@@ -56,6 +58,44 @@ export function buildTutorMcp(session) {
   function findProblem(id) {
     return getProblem(id) || (session.proposedProblems || []).find(x => x.id === id);
   }
+
+  /**
+   * 判答/记录的题目锚定。
+   *
+   * 网页上正在显示的那道题（session.currentProblemId）才是判答对象。
+   * 但 SDK 会话是长驻的：学生切换题目后，模型很容易沿用历史对话里的旧 problem_id
+   * （或干脆漏传），于是出现「切了题再提交答案，判的却是上一题」。
+   * 这里统一以当前题为准，并把纠正事实回给模型，让它下一轮不再犯错。
+   *
+   * @returns {{id: string|null, problem: object|null, corrected: string|null, reason: string|null}}
+   *   corrected —— 被忽略掉的错误 id（非空表示发生了纠正）
+   */
+  function anchorProblem(rawId) {
+    // turnProblemId：本轮对话开始时的题目快照（由 turnController 设置）。
+    // 优先用它，这样学生在 AI 处理过程中切了题也不会让本轮的判答跑偏。
+    const cur = session.turnProblemId || session.currentProblemId || null;
+    const given = (typeof rawId === 'string' && rawId.trim()) ? rawId.trim() : null;
+
+    // 没有“当前题”可选（如题目刚被删）：只能按模型传的来
+    if (!cur) {
+      const p = given ? findProblem(given) : null;
+      return { id: given, problem: p, corrected: null, reason: p ? null : 'no_current_problem' };
+    }
+    // 模型传的就是当前题（或没传）：正常路径
+    if (!given || given === cur) {
+      return { id: cur, problem: findProblem(cur), corrected: null, reason: given ? null : 'missing' };
+    }
+    // 传了别的 id：若当前题不可用则退让，否则以当前题为准
+    const curP = findProblem(cur);
+    if (!curP) {
+      return { id: given, problem: findProblem(given), corrected: null, reason: 'current_problem_missing' };
+    }
+    return { id: cur, problem: curP, corrected: given, reason: 'stale' };
+  }
+
+  const ANCHOR_NOTICE = (corrected, p) =>
+    `注意：你传入的 problem_id=${corrected} 不是网页上当前显示的题目，本次已按当前题 ${p.id}（${p.topic}）判答/记录。` +
+    `请不要沿用历史对话里出现过的题目 id；需要确认题目时先调用 get_current_problem。`;
 
   return createSdkMcpServer({
     name: 'tutor',
@@ -152,7 +192,7 @@ export function buildTutorMcp(session) {
           session.proposedProblems = session.proposedProblems || [];
           session.proposedProblems.push(problem);
           session.emit('ui_event', { type: 'problem_proposed', problem });
-          const hint = difficultyHint(args.topic);
+          const hint = difficultyHint(args.topic, session.studentId);
           return mcpOk({
             ok: true,
             problem_id: id,
@@ -182,32 +222,49 @@ export function buildTutorMcp(session) {
       ),
 
       // ========== 答题与历史 ==========
-      tool('check_answer', '判断学生答案是否正确（容错比较）', {
-        problem_id: z.string(),
-        user_answer: z.string()
-      }, async (args) => {
-        const p = findProblem(args.problem_id);
-        if (!p) return mcpErr('problem not found');
-        return mcpOk({ correct: compareAnswer(args.user_answer, p.answer), expected: p.answer });
-      }),
+      tool('check_answer',
+        '判断学生答案是否正确（容错比较）。判答对象固定为**网页上正在显示的那道题**：可省略 problem_id，省略即按当前题判答；若传入的不是当前题的 id，系统会以当前题为准并在返回值里告知。',
+        {
+          problem_id: z.string().optional().describe('题目 id（可省略，省略 = 按网页当前显示的题目判答）。不要传历史对话里的旧题目 id。'),
+          user_answer: z.string()
+        }, async (args) => {
+          const a = anchorProblem(args.problem_id);
+          if (!a.problem) {
+            return mcpErr(a.reason === 'no_current_problem'
+              ? '当前没有正在显示的题目：请先调用 get_current_problem 确认，或让学生确认题目'
+              : ('problem not found: ' + a.id));
+          }
+          const p = a.problem;
+          const out = {
+            correct: compareAnswer(args.user_answer, p.answer),
+            expected: p.answer,
+            problem_id: p.id,
+            topic: p.topic,
+          };
+          if (a.corrected) out.notice = ANCHOR_NOTICE(a.corrected, p);
+          return mcpOk(out);
+        }),
 
       tool('record_history',
-        '把一次提交结果记入学生长期记忆（答题流水 + 主题掌握度）。判答后调用。即使不调用，系统也会根据 check_answer 自动记录；显式调用可补充 error_type / hint_count。',
+        '把一次提交结果记入学生长期记忆（答题流水 + 主题掌握度）。判答后调用。即使不调用，系统也会根据 check_answer 自动记录；显式调用可补充 error_type / hint_count。记录对象固定为**网页上正在显示的那道题**。',
         {
-          problem_id: z.string(),
+          problem_id: z.string().optional().describe('题目 id（可省略，省略 = 按网页当前显示的题目记录）。不要传历史对话里的旧题目 id。'),
           user_answer: z.string(),
           correct: z.boolean().optional().describe('学生答案是否正确；不传则由系统按标准答案判定'),
           hint_count: z.number().int().min(0).optional().describe('本题用了几次提示'),
           error_type: z.string().optional().describe('错因分类，如 计算 / 概念 / 审题 / 方法')
         },
         async (args) => {
-          const p = findProblem(args.problem_id);
+          // 与 check_answer 同一套锚定：绝不让历史里的旧 problem_id 污染答题流水
+          const a = anchorProblem(args.problem_id);
+          const p = a.problem;
+          const pid = p ? p.id : (a.id || null);
           // 对错以系统判答为准（客观事实），不依赖 AI 自报
           const correct = p ? compareAnswer(args.user_answer, p.answer) : !!args.correct;
           const topic = p ? p.topic : '其他';
           // 兼容旧能力：仍写入会话内历史（ability_report 读它）
           session.history.push({
-            problemId: args.problem_id,
+            problemId: pid,
             topic,
             finalAnswer: args.user_answer,
             correctAnswer: p ? p.answer : '?',
@@ -218,23 +275,28 @@ export function buildTutorMcp(session) {
           session.emit('ui_event', { type: 'history_updated', count: session.history.length });
 
           // 真落库（与 persistTurn 自动落库共用去重键，重复触发不会双记）
+          // 归属学生取会话的 studentId（学生=自己；家长=被辅导的孩子）；无归属则跳过落库
           let persisted = false;
           try {
-            const r = recordAttempt({
-              student_id: 'me',
-              session_id: session.id,
-              turn_id: null,
-              problem_id: args.problem_id,
-              topic,
-              user_answer: args.user_answer,
-              correct,
-              hint_count: args.hint_count || 0,
-              error_type: args.error_type || null,
-            });
-            persisted = r.inserted;
+            if (session.studentId && pid) {
+              const r = recordAttempt({
+                student_id: session.studentId,
+                session_id: session.id,
+                turn_id: null,
+                problem_id: pid,
+                topic,
+                user_answer: args.user_answer,
+                correct,
+                hint_count: args.hint_count || 0,
+                error_type: args.error_type || null,
+              });
+              persisted = r.inserted;
+            }
           } catch { /* 落库失败不应影响对话 */ }
 
-          return mcpOk({ ok: true, persisted, correct, total: session.history.length });
+          const out = { ok: true, persisted, correct, topic, problem_id: pid, total: session.history.length };
+          if (a.corrected && p) out.notice = ANCHOR_NOTICE(a.corrected, p);
+          return mcpOk(out);
         }),
 
       tool('ability_report', '基于历史输出水平摘要', {}, async () => {
@@ -266,9 +328,10 @@ export function buildTutorMcp(session) {
         async (args) => {
           const content = (args.content || '').trim();
           if (!content) return mcpErr('content 不能为空');
+          if (!session.studentId) return mcpErr('当前会话没有关联学生，无法写入长期记忆');
           try {
             const id = insertMemoryFact({
-              student_id: 'me',
+              student_id: session.studentId,
               kind: args.kind || 'observation',
               content,
               source_turn: null,
@@ -288,19 +351,21 @@ export function buildTutorMcp(session) {
         },
         async (args) => {
           const limit = args.limit || 10;
+          const sid = session.studentId;
+          if (!sid) return mcpErr('当前会话没有关联学生，无法检索长期记忆');
           try {
             if (args.scope === 'facts') {
-              const facts = getMemoryFacts('me', limit);
+              const facts = getMemoryFacts(sid, limit);
               return mcpOk({ scope: 'facts', count: facts.length, facts });
             }
             if (args.scope === 'recent') {
-              const attempts = getRecentAttempts('me', limit);
+              const attempts = getRecentAttempts(sid, limit);
               return mcpOk({ scope: 'recent', count: attempts.length, attempts });
             }
             // scope === 'topic'
             if (!args.topic) return mcpErr('scope=topic 需要提供 topic');
-            const masteryRow = getTopicMastery('me').find((m) => m.topic === args.topic) || null;
-            const attempts = getAttemptsByTopic('me', args.topic, limit);
+            const masteryRow = getTopicMastery(sid).find((m) => m.topic === args.topic) || null;
+            const attempts = getAttemptsByTopic(sid, args.topic, limit);
             return mcpOk({
               scope: 'topic',
               topic: args.topic,

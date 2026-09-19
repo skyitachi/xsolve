@@ -6,6 +6,8 @@ import {
   clearSessionHistory,
   resetSession,
   restoreSession,
+  canAccessSession,
+  canAccessSessionRow,
 } from '../session.js';
 import {
   listChatSessions,
@@ -15,25 +17,57 @@ import {
   updateChatSession,
 } from '../db.js';
 
+/**
+ * 取内存中的会话并校验归属。
+ * @returns {object|null} 通过校验的 session；否则已写好 404/403 响应，返回 null
+ */
+function ownedSession(req, res, id) {
+  const s = sessions.get(id);
+  if (!s) {
+    // 内存没有 → 尝试从 DB 恢复（带归属校验）
+    const restored = restoreSession(id, req.user);
+    if (!restored) {
+      // 区分「不存在」与「无权限」
+      const row = getChatSession(id);
+      if (row && !canAccessSessionRow(req.user, row)) {
+        res.status(403).json({ error: '无权访问该会话' });
+      } else {
+        res.status(404).json({ error: 'session not found' });
+      }
+      return null;
+    }
+    return restored;
+  }
+  if (!canAccessSession(req.user, s)) {
+    res.status(403).json({ error: '无权访问该会话' });
+    return null;
+  }
+  return s;
+}
+
 // POST /api/session
 export function createSessionHandler(req, res) {
-  const body = req.body || {};
-  const s = createSession(body);
-  res.json({
-    id: s.id,
-    mode: s.mode,
-    currentProblemId: s.currentProblemId,
-  });
+  try {
+    const s = createSession({ ...(req.body || {}), user: req.user });
+    res.json({
+      id: s.id,
+      mode: s.mode,
+      studentId: s.studentId,
+      currentProblemId: s.currentProblemId,
+    });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
 }
 
 // GET /api/session/:id
 export function getSession(req, res) {
-  const id = req.params.id;
-  const s = sessions.get(id);
-  if (!s) return res.status(404).json({ error: 'session not found' });
+  const s = ownedSession(req, res, req.params.id);
+  if (!s) return;
   res.json({
     id: s.id,
     mode: s.mode,
+    studentId: s.studentId,
     currentProblemId: s.currentProblemId,
     createdAt: s.createdAt,
   });
@@ -41,16 +75,31 @@ export function getSession(req, res) {
 
 // DELETE /api/session/:id
 export async function deleteSession(req, res) {
-  const id = req.params.id;
-  const s = sessions.get(id);
-  if (s) await destroySession(s);
+  const s = ownedSession(req, res, req.params.id);
+  if (!s) return;
+  await destroySession(s);
   res.json({ ok: true });
 }
 
 // GET /api/sessions?role=student
 export function listSessions(req, res) {
   const role = req.query.role;
-  const rows = listChatSessions(role);
+  const user = req.user;
+  // 学生：只看自己拥有的；家长：看自己拥有的 + 已绑定孩子的（只读查看）
+  let rows;
+  if (!user || user.is_admin || user.role === 'admin') {
+    rows = listChatSessions(role);
+  } else {
+    const own = listChatSessions(role, { userId: user.id });
+    const seen = new Set(own.map((r) => r.id));
+    const merged = [...own];
+    for (const c of (user.children || [])) {
+      for (const r of listChatSessions(role, { studentId: c.id })) {
+        if (!seen.has(r.id)) { seen.add(r.id); merged.push(r); }
+      }
+    }
+    rows = merged.sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0));
+  }
   res.json(rows.map(r => ({
     id: r.id,
     role: r.role,
@@ -66,6 +115,9 @@ export function getSessionHistory(req, res) {
   const id = req.params.id;
   const dbRow = getChatSession(id);
   if (!dbRow) return res.status(404).json({ error: 'session not found' });
+  if (!canAccessSessionRow(req.user, dbRow)) {
+    return res.status(403).json({ error: '无权访问该会话' });
+  }
   const turns = getChatTurns(id);
   res.json({
     session: {
@@ -90,32 +142,23 @@ export function getSessionHistory(req, res) {
 
 // GET /api/session/:id (覆写：支持从 DB 恢复)
 export function getSessionOrRestore(req, res) {
-  const id = req.params.id;
-  // 先查内存
-  let s = sessions.get(id);
-  if (s) {
-    return res.json({
-      id: s.id,
-      mode: s.mode,
-      currentProblemId: s.currentProblemId,
-      createdAt: s.createdAt,
-    });
-  }
-  // 内存没有，尝试从 DB 恢复
-  s = restoreSession(id);
-  if (!s) return res.status(404).json({ error: 'session not found' });
+  const s = ownedSession(req, res, req.params.id);
+  if (!s) return;
   res.json({
     id: s.id,
     mode: s.mode,
+    studentId: s.studentId,
     currentProblemId: s.currentProblemId,
     createdAt: s.createdAt,
-    restored: true,
   });
 }
 
 // POST /api/session/:id/archive
 export function archiveSession(req, res) {
   const id = req.params.id;
+  const row = getChatSession(id);
+  if (!row) return res.status(404).json({ error: 'session not found' });
+  if (!canAccessSessionRow(req.user, row)) return res.status(403).json({ error: '无权访问该会话' });
   updateChatSession(id, { is_archived: 1 });
   res.json({ ok: true });
 }
@@ -124,6 +167,9 @@ export function archiveSession(req, res) {
 export function patchSession(req, res) {
   const id = req.params.id;
   const body = req.body || {};
+  const row = getChatSession(id);
+  if (!row) return res.status(404).json({ error: 'session not found' });
+  if (!canAccessSessionRow(req.user, row)) return res.status(403).json({ error: '无权访问该会话' });
   const s = sessions.get(id);
   if (body.currentProblemId !== undefined) {
     if (s) s.currentProblemId = body.currentProblemId;
@@ -135,6 +181,9 @@ export function patchSession(req, res) {
 // DELETE /api/session/:id (覆写：同时删 DB)
 export async function deleteSessionWithDb(req, res) {
   const id = req.params.id;
+  const row = getChatSession(id);
+  if (!row) return res.status(404).json({ error: 'session not found' });
+  if (!canAccessSessionRow(req.user, row)) return res.status(403).json({ error: '无权访问该会话' });
   const s = sessions.get(id);
   if (s) await destroySession(s);
   deleteChatSession(id);
@@ -143,9 +192,8 @@ export async function deleteSessionWithDb(req, res) {
 
 // POST /api/session/:id/clear
 export async function clearSession(req, res) {
-  const id = req.params.id;
-  const s = sessions.get(id);
-  if (!s) return res.status(404).json({ error: 'session not found' });
+  const s = ownedSession(req, res, req.params.id);
+  if (!s) return;
   await clearSessionHistory(s);
   res.json({
     ok: true,
@@ -159,20 +207,24 @@ export async function clearSession(req, res) {
 export async function resetSessionHandler(req, res) {
   const oldId = req.params.id;
   const body = req.body || {};
-  const newSession = await resetSession(oldId, body);
-  res.json({
-    ok: true,
-    id: newSession.id,
-    mode: newSession.mode,
-    currentProblemId: newSession.currentProblemId,
-  });
+  try {
+    const newSession = await resetSession(oldId, { ...body, user: req.user });
+    res.json({
+      ok: true,
+      id: newSession.id,
+      mode: newSession.mode,
+      studentId: newSession.studentId,
+      currentProblemId: newSession.currentProblemId,
+    });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
 }
 
 // POST /api/session/:id/scratch
 export function syncScratch(req, res) {
-  const id = req.params.id;
-  const s = sessions.get(id);
-  if (!s) return res.status(404).json({ error: 'session not found' });
+  const s = ownedSession(req, res, req.params.id);
+  if (!s) return;
   const body = req.body || {};
   s.scratchStrokes = body.strokes || 0;
   res.json({ ok: true });
@@ -180,9 +232,8 @@ export function syncScratch(req, res) {
 
 // POST /api/session/:id/scratch-image
 export function syncScratchImage(req, res) {
-  const id = req.params.id;
-  const s = sessions.get(id);
-  if (!s) return res.status(404).json({ error: 'session not found' });
+  const s = ownedSession(req, res, req.params.id);
+  if (!s) return;
   const body = req.body || {};
   if (body.image !== undefined) {
     s.scratchImage = body.image;
@@ -193,9 +244,8 @@ export function syncScratchImage(req, res) {
 
 // POST /api/session/:id/delete-confirm
 export function deleteConfirm(req, res) {
-  const id = req.params.id;
-  const s = sessions.get(id);
-  if (!s) return res.status(404).json({ error: 'session not found' });
+  const s = ownedSession(req, res, req.params.id);
+  if (!s) return;
   const body = req.body || {};
   const delId = (s.pendingDelete && s.pendingDelete.problem_id) || body.problem_id;
 
@@ -239,9 +289,8 @@ export function deleteConfirm(req, res) {
 
 // POST /api/session/:id/proposal
 export function proposalConfirm(req, res) {
-  const id = req.params.id;
-  const s = sessions.get(id);
-  if (!s) return res.status(404).json({ error: 'session not found' });
+  const s = ownedSession(req, res, req.params.id);
+  if (!s) return;
   const body = req.body || {};
 
   if (body.action === 'accept' && body.problem_id) {

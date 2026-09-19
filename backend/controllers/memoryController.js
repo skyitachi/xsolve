@@ -1,17 +1,26 @@
 // 学生记忆读取 controller —— 学习档案页（student-memory.html）的数据源。
-// 只读聚合 + 一个手动触发固化的入口。
+// 目标学生由鉴权中间件 resolveTargetStudent 解析并挂到 req.targetStudentId：
+//   学生账号 → 只能是自己；家长 → 必须是已绑定的孩子；管理员 → 任意（须传 studentId）。
 import {
   getStudentProfile, getTopicMastery, getRecentAttempts, getMemoryFacts,
   getAttemptStats, getDailyAccuracy, getErrorTypeDistribution,
 } from '../db.js';
 import { consolidateStudent } from '../memory/consolidate.js';
 
-const DEFAULT_STUDENT_ID = 'me';
+function targetId(req, res) {
+  const sid = req.targetStudentId;
+  if (!sid) {
+    res.status(400).json({ error: '未指定学生（管理员需带 ?studentId=）' });
+    return null;
+  }
+  return sid;
+}
 
-// GET /api/memory/overview?days=30&student_id=me
+// GET /api/memory/overview?days=30[&studentId=]
 export function memoryOverview(req, res) {
   try {
-    const sid = req.query.student_id || DEFAULT_STUDENT_ID;
+    const sid = targetId(req, res);
+    if (!sid) return;
     const days = Math.max(1, Math.min(180, parseInt(req.query.days) || 30));
 
     const stats = getAttemptStats(sid);
@@ -49,10 +58,11 @@ export function memoryOverview(req, res) {
   }
 }
 
-// GET /api/memory/attempts?limit=50&student_id=me
+// GET /api/memory/attempts?limit=50[&studentId=]
 export function memoryAttempts(req, res) {
   try {
-    const sid = req.query.student_id || DEFAULT_STUDENT_ID;
+    const sid = targetId(req, res);
+    if (!sid) return;
     const limit = Math.max(1, Math.min(200, parseInt(req.query.limit) || 50));
     res.json({ attempts: getRecentAttempts(sid, limit) });
   } catch (e) {
@@ -60,10 +70,11 @@ export function memoryAttempts(req, res) {
   }
 }
 
-// GET /api/memory/facts?limit=50&student_id=me
+// GET /api/memory/facts?limit=50[&studentId=]
 export function memoryFacts(req, res) {
   try {
-    const sid = req.query.student_id || DEFAULT_STUDENT_ID;
+    const sid = targetId(req, res);
+    if (!sid) return;
     const limit = Math.max(1, Math.min(200, parseInt(req.query.limit) || 50));
     res.json({ facts: getMemoryFacts(sid, limit) });
   } catch (e) {
@@ -74,7 +85,8 @@ export function memoryFacts(req, res) {
 // POST /api/memory/consolidate — 手动触发一次语义画像固化（LLM）
 export async function memoryConsolidate(req, res) {
   try {
-    const sid = req.body?.student_id || DEFAULT_STUDENT_ID;
+    const sid = targetId(req, res);
+    if (!sid) return;
     const result = await consolidateStudent(sid);
     res.json(result);
   } catch (e) {

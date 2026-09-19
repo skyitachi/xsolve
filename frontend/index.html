@@ -34,9 +34,11 @@
       <button id="next-problem" title="下一题">›</button>
       <button id="delete-problem" title="删除当前题">🗑️</button>
       <button id="settings-btn" title="设置">⚙️</button>
-      <a class="topbar-admin" href="/student-memory.html" title="学习档案" style="font-size:16px;margin-left:4px;">🧠</a>
+      <a class="topbar-parent" href="/my-children.html" title="我的孩子" style="font-size:16px;margin-left:4px;" hidden>👨‍👩‍👧</a>
+      <a class="topbar-admin" href="/student-memory.html" title="学习档案" style="font-size:16px;">🧠</a>
       <a class="topbar-admin" href="/eval.html" title="评估面板" style="font-size:16px;">📊</a>
       <a class="topbar-admin" href="/prompts.html" title="Prompt 管理" style="font-size:16px;">📝</a>
+      <a class="topbar-admin" href="/accounts.html" title="账号管理" style="font-size:16px;">🗂</a>
       <a class="topbar-admin" href="/settings.html" title="模型配置" style="font-size:16px;">🔑</a>
     </div>
   </header>
@@ -158,9 +160,11 @@
       <p>有问题可直接在右侧聊天里告诉 AI 助教。</p>
       <button type="button" id="install-app-mobile" class="dialog-install" hidden>📲 安装到主屏</button>
       <nav class="dialog-admin-nav">
+        <a class="topbar-parent" href="/my-children.html" hidden>👨‍👩‍👧 我的孩子</a>
         <a href="/student-memory.html">🧠 学习档案</a>
         <a href="/eval.html">📊 评估面板</a>
         <a href="/prompts.html">📝 Prompt 管理</a>
+        <a href="/accounts.html">🗂 账号管理</a>
         <a href="/settings.html">🔑 模型配置</a>
       </nav>
       <menu>
@@ -223,6 +227,7 @@
   </dialog>
 
   <script src="js/state.js"></script>
+  <script src="js/auth.js"></script>
   <script src="js/dom-utils.js"></script>
   <script src="js/markdown.js"></script>
   <script src="js/scratch.js"></script>

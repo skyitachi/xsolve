@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>我的孩子 · 小学AI做题助手</title>
+  <meta name="theme-color" content="#4f46e5" />
+  <meta name="color-scheme" content="light" />
+  <style>
+    :root {
+      --brand: #4f46e5; --brand-dark: #4338ca;
+      --bg: #f5f6fb; --card: #fff; --text: #1f2333; --muted: #6b7080;
+      --line: #e3e5ee; --danger: #dc2626; --ok: #059669; --warn: #d97706;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+      font-size: 14px; line-height: 1.55; }
+    .container { max-width: 1040px; margin: 0 auto; padding: 20px 16px calc(40px + env(safe-area-inset-bottom, 0px)); }
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+    h1 { font-size: 21px; margin: 0 0 4px; }
+    .subtitle { margin: 0; color: var(--muted); font-size: 13px; }
+    .head-nav { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    .back-link { color: var(--brand); text-decoration: none; font-size: 13px; }
+    .back-link:hover { text-decoration: underline; }
+    h2 { font-size: 15px; margin: 26px 0 10px; }
+    h2 .hint { font-size: 12px; color: #9a9aab; font-weight: 400; }
+
+    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+    button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line);
+      background: #fff; color: var(--text); padding: 7px 11px; touch-action: manipulation; }
+    button:hover { border-color: var(--brand); color: var(--brand); }
+    button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+    button.primary:hover { background: var(--brand-dark); color: #fff; }
+    button.danger { color: var(--danger); }
+    button.danger:hover { border-color: var(--danger); color: var(--danger); }
+    button:disabled { opacity: .55; cursor: default; }
+    input[type=text] { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; }
+    input[type=text]:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
+
+    .msg { font-size: 12.5px; color: var(--muted); flex: 1 1 100%; min-height: 16px; }
+    .msg.err { color: var(--danger); }
+    .msg.ok { color: var(--ok); }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+    .card-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .card-head .name { font-size: 16px; font-weight: 700; }
+    .card-head .user { color: var(--muted); font-size: 12.5px; }
+    .badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #eef0f7; color: #4b4f60; }
+    .stats { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0 4px; }
+    .stat .v { font-size: 17px; font-weight: 700; }
+    .stat .k { font-size: 11.5px; color: var(--muted); }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+    .linked { font-size: 11.5px; color: #9a9aab; margin-top: 6px; }
+
+    table { width: 100%; border-collapse: collapse; background: var(--card);
+      border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    th, td { text-align: left; padding: 9px 11px; border-bottom: 1px solid var(--line); font-size: 13px; }
+    th { background: #fafbfe; color: var(--muted); font-weight: 600; }
+    tr:last-child td { border-bottom: 0; }
+    .empty { color: var(--muted); font-size: 13px; padding: 14px; background: var(--card);
+      border: 1px dashed var(--line); border-radius: 12px; text-align: center; }
+    .sess-row { cursor: default; }
+    .muted { color: var(--muted); font-size: 12.5px; }
+    .code-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .code-chip { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 6px 10px; font-size: 12.5px; }
+    .code-chip code { font-weight: 700; letter-spacing: .5px; }
+    .code-chip.used { opacity: .55; text-decoration: line-through; }
+    #sessionsWrap { margin-top: 8px; }
+    @media (max-width: 640px) {
+      .grid { grid-template-columns: 1fr; }
+      thead { display: none; }
+      table, tbody, tr, td { display: block; width: 100%; }
+      table { border: 0; background: transparent; }
+      tr { background: var(--card); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; padding: 8px; }
+      td { border: 0; padding: 3px 4px; }
+      td[data-label]::before { content: attr(data-label) "："; color: var(--muted); font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div>
+      <h1>👨‍👩‍👧 我的孩子</h1>
+      <p class="subtitle" id="subtitle">查看孩子的对话记录与学习档案（只读，不会改动孩子的数据）</p>
+    </div>
+    <div class="head-nav">
+      <a class="back-link" href="/student-memory.html">🧠 学习档案</a>
+      <a class="back-link" href="/index.html">返回主应用</a>
+      <span class="topbar-actions" style="display:inline-flex;gap:6px;align-items:center;"></span>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <button class="primary" id="btnInvite">➕ 生成邀请码（孩子注册用）</button>
+    <button id="btnBindInput">🔗 用绑定码绑定孩子/家长</button>
+    <span id="bindBox" hidden style="display:inline-flex;gap:6px;align-items:center;">
+      <input type="text" id="bindCode" placeholder="输入绑定码" style="width:150px;text-transform:uppercase;" />
+      <button class="primary" id="btnBindSubmit">绑定</button>
+      <button id="btnBindCancel">取消</button>
+    </span>
+    <button id="btnRefresh">刷新</button>
+    <div class="msg" id="toolbarMsg"></div>
+  </div>
+
+  <h2>孩子列表 <span class="hint" id="childrenCount"></span></h2>
+  <div id="childrenWrap" class="grid"><div class="empty">加载中…</div></div>
+
+  <div id="sessionsWrap" hidden>
+    <h2 id="sessionsTitle">对话记录</h2>
+    <div id="sessionsBody"></div>
+  </div>
+
+  <h2>我发出的邀请码 / 绑定码 <span class="hint">（失效或被使用的码会自动置灰）</span></h2>
+  <div id="codesWrap" class="code-list"><div class="empty">加载中…</div></div>
+
+  <p class="muted" style="margin-top:22px;">
+    说明：一个学生可以被多位家长绑定。先用自己的账号生成<strong>邀请码</strong>让孩子注册，或让另一位家长/学生生成<strong>绑定码</strong>后在此绑定。
+    解绑只会解除查看关系，不会删除孩子的账号与学习记录。
+  </p>
+</div>
+
+<script src="js/auth.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var children = [];
+  var currentStudentId = null;
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function fmtTime(ts) {
+    if (!ts) return '-';
+    var d = new Date(ts * 1000);
+    return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
+      String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+  function relTime(ts) {
+    if (!ts) return '暂无记录';
+    var diff = Math.floor(Date.now() / 1000) - Number(ts);
+    if (diff < 60) return '刚刚';
+    if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前';
+    if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前';
+    return Math.floor(diff / 86400) + ' 天前';
+  }
+  function setMsg(text, kind) {
+    var el = document.getElementById('toolbarMsg');
+    el.textContent = text || '';
+    el.className = 'msg' + (kind ? ' ' + kind : '');
+  }
+  function api(url, opts) { return (window.XsolveAuth ? XsolveAuth.api(url, opts) : fetch(url, opts)); }
+
+  // ---------- 孩子列表 ----------
+  function renderChildren() {
+    var wrap = document.getElementById('childrenWrap');
+    document.getElementById('childrenCount').textContent = children.length ? '（' + children.length + ' 位）' : '';
+    if (!children.length) {
+      wrap.innerHTML = '<div class="empty">还没有绑定孩子。点上方「生成邀请码」让孩子注册，或让对方生成绑定码后用「用绑定码绑定」。</div>';
+      return;
+    }
+    wrap.innerHTML = children.map(function (c) {
+      var st = c.stats || {};
+      var name = c.display_name || c.username;
+      return '<div class="card" data-id="' + c.id + '">' +
+        '<div class="card-head">' +
+          '<span class="name">' + esc(name) + '</span>' +
+          '<span class="user">@' + esc(c.username) + '</span>' +
+          (c.relation ? '<span class="badge">' + esc(c.relation) + '</span>' : '') +
+        '</div>' +
+        '<div class="stats">' +
+          '<div class="stat"><div class="v">' + (st.session_count || 0) + '</div><div class="k">对话数</div></div>' +
+          '<div class="stat"><div class="v">' + (st.attempt_count || 0) + '</div><div class="k">答题数</div></div>' +
+          '<div class="stat"><div class="v">' + (st.attempt_count ? st.rate + '%' : '—') + '</div><div class="k">正确率</div></div>' +
+          '<div class="stat"><div class="v">' + (st.avg_mastery == null ? '—' : st.avg_mastery + '%') + '</div><div class="k">平均掌握度</div></div>' +
+        '</div>' +
+        '<div class="linked">最后活跃：' + relTime(st.last_active) + ' · 绑定于 ' + fmtTime(c.linked_at) + '</div>' +
+        '<div class="actions">' +
+          '<button class="primary" data-act="archive">学习档案</button>' +
+          '<button data-act="sessions">查看对话</button>' +
+          '<button data-act="bindcode">生成绑定码</button>' +
+          '<button class="danger" data-act="unbind">解绑</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    wrap.querySelectorAll('.card').forEach(function (card) {
+      var sid = card.getAttribute('data-id');
+      card.addEventListener('click', function (ev) {
+        var act = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-act');
+        if (!act) return;
+        if (act === 'archive') location.href = '/student-memory.html?studentId=' + encodeURIComponent(sid);
+        else if (act === 'sessions') loadSessions(sid);
+        else if (act === 'bindcode') makeBindCode(sid);
+        else if (act === 'unbind') unbind(sid);
+      });
+    });
+  }
+
+  function loadChildren(first) {
+    return api('/api/family/children').then(function (r) { return r.json(); }).then(function (d) {
+      if (d.error) { setMsg('加载孩子失败：' + d.error, 'err'); return; }
+      children = d.children || [];
+      renderChildren();
+      if (first && currentStudentId) {
+        var still = children.some(function (c) { return c.id === currentStudentId; });
+        if (!still) { currentStudentId = null; document.getElementById('sessionsWrap').hidden = true; }
+      }
+    }).catch(function (e) { setMsg('加载孩子失败：' + e.message, 'err'); });
+  }
+
+  // ---------- 孩子的对话记录 ----------
+  function loadSessions(sid) {
+    currentStudentId = sid;
+    var kid = children.filter(function (c) { return c.id === sid; })[0];
+    var wrap = document.getElementById('sessionsWrap');
+    var body = document.getElementById('sessionsBody');
+    document.getElementById('sessionsTitle').textContent =
+      '对话记录 · ' + (kid ? (kid.display_name || kid.username) : '') + '（只读）';
+    wrap.hidden = false;
+    body.innerHTML = '<div class="empty">加载中…</div>';
+
+    api('/api/family/children/' + encodeURIComponent(sid) + '/sessions')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error) { body.innerHTML = '<div class="empty">加载失败：' + esc(d.error) + '</div>'; return; }
+        var rows = d.sessions || [];
+        if (!rows.length) { body.innerHTML = '<div class="empty">这个孩子还没有对话记录。</div>'; return; }
+        body.innerHTML = '<table><thead><tr><th>更新时间</th><th>模式</th><th>标题</th><th>创建时间</th></tr></thead><tbody>' +
+          rows.map(function (s) {
+            var modeLabel = s.role === 'parent' ? '家长版' : '学生版';
+            return '<tr class="sess-row">' +
+              '<td data-label="更新时间">' + fmtTime(s.updatedAt) + '</td>' +
+              '<td data-label="模式">' + modeLabel + '</td>' +
+              '<td data-label="标题">' + esc(s.title || '（未命名）') + '</td>' +
+              '<td data-label="创建时间">' + fmtTime(s.createdAt) + '</td>' +
+            '</tr>';
+          }).join('') + '</tbody></table>';
+      })
+      .catch(function (e) { body.innerHTML = '<div class="empty">加载失败：' + esc(e.message) + '</div>'; });
+  }
+
+  // ---------- 邀请码 / 绑定码 ----------
+  function makeInvite() {
+    setMsg('生成中…');
+    api('/api/auth/invite', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error) { setMsg('生成失败：' + d.error, 'err'); return; }
+        setMsg('邀请码：' + d.code + '（7 天内有效，让孩子注册时填写）', 'ok');
+        loadCodes();
+      })
+      .catch(function (e) { setMsg('生成失败：' + e.message, 'err'); });
+  }
+
+  function makeBindCode(sid) {
+    setMsg('生成中…');
+    api('/api/family/bind-codes', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ studentId: sid }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error) { setMsg('生成失败：' + d.error, 'err'); return; }
+        setMsg('绑定码：' + d.code + '（7 天内有效，让另一位家长在本页「用绑定码绑定」）', 'ok');
+        loadCodes();
+      })
+      .catch(function (e) { setMsg('生成失败：' + e.message, 'err'); });
+  }
+
+  function bindByCode() {
+    var code = document.getElementById('bindCode').value.trim().toUpperCase();
+    if (!code) { setMsg('请输入绑定码', 'err'); return; }
+    setMsg('绑定中…');
+    api('/api/family/bind', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: code }),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { setMsg('绑定失败：' + (res.d.error || '未知错误'), 'err'); return; }
+        var name = (res.d.student && (res.d.student.display_name || res.d.student.username)) || '该学生';
+        setMsg(res.d.already_bound ? ('已经绑定过 ' + name + ' 了') : ('已绑定 ' + name), 'ok');
+        document.getElementById('bindCode').value = '';
+        loadChildren(true);
+        loadCodes();
+      })
+      .catch(function (e) { setMsg('绑定失败：' + e.message, 'err'); });
+  }
+
+  function unbind(sid) {
+    var kid = children.filter(function (c) { return c.id === sid; })[0];
+    var name = kid ? (kid.display_name || kid.username) : '该学生';
+    if (!confirm('确定解除与「' + name + '」的绑定？\n\n只会解除查看关系，孩子的账号与学习记录都会保留。')) return;
+    setMsg('解绑中…');
+    api('/api/family/children/' + encodeURIComponent(sid), { method: 'DELETE' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.error) { setMsg('解绑失败：' + d.error, 'err'); return; }
+        setMsg('已解除与「' + name + '」的绑定', 'ok');
+        if (currentStudentId === sid) { currentStudentId = null; document.getElementById('sessionsWrap').hidden = true; }
+        loadChildren(true);
+      })
+      .catch(function (e) { setMsg('解绑失败：' + e.message, 'err'); });
+  }
+
+  function loadCodes() {
+    api('/api/family/invites')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var wrap = document.getElementById('codesWrap');
+        if (d.error) { wrap.innerHTML = '<div class="empty">' + esc(d.error) + '</div>'; return; }
+        var rows = d.invites || [];
+        if (!rows.length) { wrap.innerHTML = '<div class="empty">还没有生成过码。</div>'; return; }
+        wrap.innerHTML = rows.map(function (c) {
+          var dead = c.used_by || c.expired;
+          var kindLabel = c.kind === 'bind' ? '绑定码' : '注册码';
+          var state = c.used_by ? '已使用' : (c.expired ? '已过期' : '可用至 ' + fmtTime(c.expires_at));
+          return '<div class="code-chip' + (dead ? ' used' : '') + '">' +
+            '<span class="badge">' + kindLabel + '</span> <code>' + esc(c.code) + '</code>' +
+            '<div class="muted">' + state + '</div></div>';
+        }).join('');
+      })
+      .catch(function () { document.getElementById('codesWrap').innerHTML = '<div class="empty">加载失败</div>'; });
+  }
+
+  // ---------- 事件绑定 ----------
+  document.getElementById('btnInvite').addEventListener('click', makeInvite);
+  document.getElementById('btnRefresh').addEventListener('click', function () {
+    setMsg(''); loadChildren(true); loadCodes();
+    if (currentStudentId) loadSessions(currentStudentId);
+  });
+  document.getElementById('btnBindInput').addEventListener('click', function () {
+    var box = document.getElementById('bindBox');
+    box.hidden = !box.hidden;
+    if (!box.hidden) document.getElementById('bindCode').focus();
+  });
+  document.getElementById('btnBindCancel').addEventListener('click', function () {
+    document.getElementById('bindBox').hidden = true;
+  });
+  document.getElementById('btnBindSubmit').addEventListener('click', bindByCode);
+  document.getElementById('bindCode').addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') bindByCode();
+  });
+
+  // ---------- 启动 ----------
+  (async function boot() {
+    try {
+      if (window.XsolveAuth && XsolveAuth.ready) {
+        var me = await XsolveAuth.ready;
+        if (me) {
+          document.getElementById('subtitle').textContent =
+            '以「' + (me.display_name || me.username) + '」的身份查看孩子（只读，不会改动孩子的数据）';
+          if (me.role !== 'parent' && !me.is_admin) {
+            document.getElementById('childrenWrap').innerHTML =
+              '<div class="empty">当前账号不是家长账号，无法查看孩子列表。</div>';
+            return;
+          }
+        }
+      }
+    } catch (e) { /* 未登录时 auth.js 会跳转 */ }
+    loadChildren(false);
+    loadCodes();
+  })();
+})();
+</script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 // 会话管理：每个浏览器 session 对应一个 SDK query() 实例
 import crypto from 'node:crypto';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import { getDb, getAllProblems, insertChatSession, getChatSession, getChatTurns, updateChatSession, getActivePromptVersion } from './db.js';
+import { getDb, getAllProblems, insertChatSession, getChatSession, getChatTurns, updateChatSession, getActivePromptVersion, isBoundChild, listChildren } from './db.js';
 import { buildTutorMcp } from './mcp-tools.js';
 import { buildSystemPrompt, ALLOWED_TOOLS } from './config.js';
 import { createInputQueue } from './utils.js';
@@ -33,11 +33,82 @@ function resolvePrompt(mode) {
 }
 
 /**
+ * 按登录账号角色**强制**派生会话的 mode 与归属 student_id（不信任前端自由值）。
+ *   - student：锁死 student 模式，数据归属自己
+ *   - parent ：parent 模式（家长版提示词），数据归属「指定且已绑定」的孩子；
+ *              未指定则回落到第一个绑定的孩子；无绑定孩子 → student_id=null（该会话不写记忆）
+ *   - admin  ：沿用请求值（便于调试）
+ * 非法/越权（家长指定了非绑定孩子）→ 抛 403 错误。
+ * @returns {{ mode: 'student'|'parent', studentId: string|null }}
+ */
+export function deriveSessionScope(user, body = {}) {
+  const wanted = body.studentId || body.student_id || null;
+
+  if (!user) {
+    // 未登录（内部调用/测试）：沿用旧行为
+    return { mode: body.mode === 'parent' ? 'parent' : 'student', studentId: wanted };
+  }
+
+  if (user.role === 'student') {
+    return { mode: 'student', studentId: user.id };
+  }
+
+  if (user.role === 'parent') {
+    if (wanted) {
+      if (!isBoundChild(user.id, wanted)) {
+        const err = new Error('无权访问该孩子的数据');
+        err.status = 403;
+        throw err;
+      }
+      return { mode: 'parent', studentId: wanted };
+    }
+    const kids = listChildren(user.id);
+    return { mode: 'parent', studentId: kids.length ? kids[0].id : null };
+  }
+
+  // admin
+  return {
+    mode: wanted && body.mode === 'student' ? 'student' : (body.mode === 'student' ? 'student' : 'parent'),
+    studentId: wanted,
+  };
+}
+
+/**
+ * 会话归属校验（DB 行版）。
+ *   - 管理员：放行
+ *   - 自己是会话拥有者：放行
+ *   - 家长：会话数据属于自己已绑定的孩子时放行（只读查看）
+ *   - 历史遗留（无 user_id）：退化为按 student_id 匹配
+ */
+export function canAccessSessionRow(user, row) {
+  if (!user || !row) return false;
+  if (user.is_admin || user.role === 'admin') return true;
+  if (row.user_id && row.user_id === user.id) return true;
+  if (row.student_id) {
+    if (row.student_id === user.id) return true;
+    if ((user.children || []).some((c) => c.id === row.student_id)) return true;
+  }
+  return false;
+}
+
+/** 会话归属校验（内存 session 对象版） */
+export function canAccessSession(user, s) {
+  if (!user || !s) return false;
+  if (user.is_admin || user.role === 'admin') return true;
+  if (s.userId && s.userId === user.id) return true;
+  if (s.studentId) {
+    if (s.studentId === user.id) return true;
+    if ((user.children || []).some((c) => c.id === s.studentId)) return true;
+  }
+  return false;
+}
+
+/**
  * 拼装最终 systemPrompt：
  *   活跃 prompt 正文 + （可选）本会话早期对话摘要 + （可选）跨会话学生记忆摘要。
  * 无记忆数据时与原来一致。
  */
-function resolveSystemPrompt(mode, sessionId) {
+function resolveSystemPrompt(mode, sessionId, studentId) {
   const info = resolvePrompt(mode);
   const parts = [info.content];
 
@@ -51,10 +122,10 @@ function resolveSystemPrompt(mode, sessionId) {
     } catch { /* ignore */ }
   }
 
-  // 跨会话「学生记忆摘要」（P0 主路径）
+  // 跨会话「学生记忆摘要」（按归属学生注入；无归属则跳过）
   let digest = '';
   try {
-    digest = buildMemoryDigest();
+    digest = buildMemoryDigest({ studentId });
   } catch (e) {
     console.error('[memory] build digest failed:', e.message);
   }
@@ -77,12 +148,16 @@ function captureSdkSessionId(session, msg) {
 
 /**
  * 创建一个 SDK 驱动的 session
- * @param {object} opts - { mode: 'student'|'parent' }
+ * @param {object} opts - { user, studentId, mode }
+ *   user      = 登录用户（决定 mode 与归属，见 deriveSessionScope）
+ *   studentId = 家长指定要辅导的孩子（学生账号忽略）
+ *   mode      = 仅未登录/管理场景下沿用
  */
 export function createSession(opts = {}) {
   const id = crypto.randomBytes(8).toString('hex');
   const subscribers = new Set();
-  const mode = opts.mode === 'parent' ? 'parent' : 'student';
+  const scope = deriveSessionScope(opts.user, opts);
+  const mode = scope.mode;
 
   getDb();
   const allProblems = getAllProblems();
@@ -91,6 +166,8 @@ export function createSession(opts = {}) {
   const session = {
     id,
     mode,
+    userId: opts.user ? opts.user.id : null,
+    studentId: scope.studentId || null,
     createdAt: Date.now(),
     currentProblemId: firstProblemId,
     history: [],
@@ -114,7 +191,7 @@ export function createSession(opts = {}) {
   const tutorMcp = buildTutorMcp(session);
 
   // 从 DB 获取活跃 prompt
-  const promptInfo = resolveSystemPrompt(mode, id);
+  const promptInfo = resolveSystemPrompt(mode, id, session.studentId);
   session.promptVersionId = promptInfo.versionId;
 
   session.query = query({
@@ -167,7 +244,13 @@ export function createSession(opts = {}) {
   sessions.set(id, session);
 
   // 持久化到 DB
-  insertChatSession({ id, role: mode, current_problem_id: firstProblemId });
+  insertChatSession({
+    id,
+    role: mode,
+    current_problem_id: firstProblemId,
+    user_id: session.userId,
+    student_id: session.studentId,
+  });
 
   return session;
 }
@@ -177,11 +260,13 @@ export function createSession(opts = {}) {
  * 使用 SDK 的 resume 机制加载之前的对话上下文，
  * 而非手动注入历史消息（手动注入会导致 SDK 重新生成所有回复）。
  * @param {string} id - session ID
- * @returns {object|null} session 对象，或 null（DB 中不存在）
+ * @param {object} [user] - 当前登录用户；传入时会校验会话归属（越权返回 null）
+ * @returns {object|null} session 对象，或 null（DB 中不存在 / 无权访问）
  */
-export function restoreSession(id) {
+export function restoreSession(id, user) {
   const dbRow = getChatSession(id);
   if (!dbRow) return null;
+  if (user && !canAccessSessionRow(user, dbRow)) return null;
 
   // 如果内存中已存在（如页面刷新但服务未重启），直接返回
   if (sessions.has(id)) return sessions.get(id);
@@ -192,8 +277,11 @@ export function restoreSession(id) {
   const session = {
     id,
     mode,
+    userId: dbRow.user_id || (user ? user.id : null),
+    studentId: dbRow.student_id || null,
     createdAt: dbRow.created_at * 1000,
     currentProblemId: dbRow.current_problem_id,
+    turnProblemId: null,
     sdkSessionId: dbRow.sdk_session_id || null,
     history: [],
     scratchStrokes: 0,
@@ -215,7 +303,7 @@ export function restoreSession(id) {
   const tutorMcp = buildTutorMcp(session);
 
   // 从 DB 获取活跃 prompt
-  const promptInfo = resolveSystemPrompt(mode, id);
+  const promptInfo = resolveSystemPrompt(mode, id, session.studentId);
   session.promptVersionId = promptInfo.versionId;
 
   // 使用 SDK resume 机制恢复对话上下文
@@ -315,7 +403,7 @@ export async function clearSessionHistory(s) {
 
   // 3. 重新构建 MCP 工具集和 SDK query
   const tutorMcp = buildTutorMcp(s);
-  const promptInfo = resolveSystemPrompt(s.mode);
+  const promptInfo = resolveSystemPrompt(s.mode, s.id, s.studentId);
   s.promptVersionId = promptInfo.versionId;
 
   s.query = query({
@@ -386,7 +474,7 @@ export async function abortTurn(s) {
   s.query = null;
 
   const tutorMcp = buildTutorMcp(s);
-  const promptInfo = resolveSystemPrompt(s.mode);
+  const promptInfo = resolveSystemPrompt(s.mode, s.id, s.studentId);
   s.promptVersionId = promptInfo.versionId;
 
   s.query = query({

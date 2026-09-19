@@ -30,10 +30,12 @@ function relTime(ts) {
 
 /**
  * 构建「学生记忆摘要」文本。无任何记忆时返回 ''（不注入，避免污染 prompt）。
+ * studentId 显式传 null（家长未绑定孩子等无归属场景）时也返回 ''。
  * @param {object} opts - { studentId }
  * @returns {string}
  */
 export function buildMemoryDigest({ studentId = DEFAULT_STUDENT_ID } = {}) {
+  if (!studentId) return '';   // null / '' → 无归属，不注入记忆
   let mastery = [];
   let attempts = [];
   let profile = null;

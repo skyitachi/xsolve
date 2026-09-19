@@ -40,6 +40,41 @@ export const SESSION_COMPRESS_KEEP = parseInt(process.env.SESSION_COMPRESS_KEEP 
 // consolidate（LLM 固化画像）触发间隔（每 N 个 turn 一次，且有新作答时）。
 export const MEMORY_CONSOLIDATE_INTERVAL = parseInt(process.env.MEMORY_CONSOLIDATE_INTERVAL || '6', 10);
 
+// ---------- 用户系统（登录 / 鉴权 / 学生与家长隔离）----------
+// 登录 Cookie 名（httpOnly）
+export const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'xsolve_sid';
+// 登录态有效期（天）
+export const SESSION_TTL_DAYS = parseInt(process.env.SESSION_TTL_DAYS || '30', 10);
+// 首次启动创建、用于承接历史数据的引导学生账号（建议首登后改密）
+export const BOOTSTRAP_STUDENT_USERNAME = process.env.BOOTSTRAP_STUDENT_USERNAME || 'demo';
+export const BOOTSTRAP_STUDENT_PASSWORD = process.env.BOOTSTRAP_STUDENT_PASSWORD || 'demo123';
+// 学生是否可以不带邀请码自主注册（默认否：须由家长邀请码绑定，避免游离子空间）
+export const ALLOW_SELF_REGISTER_STUDENT =
+  String(process.env.ALLOW_SELF_REGISTER_STUDENT || 'false').toLowerCase() === 'true';
+// 邀请码有效期（天）
+export const INVITE_TTL_DAYS = parseInt(process.env.INVITE_TTL_DAYS || '7', 10);
+// 生产（HTTPS）环境置 true，Cookie 加 Secure
+export const AUTH_COOKIE_SECURE =
+  String(process.env.AUTH_COOKIE_SECURE || 'false').toLowerCase() === 'true';
+
+// ---------- 用户系统 P2：登录限流 / 审计 / 游客试用 ----------
+// 登录失败限流：
+//   - 同一「用户名 + IP」在窗口内失败达 LOGIN_MAX_ATTEMPTS 次即拒绝（主防线）
+//   - 同一 IP 跨所有用户名失败达 LOGIN_IP_MAX_ATTEMPTS 次即拒绝（撞库防线，更宽松）
+export const LOGIN_MAX_ATTEMPTS = parseInt(process.env.LOGIN_MAX_ATTEMPTS || '5', 10);
+export const LOGIN_IP_MAX_ATTEMPTS = parseInt(process.env.LOGIN_IP_MAX_ATTEMPTS || '20', 10);
+export const LOGIN_WINDOW_MINUTES = parseInt(process.env.LOGIN_WINDOW_MINUTES || '15', 10);
+// 审计日志保留天数（启动时清理超期行）
+export const AUDIT_RETENTION_DAYS = parseInt(process.env.AUDIT_RETENTION_DAYS || '90', 10);
+// 游客试用：允许不注册先试；数据挂在临时账号名下，到期自动清理
+export const ALLOW_GUEST =
+  String(process.env.ALLOW_GUEST || 'true').toLowerCase() === 'true';
+export const GUEST_TTL_HOURS = parseFloat(process.env.GUEST_TTL_HOURS || '24');
+export const GUEST_MAX_TURNS = parseInt(process.env.GUEST_MAX_TURNS || '15', 10);
+
+// 游客账号的合成用户名前缀（登录名不可占用；仅供内部标识）
+export const GUEST_USERNAME_PREFIX = 'guest_';
+
 // ---------- 系统提示词 ----------
 export const SYSTEM_PROMPT_BASE = `你是一位耐心、鼓励的小学数学 AI 助教，借助 Claude Code 的工具能力辅导一位小学生（4-6 年级，学而思大白本风格）做数学题。
 

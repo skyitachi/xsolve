@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <title>登录 · 小学AI做题助手</title>
+  <meta name="theme-color" content="#4f46e5" />
+  <meta name="color-scheme" content="light" />
+  <style>
+    :root {
+      --brand: #4f46e5;
+      --brand-dark: #4338ca;
+      --bg: #f5f6fb;
+      --card: #ffffff;
+      --text: #1f2333;
+      --muted: #6b7080;
+      --line: #e3e5ee;
+      --danger: #dc2626;
+      --ok: #059669;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; min-height: 100%;
+      background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    body {
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+    }
+    .auth-wrap { width: 100%; max-width: 420px; }
+    .brand-head { text-align: center; margin-bottom: 18px; }
+    .brand-head .logo { font-size: 34px; line-height: 1; }
+    .brand-head h1 { font-size: 19px; margin: 8px 0 4px; font-weight: 700; }
+    .brand-head p { margin: 0; font-size: 13px; color: var(--muted); }
+
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+      padding: 18px 16px; box-shadow: 0 6px 24px rgba(31,35,51,.06);
+    }
+    .tabs { display: flex; gap: 6px; background: #eef0f7; border-radius: 10px; padding: 4px; margin-bottom: 16px; }
+    .tabs button {
+      flex: 1; border: 0; background: transparent; padding: 9px 0; border-radius: 8px;
+      font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer;
+      touch-action: manipulation;
+    }
+    .tabs button.active { background: var(--card); color: var(--brand); box-shadow: 0 1px 4px rgba(31,35,51,.08); }
+
+    label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 5px; }
+    input, select {
+      width: 100%; padding: 11px 12px; font-size: 16px; /* 16px 防 iOS 聚焦缩放 */
+      border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--text);
+      outline: none; -webkit-appearance: none; appearance: none;
+    }
+    select { background-image: none; }
+    input:focus, select:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
+
+    .row { display: flex; gap: 8px; }
+    .row > div { flex: 1; }
+
+    .btn {
+      width: 100%; margin-top: 18px; padding: 12px; border: 0; border-radius: 9px;
+      background: var(--brand); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+      touch-action: manipulation;
+    }
+    .btn:hover { background: var(--brand-dark); }
+    .btn:disabled { opacity: .6; cursor: default; }
+    .btn.ghost {
+      background: #fff; color: var(--brand); border: 1px solid var(--brand);
+      margin-top: 8px; font-weight: 500;
+    }
+    .btn.ghost:hover { background: #f2f3fb; color: var(--brand-dark); }
+
+    .msg { margin-top: 12px; font-size: 13px; min-height: 18px; }
+    .msg.err { color: var(--danger); }
+    .msg.ok  { color: var(--ok); }
+
+    .hint { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+    .role-hint { margin-top: 10px; padding: 10px; border-radius: 8px; background: #f2f3fb; font-size: 12.5px; color: #4b4f60; line-height: 1.6; }
+    .hidden { display: none !important; }
+
+    .foot { text-align: center; margin-top: 16px; font-size: 12px; color: var(--muted); }
+    code { background: #eef0f7; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="brand-head">
+      <div class="logo">🧮</div>
+      <h1>小学AI做题助手</h1>
+      <p>登录后开始练习 · 学习记录只属于你</p>
+    </div>
+
+    <div class="card">
+      <div class="tabs">
+        <button type="button" id="tab-login" class="active">登录</button>
+        <button type="button" id="tab-register">注册</button>
+      </div>
+
+      <!-- 登录 -->
+      <form id="form-login" autocomplete="on">
+        <label for="login-username">用户名</label>
+        <input id="login-username" name="username" type="text" autocomplete="username" placeholder="请输入用户名" required />
+
+        <label for="login-password">密码</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" required />
+
+        <button class="btn" type="submit" id="login-submit">登录</button>
+        <button class="btn ghost" type="button" id="guest-btn">🧪 先试用一下（不注册）</button>
+        <div class="hint" style="text-align:center;">
+          游客可完整体验，但学习记录会在 24 小时后自动清理；注册账号可长期保存。
+        </div>
+        <div class="msg" id="login-msg"></div>
+      </form>
+
+      <!-- 注册 -->
+      <form id="form-register" autocomplete="on" class="hidden">
+        <label for="reg-role">我是</label>
+        <select id="reg-role">
+          <option value="student">学生（需要家长提供的邀请码）</option>
+          <option value="parent">家长（可生成邀请码给孩子）</option>
+        </select>
+
+        <div class="row">
+          <div>
+            <label for="reg-username">用户名</label>
+            <input id="reg-username" type="text" autocomplete="username" placeholder="3-32 位字母/数字/下划线" required />
+          </div>
+          <div>
+            <label for="reg-display">昵称</label>
+            <input id="reg-display" type="text" placeholder="如：小明" />
+          </div>
+        </div>
+
+        <label for="reg-password">密码</label>
+        <input id="reg-password" type="password" autocomplete="new-password" placeholder="至少 6 位" required />
+
+        <div id="reg-invite-box">
+          <label for="reg-invite">家长邀请码</label>
+          <input id="reg-invite" type="text" placeholder="如：AB12CD34" style="text-transform:uppercase;" />
+          <div class="hint">请向家长索要邀请码；注册后会自动与家长绑定。</div>
+        </div>
+
+        <div id="reg-parent-hint" class="role-hint hidden">
+          注册后可在页面右上角「我的账户」里<strong>生成邀请码</strong>，让孩子用它注册并自动绑定。
+        </div>
+
+        <button class="btn" type="submit" id="register-submit">注册并登录</button>
+        <div class="msg" id="register-msg"></div>
+      </form>
+    </div>
+
+    <div class="foot">
+      账号由本机数据库管理，密码使用 <code>scrypt</code> 加盐存储。
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+      var qs = new URLSearchParams(location.search);
+      var next = qs.get("next") || "/index.html";
+      // 只允许站内相对路径，避免开放重定向
+      if (!/^\/(?!\/)/.test(next)) next = "/index.html";
+
+      var elTabLogin = document.getElementById("tab-login");
+      var elTabReg = document.getElementById("tab-register");
+      var elLogin = document.getElementById("form-login");
+      var elReg = document.getElementById("form-register");
+      var elRole = document.getElementById("reg-role");
+      var elInviteBox = document.getElementById("reg-invite-box");
+      var elParentHint = document.getElementById("reg-parent-hint");
+
+      function showTab(which) {
+        var isLogin = which === "login";
+        elTabLogin.classList.toggle("active", isLogin);
+        elTabReg.classList.toggle("active", !isLogin);
+        elLogin.classList.toggle("hidden", !isLogin);
+        elReg.classList.toggle("hidden", isLogin);
+      }
+
+      function setMsg(el, text, kind) {
+        el.textContent = text || "";
+        el.className = "msg" + (kind ? " " + kind : "");
+      }
+
+      function syncRole() {
+        var isStudent = elRole.value === "student";
+        elInviteBox.classList.toggle("hidden", !isStudent);
+        elParentHint.classList.toggle("hidden", isStudent);
+      }
+
+      elTabLogin.addEventListener("click", function () { showTab("login"); });
+      elTabReg.addEventListener("click", function () { showTab("register"); });
+      elRole.addEventListener("change", syncRole);
+      syncRole();
+
+      // 已登录则直接进入应用
+      fetch("/api/auth/me", { credentials: "include" })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d && d.user) location.replace(next); })
+        .catch(function () { /* ignore */ });
+
+      function post(url, body) {
+        return fetch(url, {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        }).then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (d) {
+            return { ok: r.ok, status: r.status, data: d };
+          });
+        });
+      }
+
+      elLogin.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var btn = document.getElementById("login-submit");
+        var msg = document.getElementById("login-msg");
+        var username = document.getElementById("login-username").value.trim();
+        var password = document.getElementById("login-password").value;
+        if (!username || !password) { setMsg(msg, "请输入用户名和密码", "err"); return; }
+        btn.disabled = true;
+        setMsg(msg, "登录中…");
+        post("/api/auth/login", { username: username, password: password })
+          .then(function (res) {
+            if (!res.ok) { setMsg(msg, res.data.error || "登录失败", "err"); btn.disabled = false; return; }
+            setMsg(msg, "登录成功，正在进入…", "ok");
+            location.replace(next);
+          })
+          .catch(function (e) { setMsg(msg, "网络错误：" + e.message, "err"); btn.disabled = false; });
+      });
+
+      elReg.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var btn = document.getElementById("register-submit");
+        var msg = document.getElementById("register-msg");
+        var payload = {
+          role: elRole.value,
+          username: document.getElementById("reg-username").value.trim(),
+          display_name: document.getElementById("reg-display").value.trim(),
+          password: document.getElementById("reg-password").value,
+          invite_code: document.getElementById("reg-invite").value.trim().toUpperCase(),
+        };
+        if (!payload.username || !payload.password) { setMsg(msg, "请填写用户名和密码", "err"); return; }
+        btn.disabled = true;
+        setMsg(msg, "注册中…");
+        post("/api/auth/register", payload)
+          .then(function (res) {
+            if (!res.ok) { setMsg(msg, res.data.error || "注册失败", "err"); btn.disabled = false; return; }
+            setMsg(msg, "注册成功，正在进入…", "ok");
+            location.replace(next);
+          })
+          .catch(function (e) { setMsg(msg, "网络错误：" + e.message, "err"); btn.disabled = false; });
+      });
+
+      // 游客试用：不注册先体验（数据 24 小时后自动清理）
+      var elGuest = document.getElementById("guest-btn");
+      elGuest.addEventListener("click", function () {
+        var msg = document.getElementById("login-msg");
+        elGuest.disabled = true;
+        setMsg(msg, "正在开启试用…");
+        post("/api/auth/guest", {})
+          .then(function (res) {
+            if (!res.ok) { setMsg(msg, res.data.error || "开启试用失败", "err"); elGuest.disabled = false; return; }
+            setMsg(msg, "试用已开启，正在进入…", "ok");
+            location.replace(next);
+          })
+          .catch(function (e) { setMsg(msg, "网络错误：" + e.message, "err"); elGuest.disabled = false; });
+      });
+    })();
+  </script>
+</body>
+</html>
