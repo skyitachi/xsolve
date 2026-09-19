@@ -212,6 +212,7 @@ footer {
     <li>合规与上架前置</li>
     <li>里程碑与工作量</li>
     <li>风险与开放问题</li>
+    <li>移动端体验修复实录（已完成）</li>
   </ol>
 </div>
 
@@ -671,6 +672,105 @@ ALTER TABLE settings ADD COLUMN scope TEXT NOT NULL DEFAULT 'global';</code></pr
   <li><strong>登录方式</strong>：自建账号起步，还是直接接微信/手机号？</li>
   <li><strong>家长端与孩子端</strong>：是否要独立入口与权限（家长管、孩子做）？</li>
   <li><strong>是否有可备案的服务器与域名</strong>：Phase 2 的前置条件。</li>
+</ol>
+</section>
+
+<!-- ============ 11 ============ -->
+<section>
+<h2>十一、移动端体验修复实录（已完成）</h2>
+
+<div class="callout">
+  <div class="callout-title">为什么单列一章</div>
+  <p>前面十节把移动端放在「先能装到主屏、再考虑公网、最后考虑原生」的排期里，体验细节散在 Phase 1 的验收标准中。实际用下来确认了<strong>移动端就是主要使用场景</strong>（录题 / 拍题 / 写题），于是单独做了一轮以真机视口为基准的排查。结论是：<strong>查出来的两个主要问题都不是「体验不够好」，而是功能实际不可用</strong>——而且都只在手机上暴露，桌面浏览器窗口够宽、也不会去点移动端的 Tab，完全看不出来。</p>
+</div>
+
+<h3>11.1 问题一：手写内容会凭空消失（写题）</h3>
+<p>画布靠改 <code>canvas.width / canvas.height</code> 来适配尺寸，而<strong>改这两个属性必然清空位图</strong>；代码里却没有任何「按笔画重绘」的逻辑。于是只要触发一次 resize，写到一半的内容就没了。移动端触发得极其频繁：</p>
+<ul>
+  <li>每次从「题目」切回「做题」都会重设尺寸（<code>switchTab()</code> 里显式调用）；</li>
+  <li>软键盘弹出 / 收起、旋屏、地址栏收起展开，同样会触发 <code>resize</code>。</li>
+</ul>
+<p>同一处还有两条同源问题，一起修了：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>问题</th><th>触发场景</th><th>后果</th><th>处理</th></tr></thead>
+<tbody>
+<tr><td>面板隐藏时量到 0×0，照样设尺寸</td><td>在 AI Tab 上键盘弹收触发 resize</td><td>画布被清成 0×0，内容<b>永久丢失</b></td><td>加零尺寸守卫 + 尺寸无变化短路</td></tr>
+<tr><td>导出草稿用 <code>getBoundingClientRect()</code> 算尺寸</td><td>在 AI Tab 点「检查过程」（此时「做题」面板是 <code>display:none</code>）</td><td>导出空图 → <b>AI 看到的草稿是白纸</b></td><td>改用画布像素尺寸 <code>canvas.width/height</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>修法是让笔画成为可重放的真相来源：结构从裸坐标数组改成 <code>{ t, p }</code>（带上工具类型，橡皮才能忠实重放），尺寸变化后按笔画重放一次。另外补了「撤销」，并在多指 / 掌托时结束当前笔画，避免拖出乱线。</p>
+<div class="callout danger">
+  <div class="callout-title">实测对照</div>
+  <p>注入两笔后切一次 Tab：修复前墨迹像素 <code>12957 → 0</code>，修复后 <code>12957 → 12957</code>。</p>
+</div>
+
+<h3>11.2 问题二：拍题入口被裁到屏幕外（拍题）</h3>
+<p>工具栏是 <code>max-height:36px</code> + <code>flex-wrap:nowrap</code> + <code>overflow:hidden</code>（「只显示第一行」），而同一个断点又把按钮抬到 <code>min-height:34px</code>。在 390px 视口下实测各按钮右边界：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>按钮</th><th>右边界</th><th>可见性</th></tr></thead>
+<tbody>
+<tr><td>✒️ 画笔 / 🧽 橡皮 / 🗑️ 清空 / 👁️ 识别草稿</td><td>≤ 287px</td><td>可见</td></tr>
+<tr><td>📷 上传我的解答</td><td>400px</td><td><b>半截露在屏幕外</b></td></tr>
+<tr><td>📖 上传题目</td><td>488px</td><td>完全在屏幕外</td></tr>
+<tr><td>✏️ 输入题目</td><td>576px</td><td>完全在屏幕外</td></tr>
+</tbody>
+</table>
+</div>
+<p>也就是说，移动端最核心的三个动作都藏在「⋯ 更多」二级菜单里。改为<strong>单行横向滚动</strong>（右缘淡出提示可滑、隐藏滚动条），并把「📷 拍题」升为主色按钮排到第一位；纵向仍然只占一行，把高度留给手写画布。改完 <code>scrollWidth=837 / clientWidth=390</code>，其余项手指一划即达，折叠开关随之删除。</p>
+
+<h3>11.3 拆分「拍照」与「从相册选」</h3>
+<p>原来四个图片入口全部带 <code>capture="environment"</code>。这在 iOS / Android 上的语义是「<strong>直接打开相机</strong>」——用户<strong>没有机会选已有照片</strong>：老师微信发来的题目截图、之前拍好的照片，都传不上去。现在拆成四个 input：题目 / 解答 × 拍照（带 <code>capture</code>）/ 相册（不带）。</p>
+
+<h3>11.4 新增拍照后裁剪</h3>
+<p>对着作业本拍一整页，直接整张送 AI 会串题、把邻题当题干。新增 <code>frontend/js/crop.js</code>：</p>
+<ul>
+  <li>Pointer Events 一套代码同时吃触屏与鼠标；整体拖动 + 四角缩放 + 三分线，选择框钳制在图片范围内；</li>
+  <li>框外压暗（实测框外亮度 112 / 框内 255），一眼看清框住了哪块；</li>
+  <li>按<strong>原图分辨率</strong>裁剪，长边上限从 1280 提到 <strong>1600</strong>（原值不利于识别作业本上的小字）；</li>
+  <li>「用全图」一键跳过。题目链路 = 拍照 → 裁剪 → 直接识别（裁剪本身就是确认步骤）；解答链路 = 选图 → 预览 → 确认发送。</li>
+</ul>
+
+<h3>11.5 其余移动端修正</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>项</th><th>原来</th><th>现在</th></tr></thead>
+<tbody>
+<tr><td>双指缩放</td><td><code>maximum-scale=1, user-scalable=no</code>，数学小字没法放大</td><td>放开缩放；画布本身是 <code>touch-action:none</code>，写字不会被误缩放</td></tr>
+<tr><td>软键盘遮挡</td><td>iOS 上 <code>dvh</code> 不跟随键盘，键盘会盖住聊天输入框</td><td><code>interactive-widget=resizes-content</code> + <code>visualViewport</code> → <code>--kb</code> 变量，布局据此收缩</td></tr>
+<tr><td>撤销</td><td>无（写错只能全清）</td><td>新增「↩️ 撤销」</td></tr>
+<tr><td>语音输入报错</td><td>明文 HTTP 下 <code>navigator.mediaDevices</code> 是 undefined，报「Cannot read properties of undefined」</td><td>直接说明「语音输入需要 HTTPS」</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>11.6 验证方式：<code>scripts/check-mobile.mjs</code></h3>
+<p>这些问题的共同特征是<strong>桌面上完全看不出来</strong>，所以补了一个可复跑的回归脚本：它自己起静态服务、给 <code>index.html</code> 打桩（绕过登录与后端），在移动视口下跑 12 项断言——<strong>不需要 NAS 在线、不需要装 CA、不依赖任何运行中的服务</strong>。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>断言组</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td>视口</td><td>允许双指缩放、软键盘压缩布局</td></tr>
+<tr><td>上传入口</td><td>拍照 2 个（带 capture）+ 相册 2 个（不带）</td></tr>
+<tr><td>工具栏</td><td>「拍题」无需横滑即完整可见、单行横滑、溢出项可触及</td></tr>
+<tr><td>写题</td><td>切 Tab 后草稿还在、撤销生效、隐藏面板导出非空图</td></tr>
+<tr><td>裁剪</td><td>能打开、框外已压暗、返回合法图片、关闭后清理 DOM</td></tr>
+</tbody>
+</table>
+</div>
+<div class="callout success">
+  <div class="callout-title">前后对照（已验证断言有效）</div>
+  <p>把修复前的 4 个文件还原回去跑同一套断言：<strong>9/11 未通过</strong>（草稿墨迹 12957→0、导出空图、无撤销、无裁剪、工具栏 overflow:hidden…）；修复后 <strong>12/12 通过</strong>。</p>
+</div>
+
+<h3>11.7 仍未做的</h3>
+<ol>
+  <li><strong>证书来源仍是自签 CA</strong>（本次未动）。当前「装 CA → 换网失效 → 刷证书致 SPKI 失效」这一整类摩擦的<strong>根因不是 PWA，而是「局域网 IP + 自签证书不构成公信信任」</strong>。它与 §10.2 第 4 条（是否有可备案的服务器与域名）是同一个决策：只要有一个域名，用 Let's Encrypt 的 <strong>DNS-01</strong> 挑战就能签发公信证书（只校验一条 DNS TXT 记录，<strong>服务器无需公网可达、无需开 80/443</strong>，A 记录可直接指向 <code>192.168.0.112</code>）——流量不出局域网、客户端免装 CA、续期只换证书客户端无感知。这是唯一能同时消掉上述三类问题的方案。</li>
+  <li><strong>整页多题拆分</strong>：一张照片里有 3 道题时，目前只能逐题裁三次。</li>
+  <li><strong>草稿离线暂存</strong>：断网时草稿只在内存里，刷新即丢（服务端同步依赖在线）。</li>
+  <li><strong>压感与手掌误触</strong>仍是 PWA 的能力上限——这正是 §7.1 Phase 3 的触发条件之一，当前只做了「多指即结束当前笔画」的粗粒度防误触。</li>
 </ol>
 </section>
 
