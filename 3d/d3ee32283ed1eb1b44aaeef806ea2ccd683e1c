@@ -1,0 +1,68 @@
+.gitignore
+  h_5a1c62fd74efa2 111
+backend/app.js
+  h_5a1c62fd74efa2 61-99,140-231,234-240
+backend/auth.js
+  h_5a1c62fd74efa2 1-123
+backend/config.js
+  h_5a1c62fd74efa2 43-77
+backend/controllers/adminController.js
+  h_5a1c62fd74efa2 1-233
+backend/controllers/authController.js
+  h_5a1c62fd74efa2 1-279
+backend/controllers/familyController.js
+  h_5a1c62fd74efa2 1-201
+backend/controllers/memoryController.js
+  h_5a1c62fd74efa2 2-3,10-17,19,22-23,61,64-65,73,76-77,88-89
+backend/controllers/sessionController.js
+  h_5a1c62fd74efa2 9-10,20-47,50-60,65-66,70,78-80,87-102,118-120,145-146,150,159-161,170-172,184-186,195-196,210-221,226-227,235-236,247-248,292-293
+backend/controllers/turnController.js
+  h_5a1c62fd74efa2 2,10,20-35,49-54,215-216,253,271-274,306-317,346-358,361-364,367-368,374
+backend/db.js
+  h_5a1c62fd74efa2 8-9,32-37,200-285,288-307,340-355,455,458-460,470-476,478-485,488,498-499,1350-1851,1922-1965
+backend/mcp-tools.js
+  h_5a1c62fd74efa2 30-32,35,39,62-99,195,225-246,249,251,258-261,267,278,281-294,297-299,331,334,354-355,358,362,367-368
+backend/memory/digest.js
+  h_5a1c62fd74efa2 33,38
+backend/middleware/auth.js
+  h_5a1c62fd74efa2 1-157
+backend/session.js
+  h_5a1c62fd74efa2 4,35-105,111,125,128,151-154,159-160,169-170,194,247-253,263-264,266,269,280-281,284,306,406,477
+frontend/accounts.html
+  h_5a1c62fd74efa2 1-442
+frontend/app.js
+  h_5a1c62fd74efa2 268-272
+frontend/eval.html
+  h_5a1c62fd74efa2 8
+frontend/index.html
+  h_5a1c62fd74efa2 37-38,41,163,167,230
+frontend/js/auth.js
+  h_5a1c62fd74efa2 1-397
+frontend/js/chat.js
+  h_5a1c62fd74efa2 253-262,267,329,840-843,847
+frontend/js/state.js
+  h_5a1c62fd74efa2 6,23-26,28,30-40,42,44-45,50-54,60-61
+frontend/login.html
+  h_5a1c62fd74efa2 1-276
+frontend/my-children.html
+  h_5a1c62fd74efa2 1-374
+frontend/prompts.html
+  h_5a1c62fd74efa2 8
+frontend/settings.html
+  h_5a1c62fd74efa2 8
+frontend/student-eval.html
+  h_5a1c62fd74efa2 8
+frontend/student-memory.html
+  h_5a1c62fd74efa2 8,134-136,151,199-214,239,438,451-484
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3dd3ee32283ed1eb1b44aaeef806ea2ccd683e1c",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
