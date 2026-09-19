@@ -281,7 +281,9 @@ if (HAS_COMPOSE) {
   log('   改完重启服务即可。');
 }
 log();
-log('② 让「访问它的设备」信任这个 CA —— 必须在每台手机上做一次');
+log('② 让「访问它的设备」信任这个 CA —— 每台要访问的设备各做一次');
+log('   ⚠️  装上的是「你要访问的那台服务器」的 CA，别装错：每台跑本脚本的机器都会生成');
+log('      **自己的一张** Root CA，subject 同名（CN=xsolve Local CA）但指纹不同。');
 log('   ⚠️  这是必需项，不是优化项：点证书警告页的「继续访问」，Chrome 会把这个地址');
 log('      标记为不安全，并**继续禁用 Service Worker** —— 表现就是「上了 HTTPS 也还是没效果」。');
 log(`   · iOS / iPadOS：手机浏览器打开 ${caUrl} 下载（DER 格式）`);
@@ -293,9 +295,10 @@ log('       注意别选成「VPN 和应用用户证书」；部分厂商在 设
 log(`       若上面那个 .crt 提示「无法安装」，换 PEM 版再试：${caPemUrl}`);
 log('   · macOS 客户端：免 sudo，加到**登录**钥匙串（注意不要加 -d ——');
 log('       -d 是「写入 admin cert store」，需要 root，和「免 sudo」自相矛盾）');
-log(`       security add-trusted-cert -r trustRoot -k ~/Library/Keychains/login.keychain-db "${CA_CERT}"`);
-log('       （想改系统级就前面加 sudo 并换成 /Library/Keychains/System.keychain，仍需 -d）');
-log('       验证：security find-certificate -a -c "xsolve Local CA" ~/Library/Keychains/login.keychain-db');
+log('       -p ssl 很值得加：把信任限定在 SSL，这张 CA 就不能被用来签代码/邮件冒充');
+log(`       security add-trusted-cert -r trustRoot -p ssl -k ~/Library/Keychains/login.keychain-db <该服务器下载来的 .pem>`);
+log('       验证：security find-certificate -a -c "xsolve Local CA" -Z ~/Library/Keychains/login.keychain-db');
+log('             security dump-trust-settings   # 应看到 Cert 0 且 Policy OID: SSL');
 log('       撤销：security delete-certificate -c "xsolve Local CA" ~/Library/Keychains/login.keychain-db');
 log('   · Windows 客户端：');
 log(`       certutil -addstore -user Root "${getCaDownloadCopy()}"`);
