@@ -1,0 +1,28 @@
+frontend/app.js
+  h_5a1c62fd74efa2 15-32,36-37,39
+frontend/index.html
+  h_5a1c62fd74efa2 6-9,78-92,94-96,98-100,251
+frontend/js/crop.js
+  h_5a1c62fd74efa2 1-292
+frontend/js/scratch.js
+  h_5a1c62fd74efa2 2-10,19-59,63-73,77,85-93,96,101-102,108-110,115-119,122-129,136,141,150-160,170-173,195,218-223,226-227,231,233,244-247
+frontend/js/upload.js
+  h_5a1c62fd74efa2 1-12,15-17,19-20,23,26-35,38-44,47-49,51-67,69,72-79,83-97,100,143,155,167,182-185
+frontend/js/voice.js
+  h_5a1c62fd74efa2 139-150
+frontend/styles.css
+  h_5a1c62fd74efa2 680-686,689,691-697,699,702,704,706-710,712,1013-1015,1019
+scripts/check-mobile.mjs
+  h_5a1c62fd74efa2 1-418
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b3e4da98d6c15151d7c17b249234fbb48d1965ea",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
