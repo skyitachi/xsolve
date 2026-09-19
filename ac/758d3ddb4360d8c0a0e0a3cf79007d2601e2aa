@@ -1,0 +1,28 @@
+backend/controllers/settingsController.js
+  h_5a1c62fd74efa2 60-62
+backend/eval/llm-judge.js
+  h_5a1c62fd74efa2 5,63-71
+backend/eval/session-judge.js
+  h_5a1c62fd74efa2 4,52-55
+backend/eval/student-eval.js
+  h_5a1c62fd74efa2 7,129-132
+backend/memory/llm.js
+  h_5a1c62fd74efa2 4,30-34
+backend/server.js
+  h_5a1c62fd74efa2 38-41,43-47,82-83,108-117,142,194-196,198-202,206-214,223-232,242
+backend/startup-check.js
+  h_5a1c62fd74efa2 27-31,33
+backend/vision.js
+  h_5a1c62fd74efa2 74,78-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ac758d3ddb4360d8c0a0e0a3cf79007d2601e2aa",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
