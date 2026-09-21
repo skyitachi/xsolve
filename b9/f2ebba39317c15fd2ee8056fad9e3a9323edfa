@@ -1,0 +1,22 @@
+.env.example
+  h_5a1c62fd74efa2 51-66
+backend/scripts/setup-acme-cert.sh
+  h_5a1c62fd74efa2 1-171
+docs/acme-cert/_shared/js/mermaid.min.js
+  h_5a1c62fd74efa2 1-2314
+docs/acme-cert/acme-cert.html
+  h_5a1c62fd74efa2 1-554
+scripts/prerender-mermaid.mjs
+  h_5a1c62fd74efa2 1-214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b9f2ebba39317c15fd2ee8056fad9e3a9323edfa",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
