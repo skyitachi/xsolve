@@ -5,7 +5,7 @@ import path from 'node:path';
 import { SEED_PROMPTS } from './prompt-seeds.js';
 import { fileURLToPath } from 'url';
 import { PROBLEMS as BUILTIN_PROBLEMS } from './problems.js';
-import { MASTERY_HALFLIFE_DAYS, MASTERY_LEARNING_RATE, BOOTSTRAP_STUDENT_USERNAME, BOOTSTRAP_STUDENT_PASSWORD, AUDIT_RETENTION_DAYS, GUEST_USERNAME_PREFIX } from './config.js';
+import { MASTERY_HALFLIFE_DAYS, MASTERY_LEARNING_RATE, BOOTSTRAP_STUDENT_USERNAME, BOOTSTRAP_STUDENT_PASSWORD, AUDIT_RETENTION_DAYS, GUEST_USERNAME_PREFIX, WRONG_BOOK_AUTO_COLLECT } from './config.js';
 import { hashPassword } from './auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -286,6 +286,53 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_audit_logs_time ON audit_logs(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action, created_at DESC);
+
+    -- ========== 错题本 ==========
+    -- ① 本子：一个学生可以有多个错题本（按科目 / 按专题分）。
+    -- 每个学生**必定有一个默认本**（is_default=1），自动收录都进它，
+    -- 学生不需要先「创建一个本」才能用。
+    CREATE TABLE IF NOT EXISTS wrong_books (
+      id          TEXT PRIMARY KEY,
+      student_id  TEXT NOT NULL DEFAULT 'me',
+      name        TEXT NOT NULL,
+      emoji       TEXT,
+      is_default  INTEGER NOT NULL DEFAULT 0,
+      sort_order  INTEGER NOT NULL DEFAULT 0,
+      created_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_wrong_books_student ON wrong_books(student_id, sort_order, created_at);
+
+    -- ② 错题条目：**一题一行**（同一题错三次仍然只有一个条目，次数记在 wrong_count）。
+    --    source 区分三种入口，这是本功能的核心：
+    --      auto   = 做题答错时自动收录
+    --      manual = 从题库里手动挑进来的
+    --      photo  = 拍照 + 视觉解析新录入的题
+    CREATE TABLE IF NOT EXISTS wrong_items (
+      id             TEXT PRIMARY KEY,
+      student_id     TEXT NOT NULL DEFAULT 'me',
+      book_id        TEXT NOT NULL,
+      problem_id     TEXT NOT NULL,
+      source         TEXT NOT NULL DEFAULT 'auto',
+      status         TEXT NOT NULL DEFAULT 'pending',  -- pending | mastered
+      wrong_count    INTEGER NOT NULL DEFAULT 0,
+      review_count   INTEGER NOT NULL DEFAULT 0,
+      level          INTEGER NOT NULL DEFAULT 0,       -- 复习等级，P1 的间隔调度用
+      note           TEXT,                             -- 错因 / 备注（人工标注）
+      first_wrong_at INTEGER,
+      last_review_at INTEGER,
+      next_review_at INTEGER,
+      mastered_at    INTEGER,
+      created_at     INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+
+    -- 同一学生同一道题只留一个条目（跨本也不重复）：
+    -- 「加入另一个本」= 改 book_id（移动），而不是新增一条，
+    -- 否则「今日待复习」会把同一道题数两次。
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_wrong_items_student_problem
+      ON wrong_items(student_id, problem_id);
+    CREATE INDEX IF NOT EXISTS idx_wrong_items_book ON wrong_items(student_id, book_id, status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_wrong_items_due  ON wrong_items(student_id, status, next_review_at);
   `);
 
   // Migration: 游客账号到期时间戳（NULL = 正常账号）
@@ -1139,6 +1186,13 @@ function recordAttempt({ id, student_id, session_id, turn_id, problem_id, topic,
   );
   if (info.changes > 0) {
     if (topic) bumpTopicMastery(sid, topic, !!correct);
+    // 错题本自动收录：只在**真正新写入**一条流水时触发。
+    // 这里必须依赖 info.changes > 0（而不是只看 correct=0）—— 本函数是
+    // INSERT OR IGNORE 的去重语义，学生把同一个错误答案重复提交几次时
+    // changes=0，若在此处无条件 +1，wrong_count 会被刷成假数据。
+    if (!correct && problem_id && WRONG_BOOK_AUTO_COLLECT) {
+      autoCollectWrongItem(sid, problem_id);
+    }
   } else if (turn_id && problem_id != null && user_answer != null) {
     // 命中去重（通常是 record_history 工具先写入、turn_id 为空）：
     // 由随后的 persistTurn 自动落库回填 turn_id，便于把答题流水追溯回具体 turn；
@@ -1233,6 +1287,329 @@ function getAttemptStats(student_id) {
     FROM student_attempts WHERE student_id = ?
   `).get(sid);
   return { total: row.total || 0, correct: row.correct || 0, last_at: row.last_at || null };
+}
+
+// ========== 错题本 ==========
+
+const DEFAULT_BOOK_NAME = '我的错题本';
+const DEFAULT_BOOK_EMOJI = '📕';
+
+/**
+ * 保证该学生有一个默认错题本，返回它。
+ * 「自动收录」和「拍照录入」都落在默认本上，学生不需要先手动建本才能用。
+ */
+function ensureDefaultBook(sid) {
+  getDb();
+  const existing = db
+    .prepare('SELECT * FROM wrong_books WHERE student_id = ? AND is_default = 1 ORDER BY created_at LIMIT 1')
+    .get(sid);
+  if (existing) return existing;
+  const id = 'wb_' + crypto.randomUUID();
+  db.prepare(`
+    INSERT INTO wrong_books (id, student_id, name, emoji, is_default, sort_order)
+    VALUES (?, ?, ?, ?, 1, 0)
+  `).run(id, sid, DEFAULT_BOOK_NAME, DEFAULT_BOOK_EMOJI);
+  return db.prepare('SELECT * FROM wrong_books WHERE id = ?').get(id);
+}
+
+function listWrongBooks(student_id) {
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  ensureDefaultBook(sid);
+  const books = db.prepare(`
+    SELECT * FROM wrong_books WHERE student_id = ?
+    ORDER BY is_default DESC, sort_order, created_at
+  `).all(sid);
+  const counts = db.prepare(`
+    SELECT book_id,
+           COUNT(*) AS total,
+           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending
+    FROM wrong_items WHERE student_id = ? GROUP BY book_id
+  `).all(sid);
+  const byId = new Map(counts.map((c) => [c.book_id, c]));
+  return books.map((b) => ({
+    id: b.id,
+    name: b.name,
+    emoji: b.emoji,
+    is_default: !!b.is_default,
+    created_at: b.created_at,
+    total: byId.get(b.id)?.total || 0,
+    pending: byId.get(b.id)?.pending || 0,
+  }));
+}
+
+function getWrongBook(id, student_id) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  return db.prepare('SELECT * FROM wrong_books WHERE id = ? AND student_id = ?').get(id, sid) || null;
+}
+
+function createWrongBook(student_id, { name, emoji } = {}) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const trimmed = String(name || '').trim();
+  if (!trimmed) {
+    const err = new Error('错题本名称不能为空');
+    err.status = 400;
+    throw err;
+  }
+  if (trimmed.length > 30) {
+    const err = new Error('错题本名称最多 30 个字');
+    err.status = 400;
+    throw err;
+  }
+  const dup = db
+    .prepare('SELECT id FROM wrong_books WHERE student_id = ? AND name = ?')
+    .get(sid, trimmed);
+  if (dup) {
+    const err = new Error('已经有同名的错题本了');
+    err.status = 409;
+    throw err;
+  }
+  const id = 'wb_' + crypto.randomUUID();
+  const maxOrder = db
+    .prepare('SELECT COALESCE(MAX(sort_order), 0) AS m FROM wrong_books WHERE student_id = ?')
+    .get(sid).m;
+  db.prepare(`
+    INSERT INTO wrong_books (id, student_id, name, emoji, is_default, sort_order)
+    VALUES (?, ?, ?, ?, 0, ?)
+  `).run(id, sid, trimmed, emoji || '📗', maxOrder + 1);
+  return getWrongBook(id, sid);
+}
+
+function renameWrongBook(id, student_id, name) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const book = getWrongBook(id, sid);
+  if (!book) return null;
+  const trimmed = String(name || '').trim();
+  if (!trimmed) {
+    const err = new Error('错题本名称不能为空');
+    err.status = 400;
+    throw err;
+  }
+  db.prepare('UPDATE wrong_books SET name = ? WHERE id = ? AND student_id = ?').run(trimmed.slice(0, 30), id, sid);
+  return getWrongBook(id, sid);
+}
+
+/**
+ * 删除错题本。默认本不允许删除（自动收录要有落点）。
+ * 本子里的条目**不删除**，而是移动回默认本 —— 学生删的是分类，不是题目，
+ * 直接连题目一起删掉太容易误伤。
+ */
+function deleteWrongBook(id, student_id) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const book = getWrongBook(id, sid);
+  if (!book) return { ok: false, reason: 'not_found' };
+  if (book.is_default) return { ok: false, reason: 'is_default' };
+  const fallback = ensureDefaultBook(sid);
+  const moved = db
+    .prepare('UPDATE wrong_items SET book_id = ? WHERE student_id = ? AND book_id = ?')
+    .run(fallback.id, sid, id).changes;
+  db.prepare('DELETE FROM wrong_books WHERE id = ? AND student_id = ?').run(id, sid);
+  return { ok: true, moved, moved_to: fallback.id };
+}
+
+function rowToWrongItem(r) {
+  return {
+    id: r.id,
+    book_id: r.book_id,
+    problem_id: r.problem_id,
+    source: r.source,
+    status: r.status,
+    wrong_count: r.wrong_count,
+    review_count: r.review_count,
+    level: r.level,
+    note: r.note || null,
+    created_at: r.created_at,
+    first_wrong_at: r.first_wrong_at || null,
+    last_review_at: r.last_review_at || null,
+    next_review_at: r.next_review_at || null,
+    mastered_at: r.mastered_at || null,
+    topic: r.p_topic || null,
+    text: r.p_text || null,
+    has_image: !!r.has_image,
+    has_figure: !!r.has_figure,
+    problem_exists: r.p_text != null,
+  };
+}
+
+function listWrongItems(student_id, { bookId = null, status = null, limit = 200, offset = 0 } = {}) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const where = ['w.student_id = ?'];
+  const args = [sid];
+  if (bookId) { where.push('w.book_id = ?'); args.push(bookId); }
+  if (status) { where.push('w.status = ?'); args.push(status); }
+  const rows = db.prepare(`
+    SELECT w.*, p.topic AS p_topic, p.text AS p_text,
+           (p.image_dataurl IS NOT NULL) AS has_image,
+           (p.figure_json IS NOT NULL) AS has_figure
+    FROM wrong_items w
+    LEFT JOIN problems p ON p.id = w.problem_id
+    WHERE ${where.join(' AND ')}
+    ORDER BY (w.status = 'mastered'), w.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(...args, Math.min(Number(limit) || 200, 500), Number(offset) || 0);
+  return rows.map(rowToWrongItem);
+}
+
+function getWrongItem(id, student_id) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const r = db.prepare(`
+    SELECT w.*, p.topic AS p_topic, p.text AS p_text,
+           (p.image_dataurl IS NOT NULL) AS has_image,
+           (p.figure_json IS NOT NULL) AS has_figure
+    FROM wrong_items w
+    LEFT JOIN problems p ON p.id = w.problem_id
+    WHERE w.id = ? AND w.student_id = ?
+  `).get(id, sid);
+  return r ? rowToWrongItem(r) : null;
+}
+
+function findWrongItemByProblem(student_id, problemId) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const r = db
+    .prepare('SELECT * FROM wrong_items WHERE student_id = ? AND problem_id = ?')
+    .get(sid, problemId);
+  return r || null;
+}
+
+/**
+ * 加入错题本（三种入口共用）。
+ * 已有的条目**不新增一行**，而是「移动 + 重新激活」—— 因为
+ * uq_wrong_items_student_problem 约束一题一条，也避免待复习数被重复计。
+ *
+ * @returns {{item:object, created:boolean}}
+ */
+function addWrongItem(student_id, { bookId, problemId, source = 'manual', note = null, countWrong = false, wrongCount = null } = {}) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  if (!problemId) {
+    const err = new Error('缺少题目 id');
+    err.status = 400;
+    throw err;
+  }
+  // delta：这次加入要给 wrong_count 加多少。
+  //   countWrong=true  → +1（真实的「又错一次」）
+  //   wrongCount=n     → 直接给 n（回填历史用：一次加入对应历史上 n 次出错，而不是 1）
+  const delta = wrongCount != null ? Math.max(0, Number(wrongCount) || 0) : (countWrong ? 1 : 0);
+  const book = bookId ? getWrongBook(bookId, sid) : ensureDefaultBook(sid);
+  if (!book) {
+    const err = new Error('错题本不存在');
+    err.status = 404;
+    throw err;
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const existing = findWrongItemByProblem(sid, problemId);
+  if (existing) {
+    db.prepare(`
+      UPDATE wrong_items
+         SET book_id        = ?,
+             status         = 'pending',
+             mastered_at    = NULL,
+             note           = COALESCE(?, note),
+             wrong_count    = wrong_count + ?,
+             first_wrong_at = COALESCE(first_wrong_at, ?)
+       WHERE id = ?
+    `).run(book.id, note, delta, delta > 0 ? now : null, existing.id);
+    return { item: getWrongItem(existing.id, sid), created: false };
+  }
+  const id = 'wi_' + crypto.randomUUID();
+  db.prepare(`
+    INSERT INTO wrong_items
+      (id, student_id, book_id, problem_id, source, status, wrong_count, note, first_wrong_at)
+    VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+  `).run(id, sid, book.id, problemId, source, delta, note, delta > 0 ? now : null);
+  return { item: getWrongItem(id, sid), created: true };
+}
+
+function removeWrongItem(id, student_id) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const info = db.prepare('DELETE FROM wrong_items WHERE id = ? AND student_id = ?').run(id, sid);
+  return info.changes > 0;
+}
+
+/** 标记 / 取消「已掌握」。取消时回到待复习。 */
+function setWrongItemMastered(id, student_id, mastered) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const now = Math.floor(Date.now() / 1000);
+  const info = db.prepare(`
+    UPDATE wrong_items
+       SET status = ?, mastered_at = ?, next_review_at = NULL
+     WHERE id = ? AND student_id = ?
+  `).run(mastered ? 'mastered' : 'pending', mastered ? now : null, id, sid);
+  return info.changes > 0 ? getWrongItem(id, sid) : null;
+}
+
+/** 记一次「重做」动作。真正的掌握判定（连续答对）属 P1，这里只记动作与时间。 */
+function touchWrongItemReview(id, student_id) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const now = Math.floor(Date.now() / 1000);
+  const info = db.prepare(`
+    UPDATE wrong_items
+       SET review_count = review_count + 1, last_review_at = ?
+     WHERE id = ? AND student_id = ?
+  `).run(now, id, sid);
+  return info.changes > 0 ? getWrongItem(id, sid) : null;
+}
+
+/** 某道题上最后一次「写错的答案」—— 复习时「我当初错成了什么」比正确答案更有用。 */
+function getLatestWrongAnswer(student_id, problem_id) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const row = db.prepare(`
+    SELECT user_answer, created_at
+    FROM student_attempts
+    WHERE student_id = ? AND problem_id = ? AND correct = 0
+    ORDER BY created_at DESC, rowid DESC
+    LIMIT 1
+  `).get(sid, problem_id);
+  return row ? { answer: row.user_answer, at: row.created_at } : null;
+}
+
+/** 错题本总览：本数、待复习数、已掌握数、来源分布。 */
+function getWrongBookStats(student_id) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  ensureDefaultBook(sid);
+  const row = db.prepare(`
+    SELECT COUNT(*) AS total,
+           SUM(CASE WHEN status = 'pending'  THEN 1 ELSE 0 END) AS pending,
+           SUM(CASE WHEN status = 'mastered' THEN 1 ELSE 0 END) AS mastered
+    FROM wrong_items WHERE student_id = ?
+  `).get(sid);
+  const sources = db.prepare(`
+    SELECT source, COUNT(*) AS n FROM wrong_items WHERE student_id = ? GROUP BY source
+  `).all(sid);
+  const books = db.prepare('SELECT COUNT(*) AS n FROM wrong_books WHERE student_id = ?').get(sid);
+  return {
+    books: books.n || 0,
+    total: row.total || 0,
+    pending: row.pending || 0,
+    mastered: row.mastered || 0,
+    by_source: Object.fromEntries(sources.map((s) => [s.source, s.n])),
+  };
+}
+
+/**
+ * 自动收录：答题流水判定为「错」时调用。
+ * 只做 upsert，绝不抛异常影响答题主流程。
+ */
+function autoCollectWrongItem(sid, problemId) {
+  try {
+    const book = ensureDefaultBook(sid);
+    addWrongItem(sid, { bookId: book.id, problemId, source: 'auto', countWrong: true });
+    return true;
+  } catch (e) {
+    console.error('[db] auto collect wrong item failed:', e.message);
+    return false;
+  }
 }
 
 function getTopicMastery(student_id, { minAttempts = 0 } = {}) {
@@ -1990,6 +2367,22 @@ export {
   bumpTopicMastery,
   applyMasteryDecay,
   getAttemptStats,
+  // Wrong Book（错题本）
+  ensureDefaultBook,
+  listWrongBooks,
+  getWrongBook,
+  createWrongBook,
+  renameWrongBook,
+  deleteWrongBook,
+  listWrongItems,
+  getWrongItem,
+  findWrongItemByProblem,
+  addWrongItem,
+  removeWrongItem,
+  setWrongItemMastered,
+  touchWrongItemReview,
+  getWrongBookStats,
+  getLatestWrongAnswer,
   getTopicMastery,
   getRecentAttempts,
   getAttemptsByTopic,

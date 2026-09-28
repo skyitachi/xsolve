@@ -59,6 +59,22 @@ import {
   memoryConsolidate,
 } from './controllers/memoryController.js';
 import {
+  wbListBooks,
+  wbCreateBook,
+  wbRenameBook,
+  wbDeleteBook,
+  wbListItems,
+  wbGetItem,
+  wbItemImage,
+  wbAddItems,
+  wbRemoveItem,
+  wbMasterItem,
+  wbReviewItem,
+  wbCandidates,
+  wbPhotoParse,
+  wbPhotoCommit,
+} from './controllers/wrongBookController.js';
+import {
   register,
   login,
   logout,
@@ -242,6 +258,27 @@ export function createApp() {
   app.get('/api/memory/attempts', requireAuth, resolveTargetStudent(pickStudent), memoryAttempts);
   app.get('/api/memory/facts', requireAuth, resolveTargetStudent(pickStudent), memoryFacts);
   app.post('/api/memory/consolidate', requireAuth, resolveTargetStudent(pickStudent), memoryConsolidate);
+
+  // ========== 错题本 ==========
+  // 目标学生的解析方式与学习档案一致：学生=自己；家长=已绑定孩子；管理员=须传 studentId。
+  // 归属校验统一交给 resolveTargetStudent，controller 里只信 req.targetStudentId，
+  // 不自己从 body/query 取学生 id（否则就是越权口子）。
+  const wb = (handler) => [requireAuth, resolveTargetStudent(pickStudent), handler];
+  app.get('/api/wrong-book/books', ...wb(wbListBooks));
+  app.post('/api/wrong-book/books', ...wb(wbCreateBook));
+  app.patch('/api/wrong-book/books/:id', ...wb(wbRenameBook));
+  app.delete('/api/wrong-book/books/:id', ...wb(wbDeleteBook));
+  app.get('/api/wrong-book/items', ...wb(wbListItems));
+  app.post('/api/wrong-book/items', ...wb(wbAddItems));
+  // 注意：candidates 必须排在 items/:id 之前，否则 ':id' 会吞掉 'candidates'
+  app.get('/api/wrong-book/candidates', ...wb(wbCandidates));
+  app.get('/api/wrong-book/items/:id', ...wb(wbGetItem));
+  app.get('/api/wrong-book/items/:id/image', ...wb(wbItemImage));
+  app.delete('/api/wrong-book/items/:id', ...wb(wbRemoveItem));
+  app.post('/api/wrong-book/items/:id/master', ...wb(wbMasterItem));
+  app.post('/api/wrong-book/items/:id/review', ...wb(wbReviewItem));
+  app.post('/api/wrong-book/photo/parse', ...wb(wbPhotoParse));
+  app.post('/api/wrong-book/photo/commit', ...wb(wbPhotoCommit));
 
   // ========== 404 兜底 ==========
   app.use((req, res) => {

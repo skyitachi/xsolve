@@ -293,6 +293,36 @@ function initApp() {
     }
     renderProblem();
 
+    // 来自错题本的深链：/index.html?problemId=xxx&from=wrongbook
+    // 除了把题目切过去，还必须**同步 session 的 currentProblemId** ——
+    // 后端每轮注入给模型的「当前题目锚点」取自 session，不同步就会出现
+    // 「学生看着新题、模型判的是旧题」。这是项目里踩过的老坑。
+    async function applyProblemDeepLink() {
+      const pid = params.get("problemId");
+      if (!pid) return;
+      const idx = state.problems.findIndex((p) => p.id === pid);
+      if (idx < 0) {
+        addSystemMsg("⚠️ 要重做的这道题已经不在题库里了。");
+        return;
+      }
+      state.idx = idx;
+      renderProblem();
+      if (state.sessionId) {
+        try {
+          await fetch(`/api/session/${state.sessionId}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ currentProblemId: pid }),
+          });
+        } catch {
+          /* 同步失败不阻塞做题，只是模型锚点可能滞后 */
+        }
+      }
+      if (params.get("from") === "wrongbook") {
+        addSystemMsg("📕 来自错题本：把这道题再做一遍。先自己写，别急着看答案。");
+      }
+    }
+
     // 尝试恢复当前角色的 session（刷新页面场景）
     const savedSid = getSavedSessionId(state.mode);
     if (savedSid) {
@@ -310,6 +340,7 @@ function initApp() {
           // 加载历史对话
           await loadSessionHistory(restored.id);
           addSystemMsg("🔄 已恢复上次对话（session 保留中）。");
+          await applyProblemDeepLink();
           return;
         }
       } catch {
@@ -328,7 +359,9 @@ function initApp() {
       );
     } catch (e) {
       addErrorMsg("创建会话失败: " + e.message);
+      return;
     }
+    await applyProblemDeepLink();
   })();
 }
 

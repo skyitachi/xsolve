@@ -50,6 +50,10 @@ export const VISION_MAX_TOKENS = parseInt(process.env.VISION_MAX_TOKENS || '2048
 // 置 false 则退回旧行为：只有模型主动调 recognize_scratch 才看得到草稿。
 export const SCRATCH_AUTO_RECOGNIZE =
   String(process.env.SCRATCH_AUTO_RECOGNIZE || 'true').toLowerCase() !== 'false';
+// 错题本自动收录：学生答错时是否自动把这道题收进默认错题本。
+// 置 false 则只有「手动加入」「拍照录入」两条入口，自动收录关闭。
+export const WRONG_BOOK_AUTO_COLLECT =
+  String(process.env.WRONG_BOOK_AUTO_COLLECT || 'true').toLowerCase() !== 'false';
 // 自动识别草稿的超时（毫秒）——比通用视觉超时短，避免拖慢对话。
 export const SCRATCH_OCR_TIMEOUT_MS = parseInt(process.env.SCRATCH_OCR_TIMEOUT_MS || '30000', 10);
 // 自动识别的失败重试次数（视觉平台偶发 500，重试一次能显著降低漏读）。

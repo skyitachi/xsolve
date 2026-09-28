@@ -150,9 +150,12 @@ export async function runVisionHttp(imageDataUrl, emit, customPrompt, opts = {})
 
   const isScratch = !!customPrompt;
   const sysPrompt = customPrompt || VISION_SUBAGENT_PROMPT;
-  const userPrompt = isScratch
-    ? '请识别图片中的手写内容，按指定的JSON格式直接输出结果。'
-    : '请识别这张小学数学题图片，按指定格式输出。';
+  // opts.userPrompt 让调用方（如错题本的拍照解析）能给出与自身任务匹配的用户指令；
+  // 不传时保持原有两种默认文案不变。
+  const userPrompt = opts.userPrompt
+    || (isScratch
+      ? '请识别图片中的手写内容，按指定的JSON格式直接输出结果。'
+      : '请识别这张小学数学题图片，按指定格式输出。');
 
   if (emit) emit('ui_event', { type: 'vision_subagent_started', model, format: apiFormat });
 
