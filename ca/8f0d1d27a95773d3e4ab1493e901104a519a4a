@@ -1,0 +1,36 @@
+backend/app.js
+  h_5a1c62fd74efa2 73,75,275,277,283
+backend/config.js
+  h_5a1c62fd74efa2 55,58-67
+backend/controllers/sessionController.js
+  h_5a1c62fd74efa2 19-20,180-199
+backend/controllers/wrongBookController.js
+  h_5a1c62fd74efa2 25-26,28-29,35,38,144-145,147-154,157-159,168-171,196-198,254-256,258-297
+backend/db.js
+  h_5a1c62fd74efa2 8,312-330,340-361,364-404,1256-1273,1502,1504-1505,1509,1520-1538,1541,1545-1575,1583,1638-1641,1651-1654,1656-1660,1666-1673,1697-1700,1713-1973,1988,1993,1996-2002,2004,2008-2014,2016-2025,2031-2035,2037,2043,2045,2048-2063,2840-2846
+backend/scripts/wrong-book-api-selftest.mjs
+  h_5a1c62fd74efa2 297-418
+docs/wrong-book/wrong-book.html
+  h_5a1c62fd74efa2 208-223,783-787,828-960,962
+frontend/app.js
+  h_5a1c62fd74efa2 303,316-319,322,325
+frontend/js/wrong-book.js
+  h_5a1c62fd74efa2 19-24,77-124,126-131,142-145,164-167,170-171,173-182,184,196-197,200-214,243-266,272,284,289-291,307-334,341-354,380-410,414,416-419,421,442-471,492-497,677-683,718
+frontend/wrong-book.html
+  h_5a1c62fd74efa2 171-220,236,238,240,244-250,260-265,270-272
+scripts/check-mobile.mjs
+  h_5a1c62fd74efa2 135-146,153,166-167,387-389
+scripts/check-wrong-book.mjs
+  h_5a1c62fd74efa2 210,213,215-235,247,253-274,292-298,322-327,334-391
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ca8f0d1d27a95773d3e4ab1493e901104a519a4a",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
