@@ -22,14 +22,20 @@ import {
   removeWrongItem,
   setWrongItemMastered,
   touchWrongItemReview,
+  recordWrongReview,
+  setWrongItemMeta,
   getWrongBookStats,
+  getWrongBookDueSummary,
+  listWrongReviews,
   findWrongItemByProblem,
   getLatestWrongAnswer,
   getProblem,
   getProblemsForClient,
   insertProblem,
+  ERROR_TYPES,
 } from '../db.js';
 import { runVisionHttp } from '../vision.js';
+import { WRONG_BOOK_DAILY_LIMIT } from '../config.js';
 
 // ========== 拍照解析 ==========
 
@@ -135,13 +141,22 @@ export function wbDeleteBook(req, res) {
 
 const LIST_TEXT_MAX = 90;
 
-// GET /api/wrong-book/items?bookId=&status=&limit=&offset=
+// GET /api/wrong-book/items?bookId=&status=&errorType=&sort=&limit=&offset=&all=
+// status: due（今日待复习）| pending | mastered | 省略 = 全部
 export function wbListItems(req, res) {
-  const { bookId, status, limit, offset } = req.query;
-  const items = listWrongItems(req.targetStudentId, {
+  const { bookId, status, errorType, sort, limit, offset, all } = req.query;
+  const sid = req.targetStudentId;
+  // 每日上限：错题积压时把几十道全推给孩子，他会直接放弃。
+  // all=1 是学生自己主动点「看全部到期」时才用的逃生口。
+  const cap = (status === 'due' && all !== '1' && WRONG_BOOK_DAILY_LIMIT > 0)
+    ? WRONG_BOOK_DAILY_LIMIT
+    : null;
+  const items = listWrongItems(sid, {
     bookId: bookId || null,
     status: status || null,
-    limit,
+    errorType: errorType || null,
+    sort: sort || null,
+    limit: cap != null ? Math.min(Number(limit) || cap, cap) : limit,
     offset,
   });
   // 列表只给题面摘要：完整题面走详情接口，避免一次拉回几十道题的全文
@@ -150,6 +165,10 @@ export function wbListItems(req, res) {
       ...it,
       text: it.text && it.text.length > LIST_TEXT_MAX ? it.text.slice(0, LIST_TEXT_MAX) + '…' : it.text,
     })),
+    // 让前端能说出「今天还有 N 道」，而不是静默截断
+    due_total: status === 'due' ? getWrongBookStats(sid).due : undefined,
+    daily_limit: cap,
+    error_types: ERROR_TYPES,
   });
 }
 
@@ -174,6 +193,9 @@ export function wbGetItem(req, res) {
     item: { ...item, text: undefined },
     problem,
     wrong_answer: getLatestWrongAnswer(sid, item.problem_id),
+    // 复习流水：让「等级为什么是这个数」可解释，而不是只给一个黑盒数字
+    reviews: listWrongReviews(item.id, sid, 8),
+    error_types: ERROR_TYPES,
   });
 }
 
@@ -229,11 +251,50 @@ export function wbMasterItem(req, res) {
   res.json({ ok: true, item });
 }
 
-// POST /api/wrong-book/items/:id/review —— 记一次「重做」动作
+// POST /api/wrong-book/items/:id/review
+//   { correct: boolean } → 记一次**复习结果**并推进记忆等级（回流的手动入口）
+//   {}                   → 兼容旧行为：只记「点了重做」这个动作，不结算
 export function wbReviewItem(req, res) {
-  const item = touchWrongItemReview(req.params.id, req.targetStudentId);
-  if (!item) return res.status(404).json({ error: '错题不存在' });
-  res.json({ ok: true, item });
+  const sid = req.targetStudentId;
+  const id = req.params.id;
+  const hasResult = req.body && typeof req.body.correct === 'boolean';
+
+  if (!hasResult) {
+    const item = touchWrongItemReview(id, sid);
+    if (!item) return res.status(404).json({ error: '错题不存在' });
+    return res.json({ ok: true, item });
+  }
+
+  const r = recordWrongReview(sid, { wrongId: id, correct: req.body.correct, fromBook: true });
+  if (!r) return res.status(404).json({ error: '错题不存在' });
+  res.json({
+    ok: true,
+    item: r.item,
+    graduated: r.graduated,
+    correct: r.correct,
+    error_types: ERROR_TYPES,
+  });
+}
+
+// POST /api/wrong-book/items/:id/meta  { error_type?: string|null, note?: string }
+// 人工标注错因 / 备注 —— 错因三层里唯一高可靠的一层：人知道为什么错。
+// error_type 传 null 表示"清空归因"（重新回到未归因）。
+export function wbMetaItem(req, res) {
+  try {
+    const item = setWrongItemMeta(req.params.id, req.targetStudentId, {
+      errorType: req.body?.error_type,
+      note: req.body?.note,
+    });
+    if (!item) return res.status(404).json({ error: '错题不存在' });
+    res.json({ ok: true, item, error_types: ERROR_TYPES });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+}
+
+// GET /api/wrong-book/due —— 轻量接口：只回计数与主题分布，供对话侧注入摘要
+export function wbDue(req, res) {
+  res.json(getWrongBookDueSummary(req.targetStudentId));
 }
 
 // GET /api/wrong-book/candidates?bookId=&q=

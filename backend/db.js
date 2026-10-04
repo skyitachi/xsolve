@@ -5,7 +5,7 @@ import path from 'node:path';
 import { SEED_PROMPTS } from './prompt-seeds.js';
 import { fileURLToPath } from 'url';
 import { PROBLEMS as BUILTIN_PROBLEMS } from './problems.js';
-import { MASTERY_HALFLIFE_DAYS, MASTERY_LEARNING_RATE, BOOTSTRAP_STUDENT_USERNAME, BOOTSTRAP_STUDENT_PASSWORD, AUDIT_RETENTION_DAYS, GUEST_USERNAME_PREFIX, WRONG_BOOK_AUTO_COLLECT } from './config.js';
+import { MASTERY_HALFLIFE_DAYS, MASTERY_LEARNING_RATE, BOOTSTRAP_STUDENT_USERNAME, BOOTSTRAP_STUDENT_PASSWORD, AUDIT_RETENTION_DAYS, GUEST_USERNAME_PREFIX, WRONG_BOOK_AUTO_COLLECT, WRONG_BOOK_REVIEW_INTERVALS, WRONG_BOOK_GRADUATE_STREAK } from './config.js';
 import { hashPassword } from './auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -309,21 +309,25 @@ function initSchema() {
     --      manual = 从题库里手动挑进来的
     --      photo  = 拍照 + 视觉解析新录入的题
     CREATE TABLE IF NOT EXISTS wrong_items (
-      id             TEXT PRIMARY KEY,
-      student_id     TEXT NOT NULL DEFAULT 'me',
-      book_id        TEXT NOT NULL,
-      problem_id     TEXT NOT NULL,
-      source         TEXT NOT NULL DEFAULT 'auto',
-      status         TEXT NOT NULL DEFAULT 'pending',  -- pending | mastered
-      wrong_count    INTEGER NOT NULL DEFAULT 0,
-      review_count   INTEGER NOT NULL DEFAULT 0,
-      level          INTEGER NOT NULL DEFAULT 0,       -- 复习等级，P1 的间隔调度用
-      note           TEXT,                             -- 错因 / 备注（人工标注）
-      first_wrong_at INTEGER,
-      last_review_at INTEGER,
-      next_review_at INTEGER,
-      mastered_at    INTEGER,
-      created_at     INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+      id              TEXT PRIMARY KEY,
+      student_id      TEXT NOT NULL DEFAULT 'me',
+      book_id         TEXT NOT NULL,
+      problem_id      TEXT NOT NULL,
+      source          TEXT NOT NULL DEFAULT 'auto',
+      status          TEXT NOT NULL DEFAULT 'pending',  -- pending | mastered
+      wrong_count     INTEGER NOT NULL DEFAULT 0,
+      review_count    INTEGER NOT NULL DEFAULT 0,
+      level           INTEGER NOT NULL DEFAULT 0,       -- 记忆等级 0~4，决定下次复习间隔
+      review_streak   INTEGER NOT NULL DEFAULT 0,       -- 连续答对次数（复习时错一次归零）
+      note            TEXT,                             -- 备注 / 纠错要点（自由文本）
+      error_type      TEXT,                             -- 错因枚举：计算|概念|审题|方法|粗心|其他
+      error_source    TEXT,                             -- 错因来源：manual 人工 | rule 规则兜底 | ai 对话抽取
+      first_wrong_at  INTEGER,
+      last_review_at  INTEGER,
+      last_correct_at INTEGER,                          -- 含日常作答答对，仅供展示
+      next_review_at  INTEGER,                          -- NULL 视为立即到期
+      mastered_at     INTEGER,
+      created_at      INTEGER NOT NULL DEFAULT (strftime('%s','now'))
     );
 
     -- 同一学生同一道题只留一个条目（跨本也不重复）：
@@ -333,7 +337,70 @@ function initSchema() {
       ON wrong_items(student_id, problem_id);
     CREATE INDEX IF NOT EXISTS idx_wrong_items_book ON wrong_items(student_id, book_id, status, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_wrong_items_due  ON wrong_items(student_id, status, next_review_at);
+
+    -- ③ 复习流水：区分「专门重做」与「日常顺带做对」。
+    --    这张表是整套复习调度的**信号源**，不能省。
+    --    student_attempts 里同样一条 correct=1，可能来自「主动重做」，
+    --    也可能来自「AI 刚讲完紧接着做一遍」—— 把两者混在一起统计，
+    --    大量错题会被假性判定为已掌握。from_book=0 只作记录，不推进等级。
+    CREATE TABLE IF NOT EXISTS wrong_reviews (
+      id         TEXT PRIMARY KEY,
+      wrong_id   TEXT NOT NULL,
+      student_id TEXT NOT NULL,
+      problem_id TEXT,
+      session_id TEXT,
+      attempt_id TEXT,
+      correct    INTEGER NOT NULL,
+      from_book  INTEGER NOT NULL DEFAULT 1,   -- 0 = 日常流程中被判对，仅记录
+      level_after INTEGER,                     -- 本次复习后的等级，便于回溯排期变化
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_wrong_reviews_item
+      ON wrong_reviews(wrong_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_wrong_reviews_student
+      ON wrong_reviews(student_id, created_at DESC);
   `);
+
+  // ─── Migration: 错题本 P1（复习调度）───────────────────────────────
+  // 老库的 wrong_items 是 P0 建的，上面的 CREATE TABLE IF NOT EXISTS 不会补列，
+  // 因此这几个新列必须单独 ALTER。探测手法沿用本文件既有约定：
+  // SELECT col LIMIT 0 命中即列已存在，抛错则补列。
+  try {
+    db.prepare("SELECT review_streak FROM wrong_items LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE wrong_items ADD COLUMN review_streak INTEGER NOT NULL DEFAULT 0");
+  }
+  try {
+    db.prepare("SELECT last_correct_at FROM wrong_items LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE wrong_items ADD COLUMN last_correct_at INTEGER");
+  }
+  try {
+    db.prepare("SELECT error_type FROM wrong_items LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE wrong_items ADD COLUMN error_type TEXT");
+  }
+  try {
+    db.prepare("SELECT error_source FROM wrong_items LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE wrong_items ADD COLUMN error_source TEXT");
+  }
+  // P0 时"待复习"等同于"pending"（next_review_at 从未被写过）。
+  // 升级后要让存量条目立即进入复习队列，而不是永远排在 NULL 里被当成"未排期"。
+  db.exec(`
+    UPDATE wrong_items
+       SET next_review_at = COALESCE(last_review_at, first_wrong_at, created_at)
+     WHERE next_review_at IS NULL AND status = 'pending'
+  `);
+
+  // Migration: 会话上的「这次做题是主动重做错题」标记。
+  // 必须落库而不是只放内存 session 对象 —— session 会被重建/恢复，
+  // 内存标记一丢，重做的答对结果就退化成「日常作答」，等级永远不推进。
+  try {
+    db.prepare("SELECT review_wrong_id FROM chat_sessions LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE chat_sessions ADD COLUMN review_wrong_id TEXT");
+  }
 
   // Migration: 游客账号到期时间戳（NULL = 正常账号）
   try {
@@ -1186,12 +1253,24 @@ function recordAttempt({ id, student_id, session_id, turn_id, problem_id, topic,
   );
   if (info.changes > 0) {
     if (topic) bumpTopicMastery(sid, topic, !!correct);
-    // 错题本自动收录：只在**真正新写入**一条流水时触发。
-    // 这里必须依赖 info.changes > 0（而不是只看 correct=0）—— 本函数是
-    // INSERT OR IGNORE 的去重语义，学生把同一个错误答案重复提交几次时
-    // changes=0，若在此处无条件 +1，wrong_count 会被刷成假数据。
-    if (!correct && problem_id && WRONG_BOOK_AUTO_COLLECT) {
-      autoCollectWrongItem(sid, problem_id);
+    // 错题本结算：只在**真正新写入**一条流水时触发。
+    // 这里必须依赖 info.changes > 0（而不是只看 correct 的值）—— 本函数是
+    // INSERT OR IGNORE 的去重语义，学生把同一个答案重复提交几次时 changes=0；
+    // 无条件结算会把 wrong_count 刷成假数据，还会反复重置复习间隔。
+    //
+    // P1 起答对也要结算，三条路径统一收在 applyAttemptToWrongBook 里：
+    //   答错                    → 自动收录（含错因规则兜底）
+    //   答对 + 会话标记了重做   → 推进记忆等级（**回流**）
+    //   答对 + 日常作答         → 只记 last_correct_at，不动状态
+    if (problem_id != null) {
+      try {
+        applyAttemptToWrongBook(sid, {
+          session_id, problem_id, user_answer, correct: !!correct,
+        });
+      } catch (e) {
+        // 错题本结算失败绝不能影响答题主流程
+        console.error('[db] wrong book hook failed:', e.message);
+      }
     }
   } else if (turn_id && problem_id != null && user_answer != null) {
     // 命中去重（通常是 record_history 工具先写入、turn_id 为空）：
@@ -1420,10 +1499,14 @@ function rowToWrongItem(r) {
     wrong_count: r.wrong_count,
     review_count: r.review_count,
     level: r.level,
+    review_streak: r.review_streak || 0,
     note: r.note || null,
+    error_type: r.error_type || null,
+    error_source: r.error_source || null,
     created_at: r.created_at,
     first_wrong_at: r.first_wrong_at || null,
     last_review_at: r.last_review_at || null,
+    last_correct_at: r.last_correct_at || null,
     next_review_at: r.next_review_at || null,
     mastered_at: r.mastered_at || null,
     topic: r.p_topic || null,
@@ -1434,13 +1517,62 @@ function rowToWrongItem(r) {
   };
 }
 
-function listWrongItems(student_id, { bookId = null, status = null, limit = 200, offset = 0 } = {}) {
+// ─── 复习调度（P1）────────────────────────────────────────────────
+// 等级 → 下次复习间隔（天）。二元信号下这是比 SM-2 更诚实的模型：
+// 本项目只有「对 / 错」，没有"勉强想起来"这种中间态，SM-2 的难度因子无从估计。
+const REVIEW_INTERVAL_DAYS = (WRONG_BOOK_REVIEW_INTERVALS && WRONG_BOOK_REVIEW_INTERVALS.length)
+  ? WRONG_BOOK_REVIEW_INTERVALS
+  : [1, 3, 7, 15, 30];                            // 下标 = 等级 0~N
+const REVIEW_MAX_LEVEL = REVIEW_INTERVAL_DAYS.length - 1;
+const REVIEW_GRADUATE_STREAK = WRONG_BOOK_GRADUATE_STREAK || 2;
+const DAY_SECONDS = 86400;
+
+/** 某等级对应的下次复习时间戳。等级越界时按封顶间隔走。 */
+function nextReviewAtForLevel(level, fromTs = Math.floor(Date.now() / 1000)) {
+  const lv = Math.max(0, Math.min(Number(level) || 0, REVIEW_MAX_LEVEL));
+  return fromTs + REVIEW_INTERVAL_DAYS[lv] * DAY_SECONDS;
+}
+
+function listWrongItems(student_id, {
+  bookId = null, status = null, errorType = null, sort = null, limit = 200, offset = 0,
+} = {}) {
   getDb();
   const sid = student_id || DEFAULT_STUDENT_ID;
+  const now = Math.floor(Date.now() / 1000);
   const where = ['w.student_id = ?'];
   const args = [sid];
   if (bookId) { where.push('w.book_id = ?'); args.push(bookId); }
-  if (status) { where.push('w.status = ?'); args.push(status); }
+  // status=due 是「今日待复习」：未掌握 + 已到期（next_review_at 为 NULL 视为立即到期）
+  if (status === 'due') {
+    where.push("w.status <> 'mastered'");
+    where.push('(w.next_review_at IS NULL OR w.next_review_at <= ?)');
+    args.push(now);
+  } else if (status) {
+    where.push('w.status = ?');
+    args.push(status);
+  }
+  if (errorType === 'none') {
+    where.push("(w.error_type IS NULL OR w.error_type = '')");
+  } else if (errorType) {
+    where.push('w.error_type = ?');
+    args.push(errorType);
+  }
+
+  // 排序：due 一律按「何时到期」升序，逾期越久越靠前。
+  // next_review_at 为 NULL（手动加入 / 拍照录入还没排过期）用 first_wrong_at、
+  // 再退到 created_at 兜底 —— 不用「NULL 排最前」那种特例，
+  // 否则一堆积压的题会永远压在真正逾期最久的题前面。
+  let orderBy;
+  if (status === 'due') {
+    orderBy = 'COALESCE(w.next_review_at, w.first_wrong_at, w.created_at) ASC';
+  } else if (sort === 'wrong') {
+    orderBy = '(w.status = \'mastered\'), w.wrong_count DESC, w.created_at DESC';
+  } else if (sort === 'stale') {
+    orderBy = "(w.status = 'mastered'), COALESCE(w.next_review_at, w.last_review_at, w.created_at) ASC";
+  } else {
+    orderBy = "(w.status = 'mastered'), w.created_at DESC";
+  }
+
   const rows = db.prepare(`
     SELECT w.*, p.topic AS p_topic, p.text AS p_text,
            (p.image_dataurl IS NOT NULL) AS has_image,
@@ -1448,7 +1580,7 @@ function listWrongItems(student_id, { bookId = null, status = null, limit = 200,
     FROM wrong_items w
     LEFT JOIN problems p ON p.id = w.problem_id
     WHERE ${where.join(' AND ')}
-    ORDER BY (w.status = 'mastered'), w.created_at DESC
+    ORDER BY ${orderBy}
     LIMIT ? OFFSET ?
   `).all(...args, Math.min(Number(limit) || 200, 500), Number(offset) || 0);
   return rows.map(rowToWrongItem);
@@ -1503,6 +1635,10 @@ function addWrongItem(student_id, { bookId, problemId, source = 'manual', note =
     throw err;
   }
   const now = Math.floor(Date.now() / 1000);
+  // 「真的又错了一次」（delta > 0）要把记忆状态打回原形：
+  // 等级归零、连续答对归零、立刻回到待复习队列。
+  // 手动加入 / 拍照录入（delta = 0）**不能**碰这些字段 —— 主动收藏不等于又错了一次。
+  const isWrongEvent = delta > 0 ? 1 : 0;
   const existing = findWrongItemByProblem(sid, problemId);
   if (existing) {
     db.prepare(`
@@ -1512,17 +1648,29 @@ function addWrongItem(student_id, { bookId, problemId, source = 'manual', note =
              mastered_at    = NULL,
              note           = COALESCE(?, note),
              wrong_count    = wrong_count + ?,
-             first_wrong_at = COALESCE(first_wrong_at, ?)
+             first_wrong_at = COALESCE(first_wrong_at, ?),
+             level          = CASE WHEN ? = 1 THEN 0 ELSE level END,
+             review_streak  = CASE WHEN ? = 1 THEN 0 ELSE review_streak END,
+             next_review_at = CASE WHEN ? = 1 THEN ? ELSE next_review_at END
        WHERE id = ?
-    `).run(book.id, note, delta, delta > 0 ? now : null, existing.id);
+    `).run(
+      book.id, note, delta, isWrongEvent ? now : null,
+      isWrongEvent, isWrongEvent, isWrongEvent, now,
+      existing.id
+    );
     return { item: getWrongItem(existing.id, sid), created: false };
   }
   const id = 'wi_' + crypto.randomUUID();
   db.prepare(`
     INSERT INTO wrong_items
-      (id, student_id, book_id, problem_id, source, status, wrong_count, note, first_wrong_at)
-    VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
-  `).run(id, sid, book.id, problemId, source, delta, note, delta > 0 ? now : null);
+      (id, student_id, book_id, problem_id, source, status, wrong_count, note,
+       first_wrong_at, next_review_at)
+    VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+  `).run(
+    id, sid, book.id, problemId, source, delta, note,
+    isWrongEvent ? now : null,
+    isWrongEvent ? now : null
+  );
   return { item: getWrongItem(id, sid), created: true };
 }
 
@@ -1546,7 +1694,10 @@ function setWrongItemMastered(id, student_id, mastered) {
   return info.changes > 0 ? getWrongItem(id, sid) : null;
 }
 
-/** 记一次「重做」动作。真正的掌握判定（连续答对）属 P1，这里只记动作与时间。 */
+/**
+ * 记一次「重做」动作（还没结算结果）。真正的掌握判定在 recordWrongReview。
+ * 两个函数分工：本函数 = 学生点了「重做」这个动作；那个 = 重做的**结果**。
+ */
 function touchWrongItemReview(id, student_id) {
   getDb();
   const sid = student_id || DEFAULT_STUDENT_ID;
@@ -1557,6 +1708,267 @@ function touchWrongItemReview(id, student_id) {
      WHERE id = ? AND student_id = ?
   `).run(now, id, sid);
   return info.changes > 0 ? getWrongItem(id, sid) : null;
+}
+
+// ─── 错因（P1）────────────────────────────────────────────────────
+// 枚举固定，不用自由文本 —— 否则无法统计聚合。自由描述留给 note。
+const ERROR_TYPES = ['计算', '概念', '审题', '方法', '粗心', '其他'];
+
+/**
+ * 规则兜底的错因猜测。**只在没有人工标注时使用**，且记为 error_source='rule'（低置信）。
+ * 逻辑刻意保守：拿不准就返回 null 留空。宁可显示「未归因」，
+ * 也不要为了填满字段而编造分类 —— 错因数据一旦不可信，整张分布图就是噪声。
+ */
+function guessErrorType(userAnswer, correctAnswer) {
+  const u = String(userAnswer ?? '').trim();
+  const a = String(correctAnswer ?? '').trim();
+  if (!u || !a) return null;
+  const bare = (s) => s.replace(/\s/g, '');
+  const isNum = (s) => /^-?\d+(\.\d+)?$/.test(bare(s));
+  const uIsNum = isNum(u);
+  const aIsNum = isNum(a);
+  // 两边都是纯数字：量级相近 → 更可能是算错；差得离谱 → 更像是概念没抓对
+  if (uIsNum && aIsNum) {
+    const nu = parseFloat(bare(u));
+    const na = parseFloat(bare(a));
+    if (Number.isFinite(nu) && Number.isFinite(na) && na !== 0) {
+      return Math.abs(nu - na) / Math.abs(na) <= 2 ? '计算' : '概念';
+    }
+    return '计算';
+  }
+  // 形态完全不同（一个是数值、一个是表达式或文字）→ 概念或审题层面出了问题
+  if (uIsNum !== aIsNum) return '概念';
+  return null;
+}
+
+/** 写一条复习流水。from_book=0 只作记录，不参与等级推进。 */
+function insertWrongReview({ wrongId, studentId, problemId = null, sessionId = null, attemptId = null, correct, fromBook = true, levelAfter = null }) {
+  db.prepare(`
+    INSERT INTO wrong_reviews
+      (id, wrong_id, student_id, problem_id, session_id, attempt_id, correct, from_book, level_after)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    'wr_' + crypto.randomUUID(), wrongId, studentId, problemId, sessionId, attemptId,
+    correct ? 1 : 0, fromBook ? 1 : 0, levelAfter
+  );
+}
+
+/**
+ * 记一次复习结果，并推进记忆状态机 —— 整套复习调度的核心。
+ *
+ * 状态机（对应设计文档 §3 的流程图与 §6 的间隔表）：
+ *   答对（来自错题本）→ level+1（封顶）、review_streak+1、按新等级排下次复习；
+ *                        若 review_streak ≥ N 且 level 已封顶 → 毕业（mastered）
+ *   答错（来自错题本）→ level 归零、review_streak 归零、wrong_count+1、次日再练
+ *   答对（日常作答）  → **只记 last_correct_at**，状态/等级/连续答对一律不动
+ *
+ * 最后一条是整张表的意义所在：日常作答里「AI 刚讲完紧接着做对」不是掌握的证据，
+ * 若让它推进等级，大量错题会被假性判定为已掌握。
+ *
+ * @returns {{item:object, graduated:boolean, correct:boolean, advanced:boolean}|null}
+ */
+function recordWrongReview(student_id, {
+  wrongId = null, problemId = null, correct, sessionId = null, attemptId = null, fromBook = true,
+} = {}) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const item = wrongId ? getWrongItem(wrongId, sid)
+    : (problemId ? findWrongItemByProblem(sid, problemId) : null);
+  if (!item) return null;
+
+  const now = Math.floor(Date.now() / 1000);
+  const isCorrect = !!correct;
+
+  if (!fromBook) {
+    if (isCorrect) {
+      db.prepare('UPDATE wrong_items SET last_correct_at = ? WHERE id = ? AND student_id = ?')
+        .run(now, item.id, sid);
+    }
+    insertWrongReview({
+      wrongId: item.id, studentId: sid, problemId: item.problem_id,
+      sessionId, attemptId, correct: isCorrect, fromBook: false, levelAfter: item.level,
+    });
+    return { item: getWrongItem(item.id, sid), graduated: false, correct: isCorrect, advanced: false };
+  }
+
+  let level = item.level || 0;
+  let streak = item.review_streak || 0;
+  let status = 'pending';
+  let masteredAt = null;
+  let nextAt;
+
+  if (isCorrect) {
+    level = Math.min(level + 1, REVIEW_MAX_LEVEL);
+    streak += 1;
+    // 毕业 = 连续答对达标 **且** 等级已封顶。只有连续答对防不住「一口气做对四次」，
+    // 加上等级封顶意味着这四次是**跨了 3/7/15 天的间隔**做对的，才叫真的记住。
+    if (streak >= REVIEW_GRADUATE_STREAK && level >= REVIEW_MAX_LEVEL) {
+      status = 'mastered';
+      masteredAt = now;
+      nextAt = null;
+    } else {
+      nextAt = nextReviewAtForLevel(level, now);
+    }
+  } else {
+    level = 0;
+    streak = 0;
+    nextAt = nextReviewAtForLevel(0, now);
+  }
+
+  db.prepare(`
+    UPDATE wrong_items
+       SET level          = ?,
+           review_streak  = ?,
+           status         = ?,
+           mastered_at    = ?,
+           next_review_at = ?,
+           last_review_at = ?,
+           last_correct_at = ?,
+           review_count   = review_count + 1,
+           wrong_count    = wrong_count + ?
+     WHERE id = ? AND student_id = ?
+  `).run(
+    level, streak, status, masteredAt, nextAt, now,
+    isCorrect ? now : item.last_correct_at,
+    isCorrect ? 0 : 1,
+    item.id, sid
+  );
+
+  insertWrongReview({
+    wrongId: item.id, studentId: sid, problemId: item.problem_id,
+    sessionId, attemptId, correct: isCorrect, fromBook: true, levelAfter: level,
+  });
+
+  return {
+    item: getWrongItem(item.id, sid),
+    graduated: status === 'mastered',
+    correct: isCorrect,
+    advanced: true,
+  };
+}
+
+/** 错因 / 备注的人工标注。errorType 传 null 表示清空归因。 */
+function setWrongItemMeta(id, student_id, { errorType, note } = {}) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const sets = [];
+  const args = [];
+  if (errorType !== undefined) {
+    const et = (errorType === null || errorType === '') ? null : String(errorType).trim();
+    if (et && !ERROR_TYPES.includes(et)) {
+      const err = new Error('错因不在枚举范围内：' + et);
+      err.status = 400;
+      throw err;
+    }
+    sets.push('error_type = ?', 'error_source = ?');
+    args.push(et, et ? 'manual' : null);
+  }
+  if (note !== undefined) {
+    sets.push('note = ?');
+    args.push(note === null ? null : String(note).slice(0, 500));
+  }
+  if (!sets.length) return getWrongItem(id, sid);
+  const info = db.prepare(`UPDATE wrong_items SET ${sets.join(', ')} WHERE id = ? AND student_id = ?`)
+    .run(...args, id, sid);
+  return info.changes > 0 ? getWrongItem(id, sid) : null;
+}
+
+// ─── 会话上的「本次做题 = 重做某道错题」标记 ──────────────────────
+// 必须落库：session 对象会被重建/恢复，内存标记一丢，重做的答对结果就退化成
+// 「日常作答」，等级永远不推进 —— 且这种失效是静默的。
+
+function setSessionReviewWrongId(sessionId, wrongId) {
+  if (!sessionId) return;
+  getDb();
+  db.prepare('UPDATE chat_sessions SET review_wrong_id = ? WHERE id = ?').run(wrongId || null, sessionId);
+}
+
+function getSessionReviewWrongId(sessionId) {
+  if (!sessionId) return null;
+  getDb();
+  const r = db.prepare('SELECT review_wrong_id FROM chat_sessions WHERE id = ?').get(sessionId);
+  return r ? (r.review_wrong_id || null) : null;
+}
+
+/**
+ * 把一次答题流水反映到错题本。由 recordAttempt 在**真正写入**之后调用。
+ *
+ * 三条路径：
+ *   答错                        → 自动收录（不存在且开关打开时才新建）
+ *   答对 + 会话标记了重做       → 推进复习等级（**回流**），结算后清除标记
+ *   答对 + 日常作答             → 只记 last_correct_at，不动状态
+ *
+ * 「一次重做只结算一次」：结算后立刻清掉会话标记，同一会话里后续作答按日常作答处理。
+ * 这样「连续答对 2 次」必然跨两次从错题本进入的重做 —— 正是间隔模型要的语义。
+ */
+function applyAttemptToWrongBook(sid, { session_id = null, problem_id = null, user_answer = null, correct = false } = {}) {
+  if (problem_id == null) return;
+  const item = findWrongItemByProblem(sid, problem_id);
+  const reviewWrongId = getSessionReviewWrongId(session_id);
+  // 会话标记的错题必须与本次作答的题目一致 —— 挡住「切题后判上一题」
+  // 把结果记到另一个条目上的情况（项目里踩过同类坑）。
+  const isReview = !!reviewWrongId && !!item && reviewWrongId === item.id;
+
+  if (correct) {
+    if (!item) return;                       // 答对且不在错题本 → 无需处理
+    recordWrongReview(sid, {
+      wrongId: item.id, correct: true, sessionId: session_id, fromBook: isReview,
+    });
+    if (isReview) setSessionReviewWrongId(session_id, null);
+    return;
+  }
+
+  if (isReview) {
+    recordWrongReview(sid, { wrongId: item.id, correct: false, sessionId: session_id, fromBook: true });
+    setSessionReviewWrongId(session_id, null);
+    return;
+  }
+  // 已收录的题：无论自动收录开关如何，都要如实反映「这道题又错了」；
+  // 开关只决定**要不要新收一道题**，不该让已收录题的状态停在假象上。
+  if (item || WRONG_BOOK_AUTO_COLLECT) {
+    autoCollectWrongItem(sid, problem_id, { userAnswer: user_answer });
+  }
+}
+
+/** 某条错题的复习流水（最近优先）—— 让「回流是否真的发生」可见，而不只是信任一个等级数字。 */
+function listWrongReviews(wrongId, student_id, limit = 10) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  return db.prepare(`
+    SELECT id, correct, from_book, level_after, session_id, created_at
+      FROM wrong_reviews
+     WHERE wrong_id = ? AND student_id = ?
+     ORDER BY created_at DESC, rowid DESC
+     LIMIT ?
+  `).all(wrongId, sid, Math.min(Math.max(Number(limit) || 10, 1), 50))
+    .map((r) => ({
+      correct: !!r.correct,
+      // 只有「主动重做」才推进等级；日常作答对状态无影响，但仍如实记录
+      from_book: !!r.from_book,
+      level_after: r.level_after,
+      at: r.created_at,
+    }));
+}
+
+/** 今日待复习（轻量：只给计数与主题分布，供对话注入摘要用）。 */
+function getWrongBookDueSummary(student_id) {
+  getDb();
+  const sid = student_id || DEFAULT_STUDENT_ID;
+  const now = Math.floor(Date.now() / 1000);
+  const due = db.prepare(`
+    SELECT COUNT(*) AS n FROM wrong_items
+     WHERE student_id = ? AND status <> 'mastered'
+       AND (next_review_at IS NULL OR next_review_at <= ?)
+  `).get(sid, now);
+  const topics = db.prepare(`
+    SELECT COALESCE(p.topic, '未分类') AS topic, COUNT(*) AS n
+      FROM wrong_items w LEFT JOIN problems p ON p.id = w.problem_id
+     WHERE w.student_id = ? AND w.status <> 'mastered'
+       AND (w.next_review_at IS NULL OR w.next_review_at <= ?)
+     GROUP BY COALESCE(p.topic, '未分类')
+     ORDER BY n DESC LIMIT 8
+  `).all(sid, now);
+  return { due: due.n || 0, topics };
 }
 
 /** 某道题上最后一次「写错的答案」—— 复习时「我当初错成了什么」比正确答案更有用。 */
@@ -1573,38 +1985,82 @@ function getLatestWrongAnswer(student_id, problem_id) {
   return row ? { answer: row.user_answer, at: row.created_at } : null;
 }
 
-/** 错题本总览：本数、待复习数、已掌握数、来源分布。 */
+/** 错题本总览：待复习 / 已掌握 / 最久未练天数 / 近 7 天清掉几道 / 来源与错因分布。 */
 function getWrongBookStats(student_id) {
   getDb();
   const sid = student_id || DEFAULT_STUDENT_ID;
   ensureDefaultBook(sid);
+  const now = Math.floor(Date.now() / 1000);
   const row = db.prepare(`
     SELECT COUNT(*) AS total,
-           SUM(CASE WHEN status = 'pending'  THEN 1 ELSE 0 END) AS pending,
-           SUM(CASE WHEN status = 'mastered' THEN 1 ELSE 0 END) AS mastered
+           SUM(CASE WHEN status <> 'mastered' THEN 1 ELSE 0 END) AS pending,
+           SUM(CASE WHEN status =  'mastered' THEN 1 ELSE 0 END) AS mastered,
+           SUM(CASE WHEN status <> 'mastered'
+                     AND (next_review_at IS NULL OR next_review_at <= ?)
+                    THEN 1 ELSE 0 END) AS due,
+           MIN(CASE WHEN status <> 'mastered'
+                    THEN COALESCE(next_review_at, created_at) END) AS oldest
     FROM wrong_items WHERE student_id = ?
-  `).get(sid);
+  `).get(now, sid);
   const sources = db.prepare(`
     SELECT source, COUNT(*) AS n FROM wrong_items WHERE student_id = ? GROUP BY source
   `).all(sid);
+  // 错因分布：未归因单独成一类 —— 「留空 ≠ 失败」，要在 UI 上能看到还差多少没标。
+  const errors = db.prepare(`
+    SELECT COALESCE(NULLIF(error_type, ''), '未归因') AS kind, COUNT(*) AS n
+      FROM wrong_items WHERE student_id = ?
+     GROUP BY COALESCE(NULLIF(error_type, ''), '未归因')
+     ORDER BY n DESC
+  `).all(sid);
   const books = db.prepare('SELECT COUNT(*) AS n FROM wrong_books WHERE student_id = ?').get(sid);
+  const cleared = db.prepare(`
+    SELECT COUNT(*) AS n FROM wrong_items
+     WHERE student_id = ? AND status = 'mastered' AND mastered_at >= ?
+  `).get(sid, now - 7 * DAY_SECONDS);
+  // 下次到期时间：空态要靠它说出「下次什么时候该练」，否则孩子只会看到一句"没有错题"
+  const nextDue = db.prepare(`
+    SELECT MIN(next_review_at) AS t FROM wrong_items
+     WHERE student_id = ? AND status <> 'mastered' AND next_review_at > ?
+  `).get(sid, now);
+
   return {
     books: books.n || 0,
     total: row.total || 0,
     pending: row.pending || 0,
     mastered: row.mastered || 0,
+    due: row.due || 0,
+    // 最久未练的天数：逾期最久的那道题已经放了多久
+    overdue_days: row.oldest ? Math.max(0, Math.floor((now - row.oldest) / DAY_SECONDS)) : 0,
+    next_due_at: nextDue.t || null,
+    last7_mastered: cleared.n || 0,
     by_source: Object.fromEntries(sources.map((s) => [s.source, s.n])),
+    by_error: Object.fromEntries(errors.map((e) => [e.kind, e.n])),
   };
 }
 
 /**
  * 自动收录：答题流水判定为「错」时调用。
- * 只做 upsert，绝不抛异常影响答题主流程。
+ * 只做 upsert，绝不抛异常影响答题主流程（收录失败不该让学生答不了题）。
  */
-function autoCollectWrongItem(sid, problemId) {
+function autoCollectWrongItem(sid, problemId, { userAnswer = null } = {}) {
   try {
     const book = ensureDefaultBook(sid);
-    addWrongItem(sid, { bookId: book.id, problemId, source: 'auto', countWrong: true });
+    const { item } = addWrongItem(sid, { bookId: book.id, problemId, source: 'auto', countWrong: true });
+    // 错因规则兜底（P1 第②层）：只在**还没有归因**时写入，且记 error_source='rule' 标为低置信。
+    // 人工标注过的绝不覆盖 —— 人知道为什么错，规则只是猜。
+    try {
+      if (item && !item.error_type && userAnswer != null) {
+        const p = getProblem(problemId);
+        const guess = guessErrorType(userAnswer, p ? p.answer : null);
+        if (guess) {
+          db.prepare(`
+            UPDATE wrong_items SET error_type = ?, error_source = 'rule'
+             WHERE id = ? AND student_id = ?
+               AND (error_source IS NULL OR error_source <> 'manual')
+          `).run(guess, item.id, sid);
+        }
+      }
+    } catch { /* 兜底失败不影响收录 */ }
     return true;
   } catch (e) {
     console.error('[db] auto collect wrong item failed:', e.message);
@@ -2381,6 +2837,13 @@ export {
   removeWrongItem,
   setWrongItemMastered,
   touchWrongItemReview,
+  recordWrongReview,
+  setWrongItemMeta,
+  setSessionReviewWrongId,
+  getSessionReviewWrongId,
+  getWrongBookDueSummary,
+  listWrongReviews,
+  ERROR_TYPES,
   getWrongBookStats,
   getLatestWrongAnswer,
   getTopicMastery,

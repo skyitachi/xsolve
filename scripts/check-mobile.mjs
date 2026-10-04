@@ -132,13 +132,25 @@ const PROBE = `(async () => {
 
   // ---- 3) 工具栏：切到「做题」Tab 后量溢出 ----
   document.querySelector('.mobile-tab[data-tab="work"]')?.click();
-  await sleep(500);
+  // 不能只 sleep 固定时长：页面初始化（拉题库 / 建会话 / 绑 Tab 事件）比 500ms 慢时，
+  // 工具栏还是 display:none，量出来 clientWidth=0 —— 于是
+  // 「拍题入口完整可见」会拿 left=right=0 的假数据**假通过**，而横滑断言假失败。
+  // 所以轮询等到工具栏真正有布局为止，超时才放弃。
+  {
+    const wt0 = Date.now();
+    while (Date.now() - wt0 < 10000) {
+      const t = document.querySelector('.work-tools');
+      if (t && t.clientWidth > 0) break;
+      await sleep(150);
+    }
+  }
   const wt = document.querySelector('.work-tools');
   if (wt) {
     const r = wt.getBoundingClientRect();
     const cs = getComputedStyle(wt);
     const kids = [...wt.children].filter(el => el.offsetParent !== null || el.className.includes('tool'));
     out.toolbar = {
+      visible: wt.clientWidth > 0,
       scrollable: wt.scrollWidth > wt.clientWidth + 1,
       scrollWidth: wt.scrollWidth, clientWidth: wt.clientWidth,
       wrap: cs.flexWrap, overflowX: cs.overflowX,
@@ -151,7 +163,8 @@ const PROBE = `(async () => {
     // 「拍题」这个入口必须**无需横滑**就完整落在可视区内
     const cam = out.toolbar.items.find((i) => i.label.includes('拍题'));
     out.cameraTool = cam || null;
-    out.cameraToolFullyVisible = !!cam && cam.left >= r.left - 1 && cam.right <= r.right + 1;
+    // 必须同时要求「有宽度」，否则元素隐藏时 left=right=0 会白白通过
+    out.cameraToolFullyVisible = !!cam && cam.w > 0 && cam.left >= r.left - 1 && cam.right <= r.right + 1;
     out.overflowing = out.toolbar.items.filter(i => i.right > r.right + 1).map(i => i.label);
   }
 
@@ -371,6 +384,9 @@ try {
 
   if (o.toolbar) {
     console.log('[工具栏] ' + o.toolbar.items.map((i) => i.label).join(' | '));
+    // 先确认工具栏真的有布局：否则下面两条断言拿到的都是 0，一条假通过一条假失败
+    check('工具栏已渲染出布局（宽 > 0）', o.toolbar.visible === true,
+      `clientWidth=${o.toolbar.clientWidth}`);
     check('「拍题」入口无需横滑即完整可见', o.cameraToolFullyVisible, '拍题按钮: ' + JSON.stringify(o.cameraTool));
     check('工具栏为单行横滑（不再裁切）', o.toolbar.wrap === 'nowrap' && o.toolbar.overflowX === 'auto', `${o.toolbar.wrap} / ${o.toolbar.overflowX}`);
     check('溢出项均可横滑触及', o.toolbar.scrollable, `scrollWidth=${o.toolbar.scrollWidth} clientWidth=${o.toolbar.clientWidth}`);

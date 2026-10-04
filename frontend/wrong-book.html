@@ -168,6 +168,56 @@ a { color: inherit; text-decoration: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .busy .txt { font-size: 13px; color: #4b3fe3; font-weight: 600; }
 
+/* ---------- 三态 Tab ---------- */
+.tabs {
+  display: flex; gap: 4px; margin-bottom: 14px; padding: 4px;
+  background: #ebebf2; border-radius: 12px;
+}
+.tab {
+  flex: 1; border: none; background: none; font-family: inherit; font-size: 13px;
+  padding: 8px 6px; border-radius: 9px; color: #6b6b80; cursor: pointer; font-weight: 600;
+}
+.tab.active { background: #fff; color: #4b3fe3; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+/* 补充信息行（最久未练 / 近 7 天清掉） */
+.statline { font-size: 11.5px; color: #9a9aab; margin: -6px 0 12px; }
+
+/* 每日上限提示条 */
+.limit-bar {
+  display: flex; align-items: center; gap: 10px; justify-content: space-between;
+  background: #fff6e8; border: 1px solid #ffe2bd; border-radius: 10px;
+  padding: 9px 12px; font-size: 12.5px; color: #a86a15; margin-bottom: 12px;
+}
+.limit-bar[hidden] { display: none; }
+.linklike {
+  border: none; background: none; font-family: inherit; font-size: 12.5px;
+  color: #4b3fe3; font-weight: 600; cursor: pointer; padding: 2px 0; white-space: nowrap;
+}
+
+/* 错因标签（未归因的可点） */
+.tag.err { background: #f0f0f3; color: #6b6b80; }
+.tag.err-none { background: #f0f0f3; color: #9a9aab; border: 1px dashed #d5d5df; }
+
+/* 记忆等级 / 下次复习 */
+.item .sched { margin-top: 7px; font-size: 11.5px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.lvbar { display: inline-flex; gap: 2px; align-items: center; }
+.lvdot { width: 7px; height: 7px; border-radius: 2px; background: #e0e0ea; }
+.lvdot.on { background: #4b3fe3; }
+.sched .due-now { color: #e85d75; font-weight: 600; }
+.sched .due-later { color: #6b6b80; }
+
+/* 详情里的错因选择 */
+.sec-title { font-size: 12px; color: #6b6b80; margin: 14px 0 7px; font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip {
+  border: 1px solid #e2e2ea; background: #fff; border-radius: 999px;
+  font-family: inherit; font-size: 12.5px; padding: 6px 13px; cursor: pointer; color: #4a4a5e;
+}
+.chip.on { background: #4b3fe3; border-color: #4b3fe3; color: #fff; font-weight: 600; }
+.rev-list { font-size: 12px; color: #6b6b80; }
+.rev-list div { padding: 3px 0; border-bottom: 1px dashed #f0f0f4; }
+.rev-list div:last-child { border-bottom: none; }
+
 @media (min-width: 720px) {
   .wrap { max-width: 720px; margin: 0 auto; }
 }
@@ -183,12 +233,20 @@ a { color: inherit; text-decoration: none; }
 
 <div class="wrap">
   <div class="stats">
-    <div class="stat"><div class="k">待复习</div><div class="v" id="st-pending">-</div></div>
+    <div class="stat"><div class="k">今日待复习</div><div class="v" id="st-due">-</div></div>
     <div class="stat"><div class="k">已掌握</div><div class="v" id="st-mastered">-</div></div>
-    <div class="stat"><div class="k">全部</div><div class="v" id="st-total">-</div></div>
+    <div class="stat"><div class="k">全部错题</div><div class="v" id="st-total">-</div></div>
   </div>
+  <div class="statline" id="st-line"></div>
 
   <div class="books" id="wb-books"></div>
+
+  <!-- 三态：待复习是默认。设计上刻意与「本子」分开 —— 本子是归属，状态是进度 -->
+  <div class="tabs" id="wb-tabs">
+    <button class="tab active" data-tab="due">待复习</button>
+    <button class="tab" data-tab="all">全部</button>
+    <button class="tab" data-tab="mastered">已掌握</button>
+  </div>
 
   <div class="actions">
     <button class="btn btn-primary" id="wb-photo-btn">📷 拍照录入</button>
@@ -199,14 +257,19 @@ a { color: inherit; text-decoration: none; }
   <input id="wb-photo-album" type="file" accept="image/*" hidden />
   <div style="display:flex;gap:10px;margin:-6px 0 16px;">
     <button class="btn btn-ghost" style="flex:1;font-size:12.5px;padding:9px;" id="wb-album-btn">🖼️ 从相册选</button>
-    <button class="btn btn-ghost" style="flex:1;font-size:12.5px;padding:9px;" id="wb-filter-btn">🔍 只看待复习</button>
+  </div>
+
+  <!-- 每日上限：积压时全推给孩子会让他直接放弃，这里给个明确的「还有多少」与逃生口 -->
+  <div class="limit-bar" id="wb-limit" hidden>
+    <span id="wb-limit-text"></span>
+    <button class="linklike" id="wb-limit-all">看全部到期</button>
   </div>
 
   <div class="list" id="wb-list"></div>
   <div class="empty" id="wb-empty" hidden>
-    <div class="big">🎉</div>
-    <div>这个错题本还是空的</div>
-    <div style="margin-top:6px;font-size:12px;">做题答错会自动进来；也可以拍照录入，或从题库里挑。</div>
+    <div class="big" id="wb-empty-icon">🎉</div>
+    <div id="wb-empty-title">这个错题本还是空的</div>
+    <div id="wb-empty-sub" style="margin-top:6px;font-size:12px;">做题答错会自动进来；也可以拍照录入，或从题库里挑。</div>
   </div>
 </div>
 

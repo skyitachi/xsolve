@@ -207,10 +207,32 @@ function cleanup() { while (cleanupFns.length) { try { cleanupFns.pop()(); } cat
       title: document.title,
       chipLabels: chips.map(c => c.textContent.trim()),
       stats: {
-        pending: document.querySelector('#st-pending').textContent,
+        due: document.querySelector('#st-due').textContent,
         mastered: document.querySelector('#st-mastered').textContent,
         total: document.querySelector('#st-total').textContent,
+        line: document.querySelector('#st-line').textContent,
       },
+      tabs: [...document.querySelectorAll('#wb-tabs .tab')]
+        .map(t => ({ label: t.textContent.trim(), on: t.classList.contains('active') })),
+      // 复习调度的可视化：等级点阵 / 下次复习文案 / 错因标签
+      firstSched: items[0] ? {
+        lvOn: items[0].querySelectorAll('.lvdot.on').length,
+        lvAll: items[0].querySelectorAll('.lvdot').length,
+        text: items[0].querySelector('.sched') ? items[0].querySelector('.sched').textContent : '',
+        err: items[0].querySelector('.tag.err, .tag.err-none')
+          ? items[0].querySelector('.tag.err, .tag.err-none').textContent : null,
+      } : null,
+      // 按「来源」而非「第几条」取样本：列表是按到期时间排序的，谁排第一会随排期变化，
+      // 拿 items[0] 断言具体某个标签属于「测试床假设」，改排序就会假失败。
+      bySrc: items.map((n) => ({
+        src: [...n.querySelectorAll('.tag')].map(t => t.textContent).find(t => /做错了|手动加入|拍照录入/.test(t)) || '',
+        err: n.querySelector('.tag.err, .tag.err-none')
+          ? n.querySelector('.tag.err, .tag.err-none').textContent : null,
+        lvOn: n.querySelectorAll('.lvdot.on').length,
+        lvAll: n.querySelectorAll('.lvdot').length,
+        sched: n.querySelector('.sched') ? n.querySelector('.sched').textContent : '',
+      })),
+      limitHidden: document.querySelector('#wb-limit').hidden,
       itemCount: items.length,
       firstItemText: items[0] ? items[0].querySelector('.txt').textContent : null,
       firstItemTags: items[0] ? [...items[0].querySelectorAll('.tag')].map(t => t.textContent) : [],
@@ -222,12 +244,34 @@ function cleanup() { while (cleanupFns.length) { try { cleanupFns.pop()(); } cat
   check('页面标题正确', /错题本/.test(page.title || ''), page.title);
   check('默认错题本以 chip 形式渲染', page.chipLabels.some((c) => c.includes('我的错题本')), JSON.stringify(page.chipLabels));
   check('「新建」入口存在', page.chipLabels.some((c) => c.includes('新建')), JSON.stringify(page.chipLabels));
-  check(`统计显示待复习=2（实际 ${page.stats.pending}）`, page.stats.pending === '2', JSON.stringify(page.stats));
+  check(`统计显示今日待复习=${expectCount}（实际 ${page.stats.due}）`, page.stats.due === String(expectCount), JSON.stringify(page.stats));
   check(`列表渲染出 ${expectCount} 条错题（实际 ${page.itemCount}）`, page.itemCount === expectCount);
   check('空状态已隐藏', page.emptyHidden === true);
   check('条目显示题面文字', !!page.firstItemText && page.firstItemText.length > 2, String(page.firstItemText).slice(0, 40));
   check('条目带主题与来源标签', page.firstItemTags.length >= 2, JSON.stringify(page.firstItemTags));
   check('来源标签是中文而非原样英文', page.firstItemTags.some((t) => /做错了|手动加入|拍照录入/.test(t)), JSON.stringify(page.firstItemTags));
+
+  // ---------- 复习调度的可视化（P1）----------
+  const tabLabels = page.tabs.map((t) => t.label);
+  check('三态 Tab 齐备（待复习 / 全部 / 已掌握）',
+    tabLabels.length === 3 && /待复习/.test(tabLabels[0]) && /全部/.test(tabLabels[1]) && /已掌握/.test(tabLabels[2]),
+    JSON.stringify(page.tabs));
+  check('默认停在「待复习」（而不是「全部」）',
+    page.tabs[0] && page.tabs[0].on === true && page.tabs[1].on === false, JSON.stringify(page.tabs));
+  // 样本按「来源」定位，不假设谁排在第一条（列表按到期时间排序，排序变了也算通过）
+  const autoItem = page.bySrc.find((i) => /做错了/.test(i.src)) || {};
+  const manualItem = page.bySrc.find((i) => /手动加入/.test(i.src)) || {};
+  check('卡片渲染记忆等级点阵', autoItem.lvAll === 4 && autoItem.lvOn === 0,
+    JSON.stringify(autoItem));
+  check('卡片显示复习排期文案', /今天该练|再练/.test(autoItem.sched || ''),
+    JSON.stringify(autoItem.sched));
+  check('手动加入的题（无错因）显示「未归因」占位', manualItem.err === '未归因',
+    JSON.stringify(manualItem));
+  // 规则兜底只对「数值 vs 数值 / 数值 vs 表达式」这类可判形态生效，文字答案会返回 null；
+  // 本测试床答错的是 42（正确 84），属可判形态 → 必须带上错因标签。
+  check('答错的题由规则兜底打上错因标签（本床：42 vs 84）',
+    !!autoItem.err && autoItem.err !== '未归因', JSON.stringify(autoItem.err));
+  check('每日上限提示条在未超限时隐藏', page.limitHidden === true);
   check(
     `「拍照录入」按钮在 390px 视口内（右边界 ${page.photoBtn.right}px）`,
     page.photoBtn.right <= page.photoBtn.viewport,
@@ -245,6 +289,13 @@ function cleanup() { while (cleanupFns.length) { try { cleanupFns.pop()(); } cat
       katexCount: document.querySelectorAll('#wb-list .katex').length,
       rawDollar: document.querySelector('#wb-list').textContent.includes('\\\\frac'),
       listText: document.querySelector('#wb-list').textContent.slice(0, 80),
+      // 诊断字段：下次再遇到「列表没渲染公式」时不用只靠猜
+      katexReady: typeof window.renderMathInElement === 'function',
+      // 页面自报的渲染成败（静默失效时这是唯一线索）
+      mathDiag: window.__wbMath || null,
+      firstHtml: (document.querySelector('#wb-list .item .txt') || {}).innerHTML || null,
+      firstItemId: (document.querySelector('#wb-list .item') || {}).getAttribute
+        ? document.querySelector('#wb-list .item').getAttribute('data-item') : null,
     };
   })()`);
   check(`题面里的公式已渲染（找到 ${math.katexCount} 处 KaTeX）`, math.katexCount > 0, JSON.stringify(math));
@@ -268,12 +319,76 @@ function cleanup() { while (cleanupFns.length) { try { cleanupFns.pop()(); } cat
       hasMaster: !!document.querySelector('#dt-master'),
       hasImageTag: !!document.querySelector('#dt-img'),
       masterLabel: document.querySelector('#dt-master').textContent.trim(),
+      // 错因标注区（P1）：枚举按钮 + 备注框。注意「清空」也是一个 .chip，
+  // 所以断言要按 data-err 是否有值来区分，而不是数 .chip 总数。
+      errChipCount: document.querySelectorAll('#dt-chips .chip[data-err]:not([data-err=""])').length,
+      errChipTotal: document.querySelectorAll('#dt-chips .chip').length,
+      hasNote: !!document.querySelector('#dt-note'),
+      hasReviewList: !!document.querySelector('.rev-list'),
     };
   })()`);
   check('详情弹层打开', detail.open === true);
   check('详情显示完整题面', detail.text.length > 10, detail.text.slice(0, 60));
   check('详情显示「我上次写错的答案」= 42', detail.text.includes('42'), detail.text.slice(0, 200));
   check('详情有「重做」按钮', detail.hasRedo === true);
+  check('详情有错因枚举（5+1 个可点按钮 + 清空）',
+    detail.errChipCount === 6 && detail.errChipTotal === 7,
+    JSON.stringify({ err: detail.errChipCount, all: detail.errChipTotal }));
+  check('详情有「备注」输入框', detail.hasNote === true);
+  check('详情解释了「重做 → 等级 → 毕业」的关系', /等级/.test(detail.text) && /已掌握/.test(detail.text),
+    detail.text.slice(0, 160));
+
+  // 错因标注要真的落库（点一下 → 后端 → 重新渲染后仍选中），不能只是前端变色
+  const errSaved = await evaluate(`(async () => {
+    const target = [...document.querySelectorAll('#dt-chips .chip')]
+      .find(c => c.getAttribute('data-err') === '审题');
+    if (!target) return { skip: true };
+    target.click();
+    const t0 = Date.now();
+    while (Date.now() - t0 < 8000) {
+      const on = document.querySelector('#dt-chips .chip.on');
+      if (on && on.getAttribute('data-err') === '审题') break;
+      await new Promise(r => setTimeout(r, 200));
+    }
+    const on = document.querySelector('#dt-chips .chip.on');
+    const listErr = document.querySelector('#wb-list .item .tag.err');
+    const srcNote = document.querySelector('#dt-body .sec-title');
+    return {
+      skip: false,
+      on: on ? on.getAttribute('data-err') : null,
+      listErr: listErr ? listErr.textContent : null,
+      markedManual: srcNote ? /人工标注/.test(srcNote.textContent) : false,
+      hasReviewList: !!document.querySelector('.rev-list'),
+    };
+  })()`);
+  check('点错因标签落到后端并回显选中', errSaved.skip || errSaved.on === '审题', JSON.stringify(errSaved));
+  check('列表卡片同步显示新错因', errSaved.skip || errSaved.listErr === '审题', JSON.stringify(errSaved));
+  check('来源标记变为「人工标注」', errSaved.skip || errSaved.markedManual === true, JSON.stringify(errSaved));
+
+  // Tab 切换：本测试床没有已掌握的题，正好验证「已掌握为空」的空态
+  // 与「整个错题本为空」是两句不同的话（混成一句是常见的体验瑕疵）
+  const tabSwitch = await evaluate(`(async () => {
+    const closer = document.querySelector('[data-close="sheet-detail"]');
+    if (closer) closer.click();
+    const tabs = [...document.querySelectorAll('#wb-tabs .tab')];
+    tabs[2].click();
+    await new Promise(r => setTimeout(r, 900));
+    const empty = document.querySelector('#wb-empty');
+    const out = {
+      active: [...document.querySelectorAll('#wb-tabs .tab')].findIndex(t => t.classList.contains('active')),
+      emptyShown: empty ? !empty.hidden : false,
+      emptyTitle: document.querySelector('#wb-empty-title').textContent,
+      itemCount: document.querySelectorAll('#wb-list .item').length,
+    };
+    // 切回「待复习」，后面的用例依赖它
+    tabs[0].click();
+    await new Promise(r => setTimeout(r, 900));
+    return out;
+  })()`);
+  check('切到「已掌握」Tab 生效且列表清空', tabSwitch.active === 2 && tabSwitch.itemCount === 0,
+    JSON.stringify(tabSwitch));
+  check('已掌握为空时是专属空态（区别于「错题本是空的」）',
+    tabSwitch.emptyShown && /还没有已掌握/.test(tabSwitch.emptyTitle), JSON.stringify(tabSwitch));
 
   // ---------- 7. 从题库加题 ----------
   console.log('\n=== 3. 从题库加题 ===');

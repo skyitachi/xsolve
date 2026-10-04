@@ -294,6 +294,128 @@ const cleanup = () => {
   check('normalizeDraft 无提示时补兜底提示', nd.hints.length === 2, JSON.stringify(nd.hints));
   check('normalizeDraft 提示最多 4 条', ctrl.normalizeDraft({ text: 'x', hints: ['1', '2', '3', '4', '5', '6'] }).hints.length === 4);
 
+  // ---------- 11. 复习调度与回流（P1）----------
+  // 这一段验证的是本功能最难、也最容易被悄悄做错的地方：
+  // 「这次答对算不算真的掌握了」。信号必须来自「主动重做」，而不是任何一次答对。
+  section('11. 复习调度与回流');
+  const avail = (await demo.get('/api/wrong-book/items')).data.items.filter((i) => i.problem_exists !== false);
+  const rec = avail[0];
+  const targetPid = rec.problem_id;
+  const lv0 = rec.level;
+  check('有一道可用于复习的题', !!rec, JSON.stringify(avail.map((i) => i.id)));
+
+  const sess = await demo.post('/api/session', { mode: 'student' });
+  const sid2 = sess.data.id;
+  check('创建会话', !!sid2, JSON.stringify(sess.data));
+
+  // 11.1 日常答对：绝不能推进等级（否则「AI 刚讲完照着做对」会被当成掌握）
+  dbMod.recordAttempt({
+    student_id: demoSid, session_id: sid2, turn_id: 't11a', problem_id: targetPid,
+    topic: 'x', user_answer: 'daily-1', correct: true,
+  });
+  const afterDaily = dbMod.findWrongItemByProblem(demoSid, targetPid);
+  check('日常答对不推进等级/连续答对', afterDaily.level === lv0 && afterDaily.review_streak === 0,
+    `lv=${afterDaily.level} st=${afterDaily.review_streak}`);
+  check('日常答对仍记 last_correct_at', !!afterDaily.last_correct_at);
+
+  // 11.2 完整回流链路：前端标记 review → 学生作答 → recordAttempt 结算 → 等级 +1
+  const rv = await demo.patch(`/api/session/${sid2}`, { currentProblemId: targetPid, review: true });
+  check('PATCH session 接受 review 标记', rv.status === 200, `got ${rv.status}`);
+  check('标记落在会话行上（落库，不是内存态）',
+    dbMod.getSessionReviewWrongId(sid2) === rec.id, String(dbMod.getSessionReviewWrongId(sid2)));
+
+  dbMod.recordAttempt({
+    student_id: demoSid, session_id: sid2, turn_id: 't11b', problem_id: targetPid,
+    topic: 'x', user_answer: 'redo-1', correct: true,
+  });
+  const afterRedo = dbMod.findWrongItemByProblem(demoSid, targetPid);
+  check('重做答对 → 等级 +1、连续答对 1',
+    afterRedo.level === lv0 + 1 && afterRedo.review_streak === 1,
+    `lv=${afterRedo.level} st=${afterRedo.review_streak}`);
+  const gap = Math.round((afterRedo.next_review_at - Math.floor(Date.now() / 1000)) / 86400);
+  check('等级 1 → 下次复习 3 天后', gap === 3, `${gap} 天`);
+  check('结算后会话标记被清除（一次重做只结算一次）', dbMod.getSessionReviewWrongId(sid2) === null);
+
+  // 同一会话紧接着再答对 → 按日常作答，不再推进
+  dbMod.recordAttempt({
+    student_id: demoSid, session_id: sid2, turn_id: 't11c', problem_id: targetPid,
+    topic: 'x', user_answer: 'redo-2', correct: true,
+  });
+  check('同会话第二次答对不再推进（等级停在 1）',
+    dbMod.findWrongItemByProblem(demoSid, targetPid).level === lv0 + 1);
+
+  // 11.3 换题即失效：标记不能顺延到别的题上
+  const otherPid = avail.find((i) => i.problem_id !== targetPid)?.problem_id;
+  if (otherPid) {
+    await demo.patch(`/api/session/${sid2}`, { currentProblemId: otherPid });
+    check('换题后旧标记被清除', dbMod.getSessionReviewWrongId(sid2) === null);
+  }
+
+  // 11.4 到期队列
+  const dueNow = await demo.get('/api/wrong-book/items?status=due');
+  check('刚排期的题不在今日待复习里',
+    !dueNow.data.items.some((i) => i.id === rec.id), JSON.stringify(dueNow.data.items.map((i) => i.id)));
+  check('列表回传每日上限与错因枚举',
+    dueNow.data.daily_limit === 10 && Array.isArray(dueNow.data.error_types),
+    JSON.stringify({ l: dueNow.data.daily_limit, e: dueNow.data.error_types }));
+  // 拨表：时间相关逻辑必须真的让时间过去才算验证
+  dbMod.getDb().prepare('UPDATE wrong_items SET next_review_at = ? WHERE id = ?')
+    .run(Math.floor(Date.now() / 1000) - 3 * 86400, rec.id);
+  const dueLater = await demo.get('/api/wrong-book/items?status=due');
+  check('逾期后进入今日待复习', dueLater.data.items.some((i) => i.id === rec.id),
+    JSON.stringify(dueLater.data.items.map((i) => i.id)));
+  check('due_total 已回传', dueLater.data.due_total >= 1, String(dueLater.data.due_total));
+  const summary = await demo.get('/api/wrong-book/due');
+  check('轻量 due 接口给计数与主题分布',
+    summary.status === 200 && summary.data.due >= 1 && Array.isArray(summary.data.topics),
+    JSON.stringify(summary.data));
+
+  // 11.5 错因标注（人工层）
+  const meta = await demo.post(`/api/wrong-book/items/${rec.id}/meta`, { error_type: '审题', note: '漏看条件' });
+  check('人工标注错因并标来源 manual',
+    meta.status === 200 && meta.data.item.error_type === '审题' && meta.data.item.error_source === 'manual',
+    JSON.stringify(meta.data.item));
+  check('备注写入', meta.data.item.note === '漏看条件');
+  const badMeta = await demo.post(`/api/wrong-book/items/${rec.id}/meta`, { error_type: '乱写的' });
+  check('非枚举错因被拒 400', badMeta.status === 400, `got ${badMeta.status}`);
+  check('清空归因', (await demo.post(`/api/wrong-book/items/${rec.id}/meta`, { error_type: null })).data.item.error_type === null);
+  const stAfter = (await demo.get('/api/wrong-book/books')).data.stats;
+  check('统计含错因分布与未归因',
+    stAfter.by_error && Object.prototype.hasOwnProperty.call(stAfter.by_error, '未归因'),
+    JSON.stringify(stAfter.by_error));
+
+  // 11.6 复习流水：让「等级为什么是这个数」可解释
+  const d2 = await demo.get(`/api/wrong-book/items/${rec.id}`);
+  check('详情带复习记录', Array.isArray(d2.data.reviews) && d2.data.reviews.length >= 1);
+  check('复习记录区分「主动重做」与「日常练习」',
+    d2.data.reviews.some((r) => r.from_book === true) && d2.data.reviews.some((r) => r.from_book === false),
+    JSON.stringify(d2.data.reviews.map((r) => [r.correct, r.from_book])));
+  check('详情仍不含 answer / hints',
+    d2.data.problem && !('answer' in d2.data.problem) && !('hints' in d2.data.problem));
+  check('列表不下发 image_dataurl（只给 has_image 标记）',
+    !('image_dataurl' in rec) && !('imageDataUrl' in rec)
+    && Object.prototype.hasOwnProperty.call(rec, 'has_image'),
+    JSON.stringify(Object.keys(rec)));
+
+  // 11.7 手动结算（不经做题页的场景）
+  const manual = await demo.post(`/api/wrong-book/items/${rec.id}/review`, { correct: true });
+  check('手动结算答对 → 等级再 +1', manual.status === 200 && manual.data.item.level === lv0 + 2,
+    JSON.stringify(manual.data.item?.level));
+  const manualBad = await demo.post(`/api/wrong-book/items/${rec.id}/review`, { correct: false });
+  check('手动结算答错 → 等级与连续答对归零、次日再练',
+    manualBad.data.item.level === 0 && manualBad.data.item.review_streak === 0
+    && Math.round((manualBad.data.item.next_review_at - Math.floor(Date.now() / 1000)) / 86400) === 1,
+    JSON.stringify({ l: manualBad.data.item.level, n: manualBad.data.item.next_review_at }));
+  const legacyReview = await demo.post(`/api/wrong-book/items/${rec.id}/review`, {});
+  check('不传 correct 时退化为「只记动作」（兼容旧行为）', legacyReview.status === 200);
+
+  // 11.8 越权
+  const otherItem = dbMod.findWrongItemByProblem(otherSid, p3);
+  const pe = await demo.post(`/api/wrong-book/items/${otherItem.id}/meta`, { error_type: '审题' });
+  check('改不动别人的条目错因', pe.status === 404, `got ${pe.status}`);
+  const pe2 = await demo.post(`/api/wrong-book/items/${otherItem.id}/review`, { correct: true });
+  check('结算不了别人的条目', pe2.status === 404, `got ${pe2.status}`);
+
   console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
   if (fail) console.log('失败项：\n - ' + failures.join('\n - '));
   cleanup();

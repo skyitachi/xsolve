@@ -52,8 +52,19 @@ export const SCRATCH_AUTO_RECOGNIZE =
   String(process.env.SCRATCH_AUTO_RECOGNIZE || 'true').toLowerCase() !== 'false';
 // 错题本自动收录：学生答错时是否自动把这道题收进默认错题本。
 // 置 false 则只有「手动加入」「拍照录入」两条入口，自动收录关闭。
+// 注意：它只管「要不要新收一道题」；**已在错题本里的题答错了，仍然会如实更新状态**。
 export const WRONG_BOOK_AUTO_COLLECT =
   String(process.env.WRONG_BOOK_AUTO_COLLECT || 'true').toLowerCase() !== 'false';
+// 错题本复习间隔（天），下标即记忆等级 0~N。论文上的天数拍不准，先用这套朴素序列。
+export const WRONG_BOOK_REVIEW_INTERVALS = (process.env.WRONG_BOOK_REVIEW_INTERVALS || '1,3,7,15,30')
+  .split(',')
+  .map((s) => parseInt(s.trim(), 10))
+  .filter((n) => Number.isFinite(n) && n > 0);
+// 毕业条件之一：连续答对次数。单次答对可能是蒙的或即时模仿，用「连续 N 次」防假掌握。
+export const WRONG_BOOK_GRADUATE_STREAK = Math.max(1, parseInt(process.env.WRONG_BOOK_GRADUATE_STREAK || '2', 10));
+// 「今日待复习」的每日上限：积压时全推给孩子会让他直接放弃。0 = 不限制
+// （学生可在页面上点「看全部到期」临时绕过）。
+export const WRONG_BOOK_DAILY_LIMIT = Math.max(0, parseInt(process.env.WRONG_BOOK_DAILY_LIMIT || '10', 10));
 // 自动识别草稿的超时（毫秒）——比通用视觉超时短，避免拖慢对话。
 export const SCRATCH_OCR_TIMEOUT_MS = parseInt(process.env.SCRATCH_OCR_TIMEOUT_MS || '30000', 10);
 // 自动识别的失败重试次数（视觉平台偶发 500，重试一次能显著降低漏读）。

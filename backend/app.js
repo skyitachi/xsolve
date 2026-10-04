@@ -70,7 +70,9 @@ import {
   wbRemoveItem,
   wbMasterItem,
   wbReviewItem,
+  wbMetaItem,
   wbCandidates,
+  wbDue,
   wbPhotoParse,
   wbPhotoCommit,
 } from './controllers/wrongBookController.js';
@@ -270,13 +272,15 @@ export function createApp() {
   app.delete('/api/wrong-book/books/:id', ...wb(wbDeleteBook));
   app.get('/api/wrong-book/items', ...wb(wbListItems));
   app.post('/api/wrong-book/items', ...wb(wbAddItems));
-  // 注意：candidates 必须排在 items/:id 之前，否则 ':id' 会吞掉 'candidates'
+  // 注意：candidates / due 必须排在 items/:id 之前，否则 ':id' 会吞掉它们
   app.get('/api/wrong-book/candidates', ...wb(wbCandidates));
+  app.get('/api/wrong-book/due', ...wb(wbDue));
   app.get('/api/wrong-book/items/:id', ...wb(wbGetItem));
   app.get('/api/wrong-book/items/:id/image', ...wb(wbItemImage));
   app.delete('/api/wrong-book/items/:id', ...wb(wbRemoveItem));
   app.post('/api/wrong-book/items/:id/master', ...wb(wbMasterItem));
   app.post('/api/wrong-book/items/:id/review', ...wb(wbReviewItem));
+  app.post('/api/wrong-book/items/:id/meta', ...wb(wbMetaItem));
   app.post('/api/wrong-book/photo/parse', ...wb(wbPhotoParse));
   app.post('/api/wrong-book/photo/commit', ...wb(wbPhotoCommit));
 

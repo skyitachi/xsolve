@@ -16,6 +16,8 @@ import {
   getChatTurns,
   deleteChatSession,
   updateChatSession,
+  findWrongItemByProblem,
+  setSessionReviewWrongId,
 } from '../db.js';
 
 /**
@@ -175,6 +177,26 @@ export function patchSession(req, res) {
   if (body.currentProblemId !== undefined) {
     if (s) s.currentProblemId = body.currentProblemId;
     updateChatSession(id, { current_problem_id: body.currentProblemId });
+    // 换题即失效：旧题留下的复习标记不能顺延到新题上，
+    // 否则一次误置的标记会让后续任意一次答对都被当成「主动重做」。
+    if (body.review === undefined) setSessionReviewWrongId(id, null);
+  }
+  // 复习标记：前端从错题本跳进来重做时置 review=true。
+  // 它决定这次作答的**结果**要不要推进记忆等级（见 db.js 的 applyAttemptToWrongBook
+  // 与 recordWrongReview）。两件事都由服务端解析：
+  //   ① 学生归属取会话自身的 student_id（本路由没挂 resolveTargetStudent，
+  //      且 canAccessSessionRow 已经校验过访问权）；
+  //   ② 条目由 problem_id 反查，**不接受前端传 item id** —— 否则越权改别人条目。
+  if (body.review !== undefined) {
+    const sid = row.student_id || null;
+    const pid = body.currentProblemId !== undefined ? body.currentProblemId : row.current_problem_id;
+    let wrongId = null;
+    if (body.review && sid && pid) {
+      const item = findWrongItemByProblem(sid, pid);
+      // 只有「这道题确实在错题本里」才置标记；否则这次作答按日常作答处理
+      if (item) wrongId = item.id;
+    }
+    setSessionReviewWrongId(id, wrongId);
   }
   res.json({ ok: true });
 }

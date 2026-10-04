@@ -205,6 +205,22 @@ code {
   color: var(--accent);
   margin-bottom: 0.5rem;
 }
+/* 语义变体：结论 / 警示 / 反例（此前只在正文里写了类名，没有样式） */
+.callout.ok {
+  border-left-color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, var(--bg2));
+}
+.callout.ok .callout-title { color: var(--success); }
+.callout.warn {
+  border-left-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, var(--bg2));
+}
+.callout.warn .callout-title { color: #a06a00; }
+.callout.err {
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg2));
+}
+.callout.err .callout-title { color: var(--danger); }
 
 /* Diagram */
 .diagram {
@@ -764,7 +780,11 @@ erDiagram
   <p>配套改动：<code>vision.js</code> 的 <code>runVisionHttp</code> 增加 <code>opts.userPrompt</code>，否则拍照录入会带着「请识别图片中的手写内容」这句面向草稿的固定用户指令。</p>
 </div>
 
-<h3>13.1 尚未实现的部分（仍按原设计）</h3>
+<h3 id="s13-1">13.1 尚未实现的部分（仍按原设计）</h3>
+<div class="callout warn">
+  <div class="callout-title">本节三项已在 P1 全部实现，保留作为历史记录</div>
+  <p>下面三条描述的是 <b>P0 交付时的状态</b>。<a href="#s14">§14</a> 已把它们全部补上（<code>wrong_reviews</code> 表、等级与间隔调度、答对回流、错因标注）。<b>读代码时以 §14 为准</b>，本节只用于理解「为什么当时判断这是个缺口」。</p>
+</div>
 <ul>
   <li><b><code>wrong_reviews</code> 表未建</b>、等级与间隔调度未做 —— 因此当前「答对是否算掌握」<b>不自动判定</b>，靠学生／家长手动点「✅ 标记已掌握」。这正是原设计 §4 里强调的那个信号问题，<b>它还没被解决</b>，别误以为已实现。</li>
   <li>「重做」只做了一半：跳转到 <code>/index.html?problemId=xxx&amp;from=wrongbook</code> 并记一次 <code>review_count</code>；<b>重做的答对结果还没有回流到错题本</b>（需要 P1 的复习信号）。</li>
@@ -805,8 +825,141 @@ erDiagram
 </div>
 <p>迁移与回填在<b>现网库副本</b>上演练过：新表 <code>wrong_books</code> / <code>wrong_items</code> 正常创建，原有 <code>student_attempts</code> / <code>problems</code> 行数不变；<code>backfill-wrong-book.mjs</code> 默认 dry-run，<code>--apply</code> 才写，且能把「错过 3 次」还原成 <code>wrong_count=3</code> 而不是 1。</p>
 
+<h2 id="s14">14. P1 实现：复习调度与错因标注（2026-09-28 补）</h2>
+
+<p>P0 留下的唯一硬伤是<b>信号</b>：页面能显示「这道题错了几次」，却不能回答「这次答对算不算真的会了」。P1 把这个信号补上了 —— <b>§6 的调度与 §7 的错因标注已按原设计落地</b>，<a href="#s13-1">§13.1</a> 里列的三个「尚未实现」全部作废。</p>
+
+<h3>14.1 状态机：等级封顶 + 连续答对，两者缺一不可</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>事件</th><th><code>level</code></th><th><code>review_streak</code></th><th>下次复习</th></tr></thead>
+  <tbody>
+    <tr><td>主动重做，答对</td><td>+1（封顶 4）</td><td>+1</td><td>按新等级：1 / 3 / 7 / 15 / 30 天</td></tr>
+    <tr><td>主动重做，答错</td><td><b>归零</b></td><td><b>归零</b></td><td>次日</td></tr>
+    <tr><td>日常练习（非重做）</td><td>不变</td><td>不变</td><td>不变，只更新 <code>last_correct_at</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout">
+  <div class="callout-title">毕业条件为什么是两个条件相与</div>
+  <p><code>status = 'mastered'</code> 需要 <code>review_streak &gt;= 2</code> <b>且</b> <code>level &gt;= 4</code>。</p>
+  <p>只用「连续答对 2 次」防不住「今晚一口气做对两次」—— 那是短时记忆，不是掌握。加上等级封顶，意味着这两次答对<b>至少隔了 7 天</b>（等级 3 → 4 的间隔），是跨间隔回忆出来的，才叫真的记住。</p>
+  <p>配置项：<code>WRONG_BOOK_REVIEW_INTERVALS=1,3,7,15,30</code>、<code>WRONG_BOOK_GRADUATE_STREAK=2</code>。没用 SM-2/FSRS：那类算法的核心是「按表现调整难度因子」，而本项目的判题信号是<b>二元的</b>（<code>compareAnswer</code> 字符串比较，只有对/错），难度因子无从估计，套上去只是假装精确。</p>
+</div>
+
+<h3>14.2 <code>wrong_reviews</code>：区分「主动重做」与「日常练习」</h3>
+
+<p>这是整个 P1 的支点。同样一行 <code>correct=1</code>，可能是孩子主动翻出错题本重做（真信号），也可能是 AI 刚讲完他顺手填了个答案（假信号）。混在一起 → <b>大量错题被假性判定为已掌握</b>，复习队列直接失去意义。</p>
+
+<p>所以流水表带一个 <code>from_book</code> 标记，<b>只有 <code>from_book=1</code> 才推进等级</b>；<code>from_book=0</code> 只落一条记录（便于日后分析「日常练习的正确率」），完全不碰状态机。</p>
+
+<p>刻意<b>不复用 <code>student_attempts</code></b>：那张表是答题流水，语义是「做了一道题」；复习流水语义是「复习了一道错题」，且需要 <code>from_book</code>、<code>level_after</code> 这些只有复习才有的字段。合并会让两边的查询都变别扭。</p>
+
+<h3>14.3 三个实现时才暴露的坑（都真的踩过）</h3>
+
+<div class="callout">
+  <div class="callout-title">坑一：复习标记必须落库，不能只放内存</div>
+  <p>「学生从错题本点进重做」这件事要跨 HTTP 请求传到判题那一刻。最初的想法是把标记挂在内存的 session 对象上 —— 但 session 会被重建／从库里恢复，标记一丢<b>等级就永远不推进，而且完全静默</b>。</p>
+  <p>改为落 <code>chat_sessions.review_wrong_id</code>（<code>setSessionReviewWrongId</code> / <code>getSessionReviewWrongId</code>）。</p>
+</div>
+
+<div class="callout">
+  <div class="callout-title">坑二：一次重做只能结算一次，结算后立刻清标记</div>
+  <p>学生在同一次重做里可能连提交好几次答案。如果标记不清，第一次答对推进等级之后，后续每次提交都会再推一次 —— 等级被刷满，<code>review_streak</code> 变成假的。</p>
+  <p>规则：<b>结算即清除</b>。这也顺带保证了「连续答对 2 次」必然来自<b>两次不同的、从错题本进入的重做</b>，不可能在一次会话里凑出来。</p>
+</div>
+
+<div class="callout">
+  <div class="callout-title">坑三：换题必须清标记</div>
+  <p><code>PATCH /api/sessions/:id</code> 改 <code>currentProblemId</code> 时如果不清，一个误置的标记会一直挂着，之后学生<b>随便做对哪道题</b>都被当成主动重做，等级乱涨。</p>
+</div>
+
+<p>顺带两条约束：<b>前端不接受 item id</b> —— 重做只传 <code>review=true</code> + 当前 <code>problem_id</code>，服务端反查 <code>wrong_item</code>（否则就是一个越权口子）；<b>归属只认 <code>req.targetStudentId</code></b>（<code>patchSession</code> 没挂 <code>resolveTargetStudent</code>，改用会话自身的 <code>student_id</code>）。</p>
+
+<h3>14.4 错因：三层来源，规则只做「形态判断」</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>来源</th><th><code>error_source</code></th><th>可靠度</th><th>写入时机</th></tr></thead>
+  <tbody>
+    <tr><td>人工标注（错因 chips）</td><td><code>manual</code></td><td>高</td><td>用户在详情弹层点选</td></tr>
+    <tr><td>对话抽取</td><td><code>chat</code></td><td>中</td><td>模型调工具时附带（预留）</td></tr>
+    <tr><td>规则兜底</td><td><code>rule</code></td><td><b>低</b>，界面标「自动」</td><td>自动收录时按答案形态猜</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>枚举固定 5+1：计算 / 概念 / 审题 / 方法 / 粗心 / 其他，自由描述留给 <code>note</code>。</p>
+
+<p>规则兜底只敢做<b>形态判断</b>，不做语义判断：两边都是纯数字且量级接近 → 计算；差得离谱 → 概念；一边数值一边表达式/文字 → 概念；<b>其余返回 <code>null</code>（不标）</b>。宁可不标也不要标错 —— 一个错的错因比没有错因更误导。两条铁律：<b>规则绝不覆盖人工标注</b>；<b>手动加入／拍照录入的题不走规则</b>（那本身就不是一次错误）。</p>
+
+<h3>14.5 一处设计修正：<code>due</code> 的排序</h3>
+
+<p>原稿排序写的是 <code>w.next_review_at IS NULL DESC, ...</code>，直觉是「没排期的排后面」。实际效果相反：<b>手动加入和拍照录入的题 <code>next_review_at</code> 天然为 <code>NULL</code></b>，它们会永远压在「已经逾期一个月」的题前面，「越久没练越该先练」的设计意图彻底失效。</p>
+
+<p>改为 <code>COALESCE(next_review_at, first_wrong_at, created_at) ASC</code> —— 没排期的题按其「进入错题本的时间」参与排序，与已排期的题在同一时间轴上比较。<b>这类 bug 不会报错，只会让列表顺序悄悄变得没用。</b></p>
+
+<h3>14.6 一个静默失效：列表里的公式不渲染</h3>
+
+<div class="callout err">
+  <div class="callout-title">现象：页面完全正常，只是公式永远停在 <code>$30$</code> 源码</div>
+  <p>回归脚本断言「列表里出现 KaTeX 节点」时失败，而<b>详情弹层里的同一道题渲染正常</b>。页面无 JS 报错、文字也都在。</p>
+  <p>根因是<b>加载竞态</b>：<code>frontend/wrong-book.html</code> 里 KaTeX 用的是 <code>defer</code> 脚本，而 <code>js/wrong-book.js</code> 是<b>普通脚本</b>（第 375 行）。列表数据从接口回来时 KaTeX 可能还没加载完，<code>renderMath()</code> 只能静默 <code>return</code>，之后再无第二次调用。详情弹层是用户点击后才打开的，那时 KaTeX 早已就绪 —— 所以「同一个函数，一处行一处不行」。</p>
+  <p>修法不依赖脚本顺序：<code>renderMath()</code> 未就绪时把元素<b>排队</b>，并起一个 50ms 的轮询（上限 5s）在 KaTeX 到位后补渲一次；轮询超时即自我清理，不留常驻定时器。</p>
+</div>
+
+<div class="callout">
+  <div class="callout-title">为什么值得单独记一条</div>
+  <p>这类失败<b>没有任何外部症状</b>——不报错、不空白、不影响其他功能，只是「本该是公式的地方是源码」。排查靠猜会耗很久，所以做了两件事：</p>
+  <ol>
+    <li><code>js/wrong-book.js</code> 暴露诊断钩子 <code>window.__wbMath</code>（<code>calls</code> / <code>ok</code> / <code>failed</code> / <code>notReady</code> / <code>last</code>），渲染成败直接读，不用反推；</li>
+    <li>回归脚本把 <code>__wbMath</code> 与 <code>katexReady</code> 一并打进失败信息 —— 这次就是靠 <code>{"calls":1,"ok":0,"notReady":1}</code> 一句话定位的（<code>notReady</code> 而非 <code>failed</code> 直接排除了「配置写错」这类猜测）。</li>
+  </ol>
+</div>
+
+<h3>14.7 验证</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>脚本</th><th>断言数</th><th>本轮新增覆盖</th></tr></thead>
+  <tbody>
+    <tr><td><code>backend/scripts/wrong-book-api-selftest.mjs</code></td><td>74 → <b>104</b></td><td>复习回流全链路（PATCH <code>review</code> → 判题 → 等级 +1）、标记落库与清理、一次重做只结算一次、换题清标记、每日上限与逃生口、错因标注与来源、复习流水、手动结算</td></tr>
+    <tr><td><code>scripts/check-wrong-book.mjs</code></td><td>27 → <b>42</b></td><td>三态 Tab、等级点阵、排期文案、未归因占位、错因落库回显、各态专属空态、KaTeX 真渲染</td></tr>
+    <tr><td><code>scripts/check-mobile.mjs</code></td><td>12 → <b>13</b></td><td>做题页回归（本轮改过 <code>app.js</code>，须重跑）；顺带修掉一处探针竞态 —— 见下</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>数据层另有一份一次性冒烟（36 条，临时脚本，跑完即删），覆盖了「日常答对不推进等级」「重做答对推进等级」「间隔序列 3/7/15 天」「答错双归零」「越权隔离」这些状态机细节。</p>
+
+<div class="callout ok">
+  <div class="callout-title">测试床假设的两个教训</div>
+  <p>本轮有两条断言「失败」，查下来都是<b>断言写错了、不是代码错了</b>，值得记：</p>
+  <ul>
+    <li><b>拿 <code>items[0]</code> 断言具体标签</b>：列表按到期时间排序，改正 <code>due</code> 排序后首条换成了另一道题，断言就假失败了。改为<b>按来源定位样本</b>，不依赖谁排第一。</li>
+    <li><b>用「刚排期的题应该到期」验证到期逻辑</b>：它被排到了明天，本来就是不到期。改为先验「不该到期」，再<b>回拨 <code>next_review_at</code> 到 2 天前</b>真正验证到期，才是有效用例。</li>
+  </ul>
+</div>
+
+<div class="callout err">
+  <div class="callout-title">附带修掉：<code>check-mobile.mjs</code> 的固定 sleep 竞态（静默假通过）</div>
+  <p>跑回归时「溢出项均可横滑触及」偶发失败，报告是 <code>scrollWidth=0 clientWidth=0</code>。用 <code>git stash</code> 做了对照实验（旧版通过、新版失败），一度怀疑是 <code>app.js</code> 改坏了 —— <b>但连跑三次新版又全绿，说明是竞态而非回归</b>。</p>
+  <p>根因：探针切到「做题」Tab 后<b>只 <code>sleep(500)</code> 就量尺寸</b>。页面初始化（拉题库 / 建会话 / 绑 Tab 事件）慢于 500ms 时工具栏还是 <code>display:none</code>，量到的就是 0。危害不止假失败 —— 同一轮的「拍题入口无需横滑即完整可见」拿 <code>left=right=0</code> 去比 <code>right &lt;= viewport</code>，<b>假通过了</b>。一条假失败 + 一条假通过，都在同一处。</p>
+  <p>改为<b>轮询等工具栏真正有布局</b>（上限 10s），并给「拍题可见」加上 <code>w &gt; 0</code> 前置条件、新增一条「工具栏已渲染出布局」断言把隐藏状态显式暴露。改完连跑三次稳定 13/13。<b>教训：凡是「先 sleep 再量布局」的断言，都可能在元素隐藏时静默给出错误结论。</b></p>
+</div>
+
+<h3>14.8 仍未实现</h3>
+<ul>
+  <li><b>「重做」不新建会话</b>：复用当前会话。原设计 §12 问题 3 悬而未决，这里按「复用」实现 —— 换题时 <code>PATCH currentProblemId</code> 已能正确切换锚点（这也是坑三必须清标记的原因）。</li>
+  <li><b>错因「对话抽取」只留了字段</b>（<code>error_source='chat'</code>），没有让模型主动写 —— 错因枚举和判题信号不在同一条链路上，强行让模型猜错因的收益不确定，等有数据后再看。</li>
+  <li><b>同主题错题聚组练习、家长代改「已掌握」</b>：仍按 §12 的倾向留到 P2。</li>
+  <li><b>每日上限的智能分配</b>：目前是「按到期时间取前 N 条」（<code>WRONG_BOOK_DAILY_LIMIT=10</code>），不做主题均衡 —— 数据量小的时候均衡没有意义。</li>
+</ul>
+
 <footer>
-  xsolve 错题本设计方案 · 2026-09-26（§13 于 2026-09-28 补充实现差异） · 基于 <code>backend/db.js</code> / <code>controllers/sessionController.js</code> / <code>frontend/js/problem.js</code> 与现网库实测
+  xsolve 错题本设计方案 · 2026-09-26（§13 于 2026-09-28 补充 P0 实现差异，§14 于同日补充 P1 实现） · 基于 <code>backend/db.js</code> / <code>backend/controllers/wrongBookController.js</code> / <code>backend/controllers/sessionController.js</code> / <code>frontend/js/wrong-book.js</code> 与现网库实测
 </footer>
 
 </main>

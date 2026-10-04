@@ -300,6 +300,7 @@ function initApp() {
     async function applyProblemDeepLink() {
       const pid = params.get("problemId");
       if (!pid) return;
+      const isRedo = params.get("from") === "wrongbook";
       const idx = state.problems.findIndex((p) => p.id === pid);
       if (idx < 0) {
         addSystemMsg("⚠️ 要重做的这道题已经不在题库里了。");
@@ -312,13 +313,16 @@ function initApp() {
           await fetch(`/api/session/${state.sessionId}`, {
             method: "PATCH",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ currentProblemId: pid }),
+            // review 这个标记是**回流**的关键：它让后端知道这次作答发生在
+            // 「主动重做错题」的语境里，因而结果可以用来推进记忆等级；
+            // 没有它，重做答对只会被当成日常作答，等级永远不涨。
+            body: JSON.stringify({ currentProblemId: pid, review: isRedo }),
           });
         } catch {
-          /* 同步失败不阻塞做题，只是模型锚点可能滞后 */
+          /* 同步失败不阻塞做题，只是模型锚点可能滞后、本次重做不计入复习 */
         }
       }
-      if (params.get("from") === "wrongbook") {
+      if (isRedo) {
         addSystemMsg("📕 来自错题本：把这道题再做一遍。先自己写，别急着看答案。");
       }
     }
