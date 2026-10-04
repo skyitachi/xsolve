@@ -18,15 +18,59 @@
 # scripts/update.sh 里那句「build 前刷新自签证书」照旧执行，但**碰不到真证书**，
 # 因此部署脚本一行都不用改。docker-compose.yml 挂载的是整个 ./certs，子目录自动可见。
 #
-# ─── 用法 ─────────────────────────────────────────────────────────────
-#   1) 到 https://desec.io 注册（免费），建一个子域名，如 xsolve-abc.dedyn.io，
-#      在 TOKEN MANAGEMENT 生成 API token，并给该域名加一条 A 记录指向 NAS 内网 IP
-#      （192.168.0.112）。A 记录填内网 IP 是刻意为之，不影响 DNS-01 验证。
-#   2) 在 NAS 的仓库根目录执行：
+# ─── 第 1 步：注册 deSEC 账号 + 拿免费子域名（浏览器里做，约 5 分钟）──────
+#   a) 打开 https://desec.io/ ，点右上角 "Create Account"
+#      （直达 https://desec.io/signup）
+#   b) 注册表单只有三样东西，**注册时不设密码、也不要两步验证**：
+#        · Email        —— 填你能收信的邮箱
+#        · 「Do you want to set up a domain right away?」选
+#          「Register a new domain under dedyn.io (dynDNS)」
+#        · Domain name  —— 只填前缀，如 `xsolve-abc`
+#                          （系统自动补 `.dedyn.io`；被别人占了会提示换一个）
+#      然后填 CAPTCHA、勾同意条款、点 "Sign up"。
+#   c) 去邮箱点 deSEC 发来的验证链接。页面往下拉有 "Assign account password"，
+#      按它引导设置登录密码 —— **密码是在这一步才设的**，注册页不收密码。
+#      若始终收不到验证邮件：用同一邮箱走一次
+#      https://desec.io/reset-password 也能把密码设出来并登录。
+#   d) ⭐ 验证流程走完后，页面会**直接显示一个 API token（secret token），
+#      且只显示这一次**。立刻复制存进密码管理器。
+#      错过了也没关系：登录后进 TOKEN MANAGEMENT 新建一个即可。
+#      新建 token 时若看到这些字段，按此填：
+#        · Name / 备注        随便填，如 `acme-xsolve`
+#        · Allowed subnets    **留空**（留空 = 不限制来源 IP）。若填了，
+#                             必须包含 NAS 所在网段，否则签发时直接 403。
+#        · 有效期 / max_age   **留空**。设了它 token 会到期，90 天后自动续期
+#                             会**静默失败**，到期证书一起废掉。
+#      注册时拿到的那个 token 权限最全，直接用它最省事。
+#
+# ─── 第 2 步：加一条 A 记录，指向 NAS 的内网 IP ──────────────────────────
+#   登录 deSEC → 进该域名 → DNS Records → 加一条：
+#       Type: A    Subname: 留空（留空代表域名本身）    TTL: 300
+#       Records: 192.168.0.112
+#   ⚠️ **不要用 deSEC 的 dynDNS 更新端点（update.dedyn.io）** —— 那套协议是把
+#      **你的公网出口 IP** 写进 A 记录，会把内网地址覆盖掉。要更新只能走 REST API。
+#   A 记录填内网 IP 是刻意为之：流量不出局域网，且**不影响 DNS-01 验证**
+#   （DNS-01 只校验 `_acme-challenge` 下的 TXT 记录，压根不看 A 记录）。
+#
+# ─── 第 3 步：在 NAS 的仓库根目录执行 ────────────────────────────────────
 #        export DEDYN_DOMAIN=xsolve-abc.dedyn.io
 #        export DEDYN_TOKEN=<你的 deSEC API token>
 #        bash backend/scripts/setup-acme-cert.sh
-#   3) 按脚本末尾输出的提示，把 HTTPS_KEY / HTTPS_CERT 写进 .env 并重启容器。
+#
+# ─── 第 4 步：让服务用上新证书 ──────────────────────────────────────────
+#   按脚本末尾输出的提示，把 HTTPS_KEY / HTTPS_CERT 写进 .env 并重启容器。
+#
+# ─── deSEC 要求「定期更新 IP」，我们的应对 ──────────────────────────────
+# dedyn.io 子域本是为家宽动态 IP 设计的，官方明确要求定期更新 A 记录；长期不动
+# 有被判定为不活跃而回收的风险。我们的 A 记录是固定内网 IP，天然「无需更新」，
+# 所以要用**幂等重写**来制造活跃度（写的就是同一个值，无副作用）：
+#     curl -fsS -o /dev/null -X PUT \
+#       "https://desec.io/api/v1/domains/$DEDYN_DOMAIN/rrsets/" \
+#       -H "Authorization: Token $DEDYN_TOKEN" \
+#       -H "Content-Type: application/json" \
+#       --data '[{"subname":"","type":"A","ttl":300,"records":["192.168.0.112"]}]'
+# 挂到 crontab 每周跑一次即可：`0 4 * * 1 /path/to/keepalive.sh`
+# ⚠️ deSEC 对写操作有速率限制（acme.sh 插件自己写完都 `_sleep 1`），别开太密。
 #
 # 环境变量：
 #   DEDYN_DOMAIN  必需，已解析到本机内网 IP 的域名
@@ -34,6 +78,9 @@
 #   ACME_EMAIL    可选，证书到期提醒邮箱
 #   ACME_DNS      可选，acme.sh 的 dnsapi 插件名，默认 dns_desec
 #   CONTAINER_NAME 可选，默认 xsolve
+#
+# 注：acme.sh 会把 DEDYN_TOKEN 记进自己的账号配置（~/.acme.sh/account.conf），
+#     所以续期的 cron 任务不需要再 export —— 签发一次即可长期自动续。
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -98,7 +145,10 @@ say ""
 # 显式 --server letsencrypt：acme.sh 3.0 起默认 CA 变成了 ZeroSSL，
 # 不指定的话拿到的是 ZeroSSL 证书（也受信，但与预期不符）。
 export DEDYN_TOKEN="$TOKEN"
-export DEDYN_NAME="$DOMAIN"   # 旧版 dns_desec 需要它，新版只用 token；都给上更稳
+# 已核对 acme.sh 当前版 dnsapi/dns_desec.sh 源码：**它只读 DEDYN_TOKEN**，
+# 靠 `GET /api/v1/domains/` 把根域自动认出来（所以 token 必须能看到该域名）。
+# DEDYN_NAME 是早期插件版本的变量、现已无人读取；保留仅为兼容老版本，无副作用。
+export DEDYN_NAME="$DOMAIN"
 
 say "[2/4] 通过 $ACME_DNS 做 DNS-01 验证并签发…"
 say "      域名：$DOMAIN"
