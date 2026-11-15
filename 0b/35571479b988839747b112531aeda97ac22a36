@@ -1,0 +1,18 @@
+backend/controllers/turnController.js
+  h_5a1c62fd74efa2 32-40,327-332
+backend/session.js
+  h_5a1c62fd74efa2 149-171,213,246,257,260,262,325,332-370,372-411,413-416,487,497,500,502,551,561,564,566
+frontend/js/chat.js
+  h_5a1c62fd74efa2 438,483,488-489
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0b35571479b988839747b112531aeda97ac22a36",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
