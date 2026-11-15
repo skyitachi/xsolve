@@ -1,0 +1,64 @@
+macos/.gitignore
+  h_5a1c62fd74efa2 1-9
+macos/Package.swift
+  h_5a1c62fd74efa2 1-15
+macos/README.md
+  h_5a1c62fd74efa2 1-88
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 1-243
+macos/Sources/XsolveMac/Core/APIClient.swift
+  h_5a1c62fd74efa2 1-286
+macos/Sources/XsolveMac/Core/Models.swift
+  h_5a1c62fd74efa2 1-525
+macos/Sources/XsolveMac/Core/RichText.swift
+  h_5a1c62fd74efa2 1-188
+macos/Sources/XsolveMac/Core/SelfTest.swift
+  h_5a1c62fd74efa2 1-200
+macos/Sources/XsolveMac/Core/Util.swift
+  h_5a1c62fd74efa2 1-132
+macos/Sources/XsolveMac/Features/AccountDialog.swift
+  h_5a1c62fd74efa2 1-148
+macos/Sources/XsolveMac/Features/AccountsView.swift
+  h_5a1c62fd74efa2 1-287
+macos/Sources/XsolveMac/Features/EvalView.swift
+  h_5a1c62fd74efa2 1-249
+macos/Sources/XsolveMac/Features/LoginView.swift
+  h_5a1c62fd74efa2 1-185
+macos/Sources/XsolveMac/Features/MemoryView.swift
+  h_5a1c62fd74efa2 1-309
+macos/Sources/XsolveMac/Features/ModelSettingsView.swift
+  h_5a1c62fd74efa2 1-171
+macos/Sources/XsolveMac/Features/MyChildrenView.swift
+  h_5a1c62fd74efa2 1-190
+macos/Sources/XsolveMac/Features/PromptsView.swift
+  h_5a1c62fd74efa2 1-183
+macos/Sources/XsolveMac/Features/Tutor/ChatView.swift
+  h_5a1c62fd74efa2 1-332
+macos/Sources/XsolveMac/Features/Tutor/Dialogs.swift
+  h_5a1c62fd74efa2 1-117
+macos/Sources/XsolveMac/Features/Tutor/ManualInputView.swift
+  h_5a1c62fd74efa2 1-253
+macos/Sources/XsolveMac/Features/Tutor/ScratchCanvasView.swift
+  h_5a1c62fd74efa2 1-46
+macos/Sources/XsolveMac/Features/Tutor/TutorState.swift
+  h_5a1c62fd74efa2 1-872
+macos/Sources/XsolveMac/Features/Tutor/TutorView.swift
+  h_5a1c62fd74efa2 1-394
+macos/Sources/XsolveMac/Features/Tutor/UploadFlow.swift
+  h_5a1c62fd74efa2 1-281
+macos/Sources/XsolveMac/Features/WrongBookView.swift
+  h_5a1c62fd74efa2 1-870
+macos/scripts/make-app.sh
+  h_5a1c62fd74efa2 1-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4d016fb7e0e75d25179ce546e3c524f2d2339e76",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
