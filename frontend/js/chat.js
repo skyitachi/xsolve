@@ -435,7 +435,7 @@ async function readSSE(stream, onDone, onAborted) {
   const decoder = new TextDecoder("utf-8");
   let buf = "";
   const toolCards = {};
-  const partialState = { blocks: {}, activeTextDiv: null, textFinalized: false };
+  const partialState = { blocks: {}, activeTextDiv: null, textFinalized: false, sawError: false };
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -480,11 +480,13 @@ function handleEvent(event, payload, toolCards, partialState) {
       cancelStreamRender();
       addErrorMsg(payload.message || "未知错误");
       AiStatus.error(payload.message || "未知");
+      partialState.sawError = true;
       state.pendingNewSession = false;
       break;
     case "done":
       cancelStreamRender();
-      AiStatus.done();
+      // 后端发完 error 会紧跟一个 done，别把「出错」状态覆盖成「完成」
+      if (!partialState.sawError) AiStatus.done();
       if (state.pendingNewSession) {
         state.pendingNewSession = false;
         (async () => {

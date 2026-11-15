@@ -146,6 +146,29 @@ function captureSdkSessionId(session, msg) {
   }
 }
 
+// 「resume 指向的本地会话文件不存在」的特征。
+// 注意：SDK 此时抛出的异常常常是个空对象（日志里表现为 `[sdk error] {}`），
+// 所以不能只靠 e.message，必须同时看子进程的 stderr。
+const RESUME_FAILURE_RE = /no conversation found|conversation[^.]*not found|session[^.]*not found/i;
+
+/** SDK 异常 → 面向用户的可读文案 */
+function formatSdkError(e) {
+  const errMsg = e?.message || String(e || '');
+  let detail = errMsg;
+  if (e?.status) detail = `[HTTP ${e.status}] ${errMsg}`;
+  if (e?.type === 'authentication_error' || /api key|auth/i.test(errMsg)) {
+    detail = `鉴权失败：请检查 ANTHROPIC_API_KEY 是否正确设置。\n${errMsg}`;
+  } else if (/rate limit|overloaded/i.test(errMsg)) {
+    detail = `API 限流/过载，请稍后重试：\n${errMsg}`;
+  } else if (/network|fetch|ECONNRESET|ETIMEDOUT/i.test(errMsg)) {
+    detail = `网络错误，请检查网络连接：\n${errMsg}`;
+  }
+  return detail;
+}
+
+/** 查询已终止：turn 入口据此拒绝入队，避免前端无限等待 */
+function markQueryDead(s) { s.queryAlive = false; }
+
 /**
  * 创建一个 SDK 驱动的 session
  * @param {object} opts - { user, studentId, mode }
@@ -187,6 +210,7 @@ export function createSession(opts = {}) {
     runPromise: null,
     closed: false,
     sdkSessionId: null,
+    queryAlive: false,
     emit(event, data) {
       for (const sub of subscribers) sub(event, data);
     },
@@ -219,6 +243,7 @@ export function createSession(opts = {}) {
       env: buildChildEnv()
     }
   });
+  session.queryAlive = true;
 
   // 后台循环：把 SDK 消息推给当前订阅者
   session.runPromise = (async () => {
@@ -229,20 +254,12 @@ export function createSession(opts = {}) {
         session.emit('sdk_message', msg);
       }
       // 正常结束后发 done（安全网：确保即使 result 消息未到达，订阅者也能收到 done）
+      markQueryDead(session);
       session.emit('done', {});
     } catch (e) {
-      const errMsg = e.message || String(e);
-      let detail = errMsg;
-      if (e.status) detail = `[HTTP ${e.status}] ${errMsg}`;
-      if (e.type === 'authentication_error' || /api key|auth/i.test(errMsg)) {
-        detail = `鉴权失败：请检查 ANTHROPIC_API_KEY 是否正确设置。\n${errMsg}`;
-      } else if (/rate limit|overloaded/i.test(errMsg)) {
-        detail = `API 限流/过载，请稍后重试：\n${errMsg}`;
-      } else if (/network|fetch|ECONNRESET|ETIMEDOUT/i.test(errMsg)) {
-        detail = `网络错误，请检查网络连接：\n${errMsg}`;
-      }
+      markQueryDead(session);
       console.error('[sdk error]', e);
-      session.emit('error', { message: detail });
+      session.emit('error', { message: formatSdkError(e) });
       session.emit('done', {});
     }
   })();
@@ -305,71 +322,98 @@ export function restoreSession(id, user) {
     query: null,
     runPromise: null,
     closed: false,
+    queryAlive: false,
     emit(event, data) {
       for (const sub of subscribers) sub(event, data);
     },
     subscribe(fn) { subscribers.add(fn); return () => subscribers.delete(fn); }
   };
 
-  // 注册 MCP 工具集
-  const tutorMcp = buildTutorMcp(session);
+  // 自愈只允许一次：配置本身有问题时（如 Key 失效）不能无限重启子进程。
+  let recoveryTried = false;
 
-  // 从 DB 获取活跃 prompt
-  const promptInfo = resolveSystemPrompt(mode, id, session.studentId);
-  session.promptVersionId = promptInfo.versionId;
+  /**
+   * 启动（或重启）底层 SDK 查询。
+   * useResume=true 时带上 DB 里的 sdkSessionId；resume 失败会自动降级为
+   * 「不带历史」重启一次 —— 本地会话文件被清理是常见情况，不该让整个会话静默死掉。
+   */
+  function launch(useResume) {
+    let stderrSawResumeFailure = false;
+    let delivered = 0;
 
-  // 使用 SDK resume 机制恢复对话上下文
-  // SDK 会从持久化存储中加载之前的对话历史，无需手动注入
-  const resumeOpts = session.sdkSessionId
-    ? { resume: session.sdkSessionId }
-    : {};
+    const tutorMcp = buildTutorMcp(session);
+    const promptInfo = resolveSystemPrompt(mode, id, session.studentId);
+    session.promptVersionId = promptInfo.versionId;
 
-  session.query = query({
-    prompt: session.queue.iterable(),
-    options: {
-      systemPrompt: promptInfo.content,
-      mcpServers: { tutor: tutorMcp },
-      tools: [],
-      allowedTools: ALLOWED_TOOLS,
-      permissionMode: 'bypassPermissions',
-      settingSources: ['project'],        // 不读 ~/.claude/settings.json，避免其 ANTHROPIC_AUTH_TOKEN 干扰 .env
-      includePartialMessages: true,
-      stderr: (data) => {
-        const text = (typeof data === 'string' ? data : data.toString()).trimEnd();
-        if (text) console.error('[claude-code]', text);
-      },
-      ...(process.env.CLAUDE_MODEL ? { model: process.env.CLAUDE_MODEL } : {}),
-      ...resumeOpts,
-      env: buildChildEnv()
-    }
-  });
+    const resumeOpts = useResume && session.sdkSessionId
+      ? { resume: session.sdkSessionId }
+      : {};
 
-  // 后台循环
-  session.runPromise = (async () => {
-    try {
-      for await (const msg of session.query) {
-        if (session.closed) break;
-        captureSdkSessionId(session, msg);
-        session.emit('sdk_message', msg);
+    session.query = query({
+      prompt: session.queue.iterable(),
+      options: {
+        systemPrompt: promptInfo.content,
+        mcpServers: { tutor: tutorMcp },
+        tools: [],
+        allowedTools: ALLOWED_TOOLS,
+        permissionMode: 'bypassPermissions',
+        settingSources: ['project'],        // 不读 ~/.claude/settings.json，避免其 ANTHROPIC_AUTH_TOKEN 干扰 .env
+        includePartialMessages: true,
+        stderr: (data) => {
+          const text = (typeof data === 'string' ? data : data.toString()).trimEnd();
+          if (!text) return;
+          if (RESUME_FAILURE_RE.test(text)) stderrSawResumeFailure = true;
+          console.error('[claude-code]', text);
+        },
+        ...(process.env.CLAUDE_MODEL ? { model: process.env.CLAUDE_MODEL } : {}),
+        ...resumeOpts,
+        env: buildChildEnv()
       }
-      // 正常结束后发 done（安全网：确保即使 result 消息未到达，订阅者也能收到 done）
-      session.emit('done', {});
-    } catch (e) {
-      const errMsg = e.message || String(e);
-      let detail = errMsg;
-      if (e.status) detail = `[HTTP ${e.status}] ${errMsg}`;
-      if (e.type === 'authentication_error' || /api key|auth/i.test(errMsg)) {
-        detail = `鉴权失败：请检查 ANTHROPIC_API_KEY 是否正确设置。\n${errMsg}`;
-      } else if (/rate limit|overloaded/i.test(errMsg)) {
-        detail = `API 限流/过载，请稍后重试：\n${errMsg}`;
-      } else if (/network|fetch|ECONNRESET|ETIMEDOUT/i.test(errMsg)) {
-        detail = `网络错误，请检查网络连接：\n${errMsg}`;
+    });
+    session.queryAlive = true;
+
+    session.runPromise = (async () => {
+      try {
+        for await (const msg of session.query) {
+          if (session.closed) break;
+          delivered++;
+          captureSdkSessionId(session, msg);
+          session.emit('sdk_message', msg);
+        }
+        markQueryDead(session);
+        session.emit('done', {});
+      } catch (e) {
+        const errMsg = e?.message || String(e || '');
+        // resume 指向的本地会话文件被清理时，CLI 在 stderr 报「No conversation found」，
+        // 而 SDK 抛出的常常是空对象（[sdk error] {}）—— 两种信号都要认；
+        // 「用了 resume 且一条消息都没产出就崩」也按 resume 失败兜底。
+        const resumeFailed = stderrSawResumeFailure
+          || RESUME_FAILURE_RE.test(errMsg)
+          || (useResume && delivered === 0);
+
+        if (useResume && !recoveryTried && resumeFailed && !session.closed) {
+          recoveryTried = true;
+          console.warn(`[session] resume 失败（会话 ${id} 的 SDK 历史已丢失），清空 sdk_session_id 并无历史重启`);
+          session.sdkSessionId = null;
+          try { updateChatSession(id, { sdk_session_id: null }); } catch { /* ignore */ }
+          // 旧 query 已消费过 queue 的迭代器，换一个新的避免消息送进已死的 Promise
+          try { session.query && session.query.close && session.query.close(); } catch { /* ignore */ }
+          try { session.queue.close(); } catch { /* ignore */ }
+          session.queue = createInputQueue();
+          // 不发 error/done：这是内部自愈，订阅者（若有）继续等正常回复
+          launch(false);
+          return;
+        }
+
+        markQueryDead(session);
+        console.error('[sdk error]', e);
+        session.emit('error', { message: formatSdkError(e) });
+        session.emit('done', {});
       }
-      console.error('[sdk error]', e);
-      session.emit('error', { message: detail });
-      session.emit('done', {});
-    }
-  })();
+    })();
+  }
+
+  launch(!!session.sdkSessionId);
 
   sessions.set(id, session);
   return session;
@@ -440,6 +484,7 @@ export async function clearSessionHistory(s) {
       env: buildChildEnv()
     }
   });
+  s.queryAlive = true;
 
   // 4. 重启后台循环
   s.runPromise = (async () => {
@@ -449,20 +494,12 @@ export async function clearSessionHistory(s) {
         captureSdkSessionId(s, msg);
         s.emit('sdk_message', msg);
       }
+      markQueryDead(s);
       s.emit('done', {});
     } catch (e) {
-      const errMsg = e.message || String(e);
-      let detail = errMsg;
-      if (e.status) detail = `[HTTP ${e.status}] ${errMsg}`;
-      if (e.type === 'authentication_error' || /api key|auth/i.test(errMsg)) {
-        detail = `鉴权失败：请检查 ANTHROPIC_API_KEY 是否正确设置。\n${errMsg}`;
-      } else if (/rate limit|overloaded/i.test(errMsg)) {
-        detail = `API 限流/过载，请稍后重试：\n${errMsg}`;
-      } else if (/network|fetch|ECONNRESET|ETIMEDOUT/i.test(errMsg)) {
-        detail = `网络错误，请检查网络连接：\n${errMsg}`;
-      }
+      markQueryDead(s);
       console.error('[sdk error]', e);
-      s.emit('error', { message: detail });
+      s.emit('error', { message: formatSdkError(e) });
       s.emit('done', {});
     }
   })();
@@ -511,6 +548,7 @@ export async function abortTurn(s) {
       env: buildChildEnv()
     }
   });
+  s.queryAlive = true;
 
   // 4. 重启后台循环
   s.runPromise = (async () => {
@@ -520,11 +558,12 @@ export async function abortTurn(s) {
         captureSdkSessionId(s, msg);
         s.emit('sdk_message', msg);
       }
+      markQueryDead(s);
       s.emit('done', {});
     } catch (e) {
-      const errMsg = e.message || String(e);
+      markQueryDead(s);
       console.error('[sdk error after abort]', e);
-      s.emit('error', { message: errMsg });
+      s.emit('error', { message: formatSdkError(e) });
       s.emit('done', {});
     }
   })();

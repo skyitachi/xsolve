@@ -29,6 +29,15 @@ export async function handleTurn(req, res) {
   if (!canAccessSession(req.user, s)) {
     return res.status(403).json({ error: '无权访问该会话' });
   }
+  // SDK 查询已经终止（resume 失败 / 鉴权失败 / 子进程崩溃）：此时再入队只会让消息
+  // 沉在队列里、SSE 永远不结束，前端表现为「一直分析不出来结果」。明确报错，
+  // 让前端能显示失败原因并引导用户新建对话。
+  if (s.queryAlive === false) {
+    return res.status(503).json({
+      error: '这个会话的 AI 连接已断开，请点「新建对话」或刷新页面后重试。',
+      code: 'SESSION_QUERY_DEAD',
+    });
+  }
 
   // 游客试用限额：避免被当作免费 API 长期占用
   if (req.user && req.user.is_guest && GUEST_MAX_TURNS > 0) {
@@ -315,10 +324,12 @@ export async function handleTurn(req, res) {
     let effectiveText = userMsg || '';
     if (imgBody && imgBody.data) {
       s.lastImage = `data:${imgBody.mediaType || 'image/jpeg'};base64,${imgBody.data}`;
-      if (effectiveText && !/(图片|image|照片|上传|识别)/i.test(effectiveText)) {
-        effectiveText += '\n\n（学生刚刚上传了一张图片。如果你需要查看图片内容，请调用 recognize_problem_image 工具。）';
-      } else if (!effectiveText) {
-        effectiveText = '（学生上传了一张图片，请调用 recognize_problem_image 工具识别图片内容。）';
+      // 只要上传了图片，就确保提示里点名 recognize_problem_image。
+      // 旧逻辑在文案含「图片」二字时不再注入（upload.js 的拍题 prompt 恰好含），
+      // 只剩系统 prompt 兜着，换模型时容易漏调工具 → 表现为「识别不出结果」。
+      if (!/recognize_problem_image/.test(effectiveText)) {
+        effectiveText += (effectiveText ? '\n\n' : '') +
+          '（学生刚刚上传了一张题目图片。你（主代理）看不到图片内容，必须调用 recognize_problem_image 工具识别；不要凭空猜测题面。）';
       }
     }
 
