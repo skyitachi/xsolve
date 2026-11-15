@@ -6,4 +6,7 @@ Package.resolved
 # 打包出来的 .app
 *.app/
 
+# 图标中间产物（AppIcon.icns 已入库，iconset 可随时重新生成）
+Resources/AppIcon.iconset/
+
 .DS_Store

@@ -16,9 +16,18 @@ fi
 
 BIN=".build/release/XsolveMac"
 APP="XsolveMac.app"
+
+# 图标：icns 不存在时从矢量脚本重新生成（改了配色/造型后删掉 Resources/AppIcon.icns 即可）
+if [ ! -f Resources/AppIcon.icns ]; then
+  echo "==> 生成应用图标"
+  swift scripts/make-icon.swift
+  iconutil -c icns Resources/AppIcon.iconset -o Resources/AppIcon.icns
+fi
+
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/XsolveMac"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -32,6 +41,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleShortVersionString</key><string>1.0</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleExecutable</key><string>XsolveMac</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSMicrophoneUsageDescription</key>

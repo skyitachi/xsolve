@@ -83,12 +83,30 @@ swift run XsolveMac --uisend --base http://localhost:8765        # 真登录 + �
 - **纯文本不必过 WKWebView**：无 Markdown / 公式的消息直接用原生 `Text` 渲染，
   一条普通聊天不再拉起一个进程；含 `$...$`、`**`、表格等才走 WebView。
 
+## 应用图标
+
+图标是**代码画出来的矢量图**，不是位图素材，每一档尺寸都从矢量重绘（16px 下笔画依然清晰）：
+
+```bash
+swift scripts/make-icon.swift                 # 生成 Resources/AppIcon-1024.png + iconset
+iconutil -c icns Resources/AppIcon.iconset -o Resources/AppIcon.icns
+```
+
+- 设计沿用 Web 端品牌：`#5B4FF0 → #3B2FD0` 渐变、白色 ×、中心青色 `#27D2BF` 圆点。
+  但造型按 macOS 规范重绘 —— **超椭圆**（squircle）而非 Web 的普通圆角矩形，内容区 824/1024 留白 + 投影。
+- 改配色/造型：编辑 `scripts/make-icon.swift` 里的色值与 `arm` / `thickness`，重跑上面两条命令。
+- `make-app.sh` 在 `Resources/AppIcon.icns` 缺失时会自动生成；想强制重建就删掉它。
+- 小尺寸（≤32px）会自动关掉中心光晕，否则 16px 下会糊成一团青雾。
+
 ## 结构
 
 ```
 macos/
 ├── Package.swift
-├── scripts/make-app.sh          # 打包 .app + Info.plist（权限声明）
+├── Resources/AppIcon.icns       # 应用图标（由 scripts/make-icon.swift 生成）
+├── scripts/
+│   ├── make-app.sh              # 打包 .app + Info.plist（权限声明）
+│   └── make-icon.swift          # 矢量绘制图标 → iconset / icns
 └── Sources/XsolveMac/
     ├── App.swift                # 入口、全局状态、侧栏导航
     ├── Core/
