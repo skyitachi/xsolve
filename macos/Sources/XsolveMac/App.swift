@@ -117,18 +117,30 @@ struct XsolveApp: App {
     init() {
         // 无界面自检模式：验证接口契约后直接退出
         if SelfTest.shouldRun() { SelfTest.runAndExit() }
+        // UI 回归探针：模拟输入/流式重算，检查 WKWebView 是否被反复重建
+        if UIProbe.active { UIProbe.autorun() }
+        // 真实发送链路探针：登录 + 建会话 + 真 SSE 对话
+        if SendProbe.active { SendProbe.autorun() }
     }
 
     var body: some Scene {
         WindowGroup("小学AI做题助手") {
-            RootView()
-                .environmentObject(model)
-                .frame(minWidth: 1080, minHeight: 680)
-                .onAppear {
-                    if !model.bootstrapped {
-                        Task { await model.bootstrap() }
+            if SendProbe.active {
+                ChatPanel(state: SendProbe.state)
+                    .environmentObject(model)
+                    .frame(width: 560, height: 780)
+            } else if UIProbe.active {
+                ProbeRoot(m: UIProbe.model)
+            } else {
+                RootView()
+                    .environmentObject(model)
+                    .frame(minWidth: 1080, minHeight: 680)
+                    .onAppear {
+                        if !model.bootstrapped {
+                            Task { await model.bootstrap() }
+                        }
                     }
-                }
+            }
         }
         .windowStyle(.automatic)
     }

@@ -38,23 +38,40 @@ final class ToolCardState: ObservableObject, Identifiable {
     }
 }
 
-enum ChatEntry: Identifiable {
-    case user(text: String, imageData: String?)
-    case system(String)
-    case error(String)
-    case ai(AiTextBlock)
-    case tool(ToolCardState)
-    case diagram(url: String, title: String)
+/// 聊天条目。
+///
+/// ⚠️ id 必须是**存储属性**：早先写成 switch 里 `return UUID()` 的计算属性，
+/// 导致 `ForEach` 每次重算都得到全新身份 → 每一行被当作新视图销毁重建 →
+/// 每次重建都 new 一个 WKWebView（每个都拉起一个 WebContent 进程），
+/// 打字/流式时进程数暴涨到几百个，最终新建 WKWebView 卡死在 IORegisterForSystemPower。
+struct ChatEntry: Identifiable {
+    enum Kind {
+        case user(text: String, imageData: String?)
+        case system(String)
+        case error(String)
+        case ai(AiTextBlock)
+        case tool(ToolCardState)
+        case diagram(url: String, title: String)
+    }
 
-    var id: UUID {
-        switch self {
-        case .user: return UUID()
-        case .system(let s): return UUID()
-        case .error(let s): return UUID()
-        case .ai(let b): return b.id
-        case .tool(let c): return c.id
-        case .diagram: return UUID()
-        }
+    let id: UUID
+    let kind: Kind
+
+    init(_ kind: Kind, id: UUID = UUID()) {
+        self.id = id
+        self.kind = kind
+    }
+
+    // 静态工厂：让调用点仍可写 `.user(text:imageData:)` / `.ai(block)`
+    static func user(text: String, imageData: String?) -> ChatEntry {
+        ChatEntry(.user(text: text, imageData: imageData))
+    }
+    static func system(_ t: String) -> ChatEntry { ChatEntry(.system(t)) }
+    static func error(_ t: String) -> ChatEntry { ChatEntry(.error(t)) }
+    static func ai(_ b: AiTextBlock) -> ChatEntry { ChatEntry(.ai(b)) }
+    static func tool(_ c: ToolCardState) -> ChatEntry { ChatEntry(.tool(c)) }
+    static func diagram(url: String, title: String) -> ChatEntry {
+        ChatEntry(.diagram(url: url, title: title))
     }
 }
 

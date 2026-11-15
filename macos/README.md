@@ -54,11 +54,34 @@ swift run XsolveMac --selftest --base http://localhost:8765 --turn     # 额外�
 
 退出码 0 = 全绿。改后端返回体或客户端模型后，先跑它再手点界面。
 
+## UI 回归探针（WKWebView 不要爆炸）
+
+消息体是 WKWebView 渲染的，每条都对应一个 WebContent 进程，所以「重复创建」的代价极高。
+两个探针把这类问题变成可测的数字：
+
+```bash
+swift run XsolveMac --uiprobe                                   # 打字/流式重算 → 结果写 /tmp/xsolve-uiprobe.log
+swift run XsolveMac --uisend --base http://localhost:8765        # 真登录 + 真 SSE 三轮 → /tmp/xsolve-uisend.log
+```
+
+- `--uiprobe`：模拟 20 次输入 + 10 次流式增量，断言 `created` 不随重算次数增长（理想为 0）。
+- `--uisend`：自己挂 `NSHostingView` 强制真实布局（无窗口环境下 WindowGroup 不会开窗，
+  `windows=0` 时任何 `created` 都是假数据），断言 `created` 每条新消息只 +1、`live` 有回落。
+- 主线程被卡死时只有后台线程能跑，探针带 30s 看门狗，卡住也会写出结论并 `exit 2`。
+
 ## 与 Web 端的实现差异（踩过的坑）
 
 - **SSE 分帧不能靠 `AsyncBytes.lines`**：它不产出空行，拼不回 `\n\n` 分隔符，会一条事件都收不到且不报错。已改为按字节扫描。
 - **macOS 没有 `AVAudioSession`**：语音权限走 `AVCaptureDevice.requestAccess(for: .audio)`；录音与实时转写共用同一个 `AVAudioEngine` 的 tap（同时写 WAV + 喂 `SFSpeechAudioBufferRecognitionRequest`），避免抢麦克风。
 - **`Shape.path(in:)` 的入参是 `CGRect`**（不是 `CGSize`），`NSButton` 也没有 `onAction` —— 相机窗口用 `ClosureButton` 包了一层 target/action。
+- **`ForEach` 的 id 必须是存储属性**：`ChatEntry.id` 曾写成 `switch { case .user: return UUID() }`，
+  每次访问都是新身份 → 视图被反复销毁重建 → 每重建一次就 new 一个 WKWebView。
+  打字当时就崩在 `IORegisterForSystemPower`（新建 WebProcessPool 阻塞），实测 25 秒造出 400 个 WebContent 进程。
+- **WKWebView 必须显式拆**：`userContentController.add(coordinator)` 强引用 handler，
+  coordinator 再强引用 webView 就成了循环引用，webview 永不释放、进程只涨不降。
+  现在 `webView` 是 `weak`，并在 `dismantleNSView` 里 `removeScriptMessageHandler` + `stopLoading`。
+- **纯文本不必过 WKWebView**：无 Markdown / 公式的消息直接用原生 `Text` 渲染，
+  一条普通聊天不再拉起一个进程；含 `$...$`、`**`、表格等才走 WebView。
 
 ## 结构
 
@@ -71,8 +94,10 @@ macos/
     ├── Core/
     │   ├── APIClient.swift      # Cookie 会话、JSON 请求、SSE 流（取消即断流）
     │   ├── Models.swift         # 全部 API 的 Codable 模型 + JSONValue
-    │   ├── RichText.swift       # marked + KaTeX 渲染（WKWebView，自适高）
+    │   ├── RichText.swift       # marked + KaTeX 渲染（WKWebView，自适高；纯文本走原生 Text）
     │   ├── SelfTest.swift       # --selftest 接口契约自检
+    │   ├── UIProbe.swift        # --uiprobe 列表重算探针
+    │   ├── SendProbe.swift      # --uisend 真实发送链路探针
     │   └── Util.swift           # 图片/DataURL/裁剪/时间格式化
     └── Features/
         ├── LoginView.swift

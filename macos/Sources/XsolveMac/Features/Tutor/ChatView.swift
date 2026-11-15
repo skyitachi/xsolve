@@ -169,7 +169,7 @@ struct ChatEntryView: View {
     let entry: ChatEntry
 
     var body: some View {
-        switch entry {
+        switch entry.kind {
         case .user(let text, let imageData):
             HStack(alignment: .top, spacing: 8) {
                 Spacer()

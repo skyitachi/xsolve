@@ -1,5 +1,37 @@
 import Foundation
 
+// MARK: - 容错主键
+//
+// 同一个字段后端可能给整数也可能给字符串（例如 student_attempts.id 视建表方式而定）。
+// 用它接住两种形态，避免一个字段的类型漂移让整页解码失败、界面静默空白。
+
+struct FlexID: Codable, Hashable, CustomStringConvertible {
+    let raw: String
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if let i = try? c.decode(Int.self) {
+            raw = String(i)
+        } else if let s = try? c.decode(String.self) {
+            raw = s
+        } else if let d = try? c.decode(Double.self) {
+            raw = String(Int(d))
+        } else {
+            throw DecodingError.typeMismatch(
+                FlexID.self,
+                .init(codingPath: decoder.codingPath,
+                      debugDescription: "期望 int 或 string"))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        if let i = Int(raw) { try c.encode(i) } else { try c.encode(raw) }
+    }
+
+    var description: String { raw }
+}
+
 // MARK: - 动态 JSON 值（工具入参 / 任意结构容错）
 
 enum JSONValue: Codable, Hashable {
@@ -294,9 +326,9 @@ struct MasteryRow: Codable, Hashable, Identifiable {
     let last_seen: Double?
 }
 struct AttemptRow: Codable, Hashable, Identifiable {
-    let id: Int
+    let id: FlexID
     let session_id: String?
-    let turn_id: Int?
+    let turn_id: FlexID?
     let problem_id: String?
     let topic: String?
     let user_answer: String?
@@ -305,6 +337,43 @@ struct AttemptRow: Codable, Hashable, Identifiable {
     let duration_ms: Int?
     let error_type: String?
     let created_at: Double?
+
+    /// 后端直接吐 SQLite 原值：`correct` 是 0/1 而不是 true/false，
+    /// 主键也可能是 UUID 字符串 —— 逐字段容错，避免一处漂移让整页空白。
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(FlexID.self, forKey: .id)
+        session_id = try c.decodeIfPresent(String.self, forKey: .session_id)
+        turn_id = try c.decodeIfPresent(FlexID.self, forKey: .turn_id)
+        problem_id = try c.decodeIfPresent(String.self, forKey: .problem_id)
+        topic = try c.decodeIfPresent(String.self, forKey: .topic)
+        user_answer = try c.decodeIfPresent(String.self, forKey: .user_answer)
+        correct = try c.decodeFlexBool(forKey: .correct)
+        hint_count = try c.decodeIfPresent(Int.self, forKey: .hint_count)
+        duration_ms = try c.decodeIfPresent(Int.self, forKey: .duration_ms)
+        error_type = try c.decodeIfPresent(String.self, forKey: .error_type)
+        created_at = try c.decodeIfPresent(Double.self, forKey: .created_at)
+    }
+}
+
+extension KeyedDecodingContainer {
+    /// 同时接受 true/false、0/1、"1"/"true"
+    func decodeFlexBool(forKey key: Key) throws -> Bool {
+        if let b = try? decode(Bool.self, forKey: key) { return b }
+        if let i = try? decode(Int.self, forKey: key) { return i != 0 }
+        if let d = try? decode(Double.self, forKey: key) { return d != 0 }
+        if let s = try? decode(String.self, forKey: key) {
+            return s == "1" || s.lowercased() == "true"
+        }
+        throw DecodingError.typeMismatch(
+            Bool.self,
+            .init(codingPath: codingPath + [key], debugDescription: "期望 bool / 0-1 / 字符串"))
+    }
+
+    func decodeFlexBoolIfPresent(forKey key: Key) throws -> Bool? {
+        guard contains(key), try !decodeNil(forKey: key) else { return nil }
+        return try decodeFlexBool(forKey: key)
+    }
 }
 struct StudentProfile: Codable, Hashable {
     let student_id: String?

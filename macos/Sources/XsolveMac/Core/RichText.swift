@@ -12,6 +12,11 @@ final class RichTextHeightBox: ObservableObject {
 }
 
 struct RichText: View {
+    /// 诊断用：累计创建过多少个 WKWebView（每个都会拉起一个 WebContent 进程）
+    nonisolated(unsafe) static var createdCount = 0
+    /// 同时存活的上限，超出的消息降级为原生文本（安全阀，防止任何路径失控）
+    nonisolated(unsafe) static var liveCount = 0
+
     let text: String
     /// true = 用户输入（先做 HTML 转义再渲染，防注入），与 Web 端 escape 语义一致
     var isUserInput: Bool = false
@@ -20,8 +25,29 @@ struct RichText: View {
     @StateObject private var box = RichTextHeightBox()
 
     var body: some View {
-        MarkdownWebView(text: text, isUserInput: isUserInput, fontSize: fontSize, heightBox: box)
-            .frame(height: max(box.height, 12))
+        // 纯文本（无 Markdown / 公式）用原生 Text 渲染：
+        // 一条普通消息不必为此拉起一个 WebContent 进程，滚动也更跟手。
+        if RichText.canRenderNatively(text) {
+            Text(text)
+                .font(.system(size: fontSize))
+                .lineSpacing(3)
+                .foregroundStyle(Color(hex: 0x1F2937))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+        } else {
+            MarkdownWebView(text: text, isUserInput: isUserInput, fontSize: fontSize, heightBox: box)
+                .frame(height: max(box.height, 12))
+        }
+    }
+
+    /// 判定能否用原生 Text 渲染（保守：只要出现任何 Markdown / 公式迹象就走 WebView）
+    static func canRenderNatively(_ s: String) -> Bool {
+        guard !s.isEmpty else { return true }
+        guard liveCount < 14 else { return false }   // 安全阀
+        if s.contains("$") || s.contains("\\(") || s.contains("\\[") { return false }
+        let signals = ["```", "**", "__", "`", "|", "#", ">", "* ", "- ", "+ ", "](", "~~"]
+        return !signals.contains { s.contains($0) }
     }
 }
 
@@ -32,6 +58,8 @@ struct MarkdownWebView: NSViewRepresentable {
     @ObservedObject var heightBox: RichTextHeightBox
 
     func makeNSView(context: Context) -> WKWebView {
+        RichText.createdCount += 1
+        RichText.liveCount += 1
         let cfg = WKWebViewConfiguration()
         cfg.userContentController.add(context.coordinator, name: "height")
         let wv = WKWebView(frame: .zero, configuration: cfg)
@@ -56,11 +84,20 @@ struct MarkdownWebView: NSViewRepresentable {
         }
     }
 
+    /// 视图销毁时必须主动拆干净。
+    /// userContentController 会**强引用** scriptMessageHandler（coordinator），
+    /// 若 coordinator 又强引用 webView，就成了循环引用 —— WKWebView 永不释放，
+    /// 每个残留的 webview 都带着一个 WebContent 进程，进程数只涨不降。
+    static func dismantleNSView(_ wv: WKWebView, coordinator: Coordinator) {
+        coordinator.dispose()
+        RichText.liveCount = max(0, RichText.liveCount - 1)
+    }
+
     func makeCoordinator() -> Coordinator { Coordinator(heightBox: heightBox) }
 
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         let heightBox: RichTextHeightBox
-        var webView: WKWebView?
+        weak var webView: WKWebView?      // 弱引用：生命周期交给 SwiftUI
         var lastText = "\u{0}"          // 与首个文本必不相同
         var pendingText: String?
         var renderTask: DispatchWorkItem?
@@ -69,6 +106,16 @@ struct MarkdownWebView: NSViewRepresentable {
         var isUserInput = false
 
         init(heightBox: RichTextHeightBox) { self.heightBox = heightBox }
+
+        func dispose() {
+            renderTask?.cancel()
+            renderTask = nil
+            pendingText = nil
+            webView?.configuration.userContentController.removeScriptMessageHandler(forName: "height")
+            webView?.stopLoading()
+            webView?.navigationDelegate = nil
+            webView = nil
+        }
 
         /// 与 Web 端 `__set([text, isUserInput])` 对齐：编码成两元数组
         private struct Payload: Encodable {
