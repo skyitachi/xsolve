@@ -1,0 +1,20 @@
+macos/.gitignore
+  h_5a1c62fd74efa2 9-11
+macos/README.md
+  h_5a1c62fd74efa2 86-100,106-109
+macos/scripts/make-app.sh
+  h_5a1c62fd74efa2 19-26,28,30,44
+macos/scripts/make-icon.swift
+  h_5a1c62fd74efa2 1-227
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5b787875f77160e8993f5a802850dbecfc1cd2eb",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
