@@ -1,0 +1,9 @@
+# Swift / SPM 构建产物
+.build/
+.swiftpm/
+Package.resolved
+
+# 打包出来的 .app
+*.app/
+
+.DS_Store

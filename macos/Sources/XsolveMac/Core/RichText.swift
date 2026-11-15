@@ -1,0 +1,188 @@
+import SwiftUI
+import WebKit
+
+// MARK: - Markdown + KaTeX 富文本渲染
+//
+// 与 Web 端完全同一套渲染链：marked（Markdown）+ KaTeX（数学公式），
+// 资源直接复用后端静态目录 /vendor 下的本地化文件（离线可用，无 CDN 依赖）。
+// WKWebView 是 macOS 原生框架（WebKit），这是原生应用里渲染 LaTeX 的正路。
+
+final class RichTextHeightBox: ObservableObject {
+    @Published var height: CGFloat = 28
+}
+
+struct RichText: View {
+    let text: String
+    /// true = 用户输入（先做 HTML 转义再渲染，防注入），与 Web 端 escape 语义一致
+    var isUserInput: Bool = false
+    var fontSize: CGFloat = 14
+
+    @StateObject private var box = RichTextHeightBox()
+
+    var body: some View {
+        MarkdownWebView(text: text, isUserInput: isUserInput, fontSize: fontSize, heightBox: box)
+            .frame(height: max(box.height, 12))
+    }
+}
+
+struct MarkdownWebView: NSViewRepresentable {
+    let text: String
+    var isUserInput: Bool = false
+    var fontSize: CGFloat = 14
+    @ObservedObject var heightBox: RichTextHeightBox
+
+    func makeNSView(context: Context) -> WKWebView {
+        let cfg = WKWebViewConfiguration()
+        cfg.userContentController.add(context.coordinator, name: "height")
+        let wv = WKWebView(frame: .zero, configuration: cfg)
+        wv.setValue(false, forKey: "drawsBackground")
+        wv.navigationDelegate = context.coordinator
+        context.coordinator.webView = wv
+        let base: URL
+        if let u = URL(string: APIClient.shared.baseURL) { base = u } else { base = URL(string: "http://localhost:8765")! }
+        let html = Self.html(base: base.absoluteString, fontSize: fontSize, isUserInput: isUserInput)
+        wv.loadHTMLString(html, baseURL: base)
+        context.coordinator.pendingText = text
+        // 页面就绪后渲染初始文本
+        context.coordinator.scheduleRender(text: text, force: true)
+        return wv
+    }
+
+    func updateNSView(_ wv: WKWebView, context: Context) {
+        context.coordinator.fontSize = fontSize
+        context.coordinator.isUserInput = isUserInput
+        if text != context.coordinator.lastText {
+            context.coordinator.scheduleRender(text: text)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(heightBox: heightBox) }
+
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+        let heightBox: RichTextHeightBox
+        var webView: WKWebView?
+        var lastText = "\u{0}"          // 与首个文本必不相同
+        var pendingText: String?
+        var renderTask: DispatchWorkItem?
+        var lastRenderAt = Date.distantPast
+        var fontSize: CGFloat = 14
+        var isUserInput = false
+
+        init(heightBox: RichTextHeightBox) { self.heightBox = heightBox }
+
+        /// 与 Web 端 `__set([text, isUserInput])` 对齐：编码成两元数组
+        private struct Payload: Encodable {
+            let text: String
+            let user: Bool
+            func encode(to encoder: Encoder) throws {
+                var c = encoder.unkeyedContainer()
+                try c.encode(text)
+                try c.encode(user)
+            }
+        }
+
+        func scheduleRender(text: String, force: Bool = false) {
+            pendingText = text
+            renderTask?.cancel()
+            // 流式输出节流：80ms 内只渲一次（等价 Web 端的 rAF 节流）
+            let wait: TimeInterval = force ? 0 : max(0, 0.08 - Date().timeIntervalSince(lastRenderAt))
+            let task = DispatchWorkItem { [weak self] in self?.renderNow() }
+            renderTask = task
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait, execute: task)
+        }
+
+        func renderNow() {
+            guard let wv = webView, let text = pendingText else { return }
+            pendingText = nil
+            lastText = text
+            lastRenderAt = Date()
+            let payload: String
+            if let data = try? JSONEncoder().encode(Payload(text: text, user: isUserInput)) {
+                payload = String(data: data, encoding: .utf8) ?? "[\"\"]"
+            } else { payload = "[\"\"]" }
+            wv.evaluateJavaScript("__set(\(payload))", completionHandler: nil)
+        }
+
+        /// 页面脚本（marked / KaTeX）加载完成后补渲一次。
+        /// loadHTMLString 之后立刻 evaluateJavaScript，`__set` 往往还没定义 —— 静默失败，卡片会空白。
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard lastText != "\u{0}" else { return }
+            pendingText = lastText
+            renderNow()
+        }
+
+        func userContentController(_ ucc: WKUserContentController, didReceive message: WKScriptMessage) {            if message.name == "height", let h = message.body as? NSNumber {
+                let v = CGFloat(truncating: h)
+                if abs(v - heightBox.height) > 0.5 {
+                    DispatchQueue.main.async { self.heightBox.height = v }
+                }
+            }
+        }
+    }
+
+    static func html(base: String, fontSize: CGFloat, isUserInput: Bool) -> String {
+        """
+        <!doctype html><html><head><meta charset="utf-8">
+        <link rel="stylesheet" href="\(base)/vendor/katex/katex.min.css">
+        <script src="\(base)/vendor/marked/marked.min.js"></script>
+        <script src="\(base)/vendor/katex/katex.min.js"></script>
+        <script src="\(base)/vendor/katex/contrib/auto-render.min.js"></script>
+        <style>
+          html,body{margin:0;padding:0;background:transparent;
+            font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;
+            font-size:\(Int(fontSize))px;line-height:1.65;color:#1f2937;
+            word-break:break-word;overflow:hidden;}
+          img{max-width:100%;border-radius:8px;}
+          pre{background:#f3f4f6;padding:8px 10px;border-radius:8px;overflow-x:auto;font-size:12px;}
+          code{font-family:ui-monospace,Menlo,monospace;background:#f3f4f6;padding:1px 4px;border-radius:4px;font-size:12.5px;}
+          pre code{background:none;padding:0;}
+          table{border-collapse:collapse;margin:6px 0;}
+          td,th{border:1px solid #e5e7eb;padding:4px 8px;}
+          blockquote{border-left:3px solid #c7d2fe;margin:6px 0;padding:2px 10px;color:#4b5563;}
+          ul,ol{padding-left:20px;margin:4px 0;}
+          .katex-display{margin:6px 0;overflow-x:auto;}
+        </style></head>
+        <body><div id="c"></div>
+        <script>
+        var __raw='';
+        function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+        function renderNow(){
+          var el=document.getElementById('c');
+          var src=__raw;
+          try{
+            if(window.marked){ el.innerHTML=marked.parse(src); }
+            else{ el.innerHTML='<pre>'+esc(src)+'</pre>'; }
+          }catch(e){ el.textContent=src; }
+          if(window.renderMathInElement){
+            try{
+              renderMathInElement(el,{delimiters:[
+                {left:'$$',right:'$$',display:true},
+                {left:'$',right:'$',display:false}
+              ],throwOnError:false});
+            }catch(e){}
+          }
+          setTimeout(function(){
+            try{webkit.messageHandlers.height.postMessage(document.body.scrollHeight);}catch(e){}
+          },30);
+        }
+        function __set(pair){
+          __raw = pair[1] ? esc(pair[0]) : pair[0];
+          renderNow();
+        }
+        </script>
+        </body></html>
+        """
+    }
+}
+
+// MARK: - 通用 WebView（分步作图 iframe 用）
+
+struct WebViewRep: NSViewRepresentable {
+    let url: URL
+    func makeNSView(context: Context) -> WKWebView {
+        let wv = WKWebView()
+        wv.load(URLRequest(url: url))
+        return wv
+    }
+    func updateNSView(_ wv: WKWebView, context: Context) {}
+}
