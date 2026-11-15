@@ -1,0 +1,28 @@
+macos/README.md
+  h_5a1c62fd74efa2 57-71,77-84,97,99-100
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 120-123,128-141,143
+macos/Sources/XsolveMac/Core/Models.swift
+  h_5a1c62fd74efa2 3-34,329,331,340-376
+macos/Sources/XsolveMac/Core/RichText.swift
+  h_5a1c62fd74efa2 15-19,28-50,61-62,87-95,100,110-119
+macos/Sources/XsolveMac/Core/SendProbe.swift
+  h_5a1c62fd74efa2 1-109
+macos/Sources/XsolveMac/Core/UIProbe.swift
+  h_5a1c62fd74efa2 1-110
+macos/Sources/XsolveMac/Features/Tutor/ChatView.swift
+  h_5a1c62fd74efa2 172
+macos/Sources/XsolveMac/Features/Tutor/TutorState.swift
+  h_5a1c62fd74efa2 41-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "38a92cbbed8a26b73ab2a8483a95511b81bb25b6",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
