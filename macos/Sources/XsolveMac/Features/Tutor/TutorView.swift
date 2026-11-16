@@ -27,7 +27,9 @@ struct TutorView: View {
         .sheet(isPresented: $state.showManualInput) {
             ManualInputDialog(state: state)
         }
-        .sheet(isPresented: $state.showAbout) { AboutDialog() }
+        .sheet(isPresented: $state.showAbout) {
+            AboutDialog { state.showAbout = false }
+        }
         .sheet(item: proposalBinding) { p in
             ProposalDialog(state: state, problem: p)
         }

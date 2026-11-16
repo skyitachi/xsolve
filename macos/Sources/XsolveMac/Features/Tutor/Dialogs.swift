@@ -95,6 +95,9 @@ struct DeleteConfirmDialog: View {
 // MARK: - 关于弹窗（settings-dialog）
 
 struct AboutDialog: View {
+    /// 由父视图直接翻 showAbout 状态位，不依赖 sheet 的环境 dismiss
+    var onClose: () -> Void
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("关于").font(.headline)
@@ -108,10 +111,18 @@ struct AboutDialog: View {
                 .font(.footnote).foregroundStyle(.secondary)
             HStack {
                 Spacer()
-                Button("好") {}.keyboardShortcut(.defaultAction)
+                Button("好") { onClose() }.keyboardShortcut(.defaultAction)
             }
         }
         .padding(18)
         .frame(width: 420)
+        // 兜底：Esc 也能关，避免只有一个按钮时用户无处可退
+        .background(
+            Button("") { onClose() }
+                .keyboardShortcut(.cancelAction)
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+        )
     }
 }
