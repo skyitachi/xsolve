@@ -1,0 +1,22 @@
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 130-131,140-143
+macos/Sources/XsolveMac/Core/DrawProbe.swift
+  h_5a1c62fd74efa2 176-221
+macos/Sources/XsolveMac/Core/RecogProbe.swift
+  h_5a1c62fd74efa2 1-125
+macos/Sources/XsolveMac/Features/Tutor/TutorState.swift
+  h_5a1c62fd74efa2 453-456,699-703,705-707,709-714,716-720,722,849-864,866-885,889-891,893-901,932,935-937,940-941
+macos/Sources/XsolveMac/Features/Tutor/TutorView.swift
+  h_5a1c62fd74efa2 281
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3e1bdd0d66362249669220ae15abfa5058681ebe",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
