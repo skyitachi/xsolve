@@ -450,7 +450,10 @@ final class TutorState: ObservableObject {
         status.begin(hasMedia ? "正在上传媒体…" : "思考中…")
 
         // 草稿先同步（有笔迹时连图片一起传，让 recognize_scratch / 自动识别可用）
-        await syncScratchToServer()
+        let scratchSynced = await syncScratchToServer()
+        if !scratchSynced && scratch.strokes.count > 0 {
+            systemMsg("⚠️ 草稿没能上传成功，这一轮 AI 可能看不到你写的过程（网络或会话异常，可重试一次）。")
+        }
 
         blocks = [:]
         toolCards = [:]
@@ -693,20 +696,30 @@ final class TutorState: ObservableObject {
 
     // MARK: 草稿同步（scratch.js syncScratchToServer）
 
-    func syncScratchToServer() async {
-        guard let sid = sessionId else { return }
+    /// 返回 false = 有笔画但没能完整送到服务端（此时 AI 看不到草稿，
+    /// 却会回一句「草稿板是空的」，用户只会觉得「识别坏了」—— 必须报出来）
+    @discardableResult
+    func syncScratchToServer() async -> Bool {
+        guard let sid = sessionId else { return false }
         let count = scratch.strokes.count
-        _ = try? await api.requestOK("POST", "api/session/\(sid)/scratch", body: ["strokes": count])
+        var ok = true
+        do { _ = try await api.requestOK("POST", "api/session/\(sid)/scratch", body: ["strokes": count]) }
+        catch { ok = false }
         if count > 0 {
-            guard let dataURL = scratch.exportImage() else { return }
-            _ = try? await api.requestOK("POST", "api/session/\(sid)/scratch-image", body: [
-                "image": AnyEncodable(dataURL), "strokes": AnyEncodable(count),
-            ])
+            guard let dataURL = scratch.exportImage() else { return false }
+            do {
+                _ = try await api.requestOK("POST", "api/session/\(sid)/scratch-image", body: [
+                    "image": AnyEncodable(dataURL), "strokes": AnyEncodable(count),
+                ])
+            } catch { ok = false }
         } else {
-            _ = try? await api.requestOK("POST", "api/session/\(sid)/scratch-image", body: [
-                "image": AnyEncodable(nil as String?), "strokes": AnyEncodable(0),
-            ])
+            do {
+                _ = try await api.requestOK("POST", "api/session/\(sid)/scratch-image", body: [
+                    "image": AnyEncodable(nil as String?), "strokes": AnyEncodable(0),
+                ])
+            } catch { ok = false }
         }
+        return ok
     }
 
     // MARK: 识别草稿按钮
@@ -833,20 +846,59 @@ final class ScratchModel: ObservableObject {
         strokes = []
     }
 
+    /// 墨迹包围盒（跳过橡皮：它只覆盖不加墨），用于导出时裁掉大片空白
+    func inkBounds(padding: CGFloat = 16) -> CGRect? {
+        var minX = Double.infinity, minY = Double.infinity
+        var maxX = -Double.infinity, maxY = -Double.infinity
+        for s in strokes where s.t != "eraser" {
+            for pt in s.p {
+                minX = min(minX, pt.x); minY = min(minY, pt.y)
+                maxX = max(maxX, pt.x); maxY = max(maxY, pt.y)
+            }
+        }
+        guard minX.isFinite, minY.isFinite, maxX.isFinite, maxY.isFinite else { return nil }
+        let pad = padding + Self.penWidth
+        return CGRect(x: minX - pad, y: minY - pad,
+                      width: (maxX - minX) + pad * 2, height: (maxY - minY) + pad * 2)
+    }
+
     /// 导出白底黑字 JPEG（exportScratchImage 语义）
-    func exportImage() -> String? {
-        guard let size = canvasSize, size.width > 2, size.height > 2 else { return nil }
-        let w = Int(size.width), h = Int(size.height)
+    ///
+    /// 三个都是「识别不出来」的真凶，缺一个都会让视觉模型读成涂鸦：
+    /// 1. 位图上下文是**左下原点**，笔画存的是左上原点 —— 不翻转就得到上下颠倒的图
+    ///    （旧断言只数「有没有深色像素」，颠倒的图照样有，所以一直没暴露；
+    ///    症状是 9 被读成 6）。
+    /// 2. 整块画布导出时大部分是空白，模型降采样后字只剩几个像素。
+    ///    → 按墨迹包围盒裁剪。
+    /// 3. 1x 导出时 2.6pt 的细笔只有两条像素。→ 按长边缩放到 ~1000px。
+    func exportImage(scale: CGFloat = 2, targetLongEdge: CGFloat = 1000) -> String? {
+        guard let canvas = canvasSize, canvas.width > 2, canvas.height > 2 else { return nil }
+        var region = inkBounds().map { $0.intersection(CGRect(origin: .zero, size: canvas)) } ?? CGRect(origin: .zero, size: canvas)
+        if region.width < 8 || region.height < 8 {
+            region = CGRect(origin: .zero, size: canvas)
+        }
+        // 缩放：让长边落在 targetLongEdge 附近（小字放大、大字不无限放大）
+        let long = max(region.width, region.height)
+        var s = long < 1 ? scale : targetLongEdge / long
+        s = min(max(s, 1), scale * 1.5)
+        let w = Int((region.width * s).rounded()), h = Int((region.height * s).rounded())
+        guard w > 2, h > 2 else { return nil }
         guard let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil, pixelsWide: w, pixelsHigh: h,
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { return nil }
-        let ctx = NSGraphicsContext(bitmapImageRep: rep)
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+              let gctx = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
+
         NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = ctx
-        NSColor.white.setFill()
-        ctx?.cgContext.fill(CGRect(x: 0, y: 0, width: w, height: h))
-        render(in: CGRect(x: 0, y: 0, width: w, height: h))
+        NSGraphicsContext.current = gctx
+        let cg = gctx.cgContext
+        cg.setFillColor(NSColor.white.cgColor)
+        cg.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        // 裁出 region → 翻成左上原点 → 放大：之后 render 里就能直接用画布点坐标
+        cg.translateBy(x: 0, y: CGFloat(h))
+        cg.scaleBy(x: s, y: -s)
+        cg.translateBy(x: -region.minX, y: -region.minY)
+        render(in: region)
         NSGraphicsContext.restoreGraphicsState()
         guard let data = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9]) else { return nil }
         return "data:image/jpeg;base64," + data.base64EncodedString()
@@ -877,13 +929,16 @@ final class ScratchModel: ObservableObject {
     }
 
     /// 笔画重放（导出 / 位图上下文用；必须由调用方先把 NSGraphicsContext.current 设好）
+    /// 坐标按「画布点坐标、左上原点」写；调用方负责把上下文翻成左上原点（见 exportImage）。
     func render(in rect: CGRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
-        // 注意：SwiftUI Canvas 与 NSImage 导出坐标系都以上左为原点，笔画存的是上左原点坐标
+        // 导出铺的是纯白底，橡皮就用白色盖 —— 纸色在这里会留下一道比背景更暗的痕
+        let eraser = NSColor.white.cgColor
+        let ink = NSColor(hex: 0x1F2937).cgColor
         for s in strokes {
             let isEraser = s.t == "eraser"
-            ctx.setStrokeColor(isEraser ? NSColor(red: 1, green: 0.996, blue: 0.965, alpha: 1).cgColor : NSColor(hex: 0x1F2937).cgColor)
-            ctx.setFillColor(isEraser ? NSColor(red: 1, green: 0.996, blue: 0.965, alpha: 1).cgColor : NSColor(hex: 0x1F2937).cgColor)
+            ctx.setStrokeColor(isEraser ? eraser : ink)
+            ctx.setFillColor(isEraser ? eraser : ink)
             ctx.setLineWidth(isEraser ? Self.eraserWidth : Self.penWidth)
             ctx.setLineCap(.round)
             ctx.setLineJoin(.round)

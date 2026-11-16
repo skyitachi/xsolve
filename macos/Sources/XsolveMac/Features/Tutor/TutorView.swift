@@ -278,7 +278,7 @@ private struct TriangleFigure: View {
 
 // MARK: - 做题区（答案输入 + 工具条 + 草稿板）
 
-private struct WorkPanel: View {
+struct WorkPanel: View {
     @ObservedObject var state: TutorState
     @State private var showProblemPicker = false   // 拍题/选题入口
     @State private var showAnswerPicker = false

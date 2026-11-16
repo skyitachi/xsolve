@@ -173,6 +173,52 @@ enum DrawProbe {
         check("橡皮擦掉了墨迹", inkAfter > 0 && inkAfter < inkBefore,
               "\(inkBefore) → \(inkAfter)")
 
+        // 导出方向：位图上下文是左下原点，笔画坐标是左上原点 —— 少一次翻转就会得到
+        // 上下颠倒的图。旧断言只数墨迹像素，颠倒的图照样「有墨迹」，于是视觉模型
+        // 把 9 读成 6、把算式读成一团涂鸦，表现为「识别草稿用不了」。
+        // 上重下轻的构图：顶部一条长笔画，底部一个孤点。
+        func inkHalves(_ dataURL: String?) -> (top: Int, bottom: Int, w: Int, h: Int)? {
+            guard let dataURL,
+                  let comma = dataURL.firstIndex(of: ","),
+                  let data = Data(base64Encoded: String(dataURL[dataURL.index(after: comma)...])),
+                  let rep = NSBitmapImageRep(data: data),
+                  let p = rep.bitmapData else { return nil }
+            let spp = rep.samplesPerPixel, bpr = rep.bytesPerRow
+            var top = 0, bottom = 0
+            for y in 0..<rep.pixelsHigh {
+                for x in stride(from: 0, to: rep.pixelsWide, by: 1) {
+                    let o = y * bpr + x * spp
+                    guard o + 2 < bpr * rep.pixelsHigh else { continue }
+                    let lum = (Int(p[o]) + Int(p[o + 1]) + Int(p[o + 2])) / 3
+                    if lum < 120 {
+                        if y < rep.pixelsHigh / 2 { top += 1 } else { bottom += 1 }
+                    }
+                }
+            }
+            return (top, bottom, rep.pixelsWide, rep.pixelsHigh)
+        }
+        model.tool = "pen"
+        model.clear()
+        model.append(point: StrokePoint(x: 20, y: 20))
+        model.extendLast(point: StrokePoint(x: 580, y: 20))
+        model.append(point: StrokePoint(x: 300, y: 280))   // 底部孤点（墨量远小于上部）
+        if let r = inkHalves(model.exportImage()) {
+            check("导出图方向正确（顶部笔画不会跑到下面）", r.top > r.bottom * 4,
+                  "上半墨 \(r.top) / 下半墨 \(r.bottom)，图 \(r.w)×\(r.h)")
+        } else {
+            check("导出图方向正确（顶部笔画不会跑到下面）", false, "读不到像素")
+        }
+        // 裁剪：字只占左上角一小块时，导出图不该还是整块画布（大片空白会把字压小）
+        model.clear()
+        model.append(point: StrokePoint(x: 30, y: 30))
+        model.extendLast(point: StrokePoint(x: 90, y: 60))
+        if let r = inkHalves(model.exportImage()) {
+            check("导出图按墨迹裁剪（不留大片空白）", r.w < 400 && r.h < 400,
+                  "图 \(r.w)×\(r.h)（画布 600×300）")
+        } else {
+            check("导出图按墨迹裁剪（不留大片空白）", false, "读不到像素")
+        }
+
         // B. UI 层：合成鼠标事件（需要窗口拿到键盘焦点，后台进程通常做不到）
         guard controlOK else {
             log("-- UI 层：跳过（窗口 key=\(win.isKeyWindow)，对照组按钮也没收到点击 →")

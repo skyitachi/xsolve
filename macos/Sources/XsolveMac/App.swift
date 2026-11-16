@@ -127,6 +127,8 @@ struct XsolveApp: App {
         if DrawProbe.active { DrawProbe.runAndExit() }
         // 视觉探针：工具条/画布离屏渲染成 PNG，供人工验收
         if SnapProbe.active { SnapProbe.runAndExit() }
+        // 「识别草稿」链路探针：真 exportImage + 真 SSE，导出图落盘供目视
+        if RecogProbe.active { RecogProbe.autorun() }
     }
 
     var body: some Scene {
@@ -135,6 +137,10 @@ struct XsolveApp: App {
                 ChatPanel(state: SendProbe.state)
                     .environmentObject(model)
                     .frame(width: 560, height: 780)
+            } else if RecogProbe.active {
+                WorkPanel(state: RecogProbe.state)
+                    .environmentObject(model)
+                    .frame(width: 760, height: 900)
             } else if UIProbe.active {
                 ProbeRoot(m: UIProbe.model)
             } else {
