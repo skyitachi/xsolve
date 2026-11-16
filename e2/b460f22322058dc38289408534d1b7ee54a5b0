@@ -1,0 +1,16 @@
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 126-127
+macos/Sources/XsolveMac/Core/DrawProbe.swift
+  h_5a1c62fd74efa2 1-187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e2b460f22322058dc38289408534d1b7ee54a5b0",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
