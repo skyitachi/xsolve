@@ -123,6 +123,8 @@ struct XsolveApp: App {
         if SendProbe.active { SendProbe.autorun() }
         // 富文本取色探针：深色/浅色外观下正文、表格、公式的实际颜色
         if ColorProbe.active { ColorProbe.runAndExit() }
+        // 草稿画布探针：合成鼠标事件，验证画笔/橡皮/撤销/导出
+        if DrawProbe.active { DrawProbe.runAndExit() }
     }
 
     var body: some Scene {
