@@ -1,0 +1,18 @@
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 124-125
+macos/Sources/XsolveMac/Core/ColorProbe.swift
+  h_5a1c62fd74efa2 1-159
+macos/Sources/XsolveMac/Core/RichText.swift
+  h_5a1c62fd74efa2 34-35,179-180,194-199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "810f66eff901b9c08e7620269eedcda65e339d16",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
