@@ -18,7 +18,7 @@ enum RecogProbe {
     static let state = TutorState()
     nonisolated(unsafe) static var winProbe: NSWindow?
 
-    private static let logURL = URL(fileURLWithPath: "/tmp/xsolve-uirecog.log")
+    nonisolated static let logURL = URL(fileURLWithPath: "/tmp/xsolve-uirecog.log")
     private static var started = Date()
 
     private static func log(_ s: String) {

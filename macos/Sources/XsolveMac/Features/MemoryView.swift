@@ -172,11 +172,11 @@ struct MemoryView: View {
             if let ed = o.error_distribution, !ed.isEmpty {
                 Divider()
                 Text("错因分布").font(.headline)
-                ForEach(ed, id: \.topic) { e in
+                ForEach(ed) { e in
                     HStack {
-                        Text(e.topic).font(.callout)
+                        Text(e.error_type).font(.callout)
                         Spacer()
-                        Text("×\(e.n)").foregroundStyle(.red)
+                        Text("×\(e.count)").foregroundStyle(.red)
                     }
                 }
             }

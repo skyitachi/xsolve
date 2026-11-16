@@ -307,7 +307,7 @@ final class TutorState: ObservableObject {
             if let i = problems.firstIndex(where: { $0.id == link.problemId }) {
                 idx = i
                 if link.review {
-                    try? await api.requestOK("PATCH", "api/session/\(sessionId ?? "")", body: [
+                    _ = try? await api.requestOK("PATCH", "api/session/\(sessionId ?? "")", body: [
                         "currentProblemId": AnyEncodable(link.problemId), "review": AnyEncodable(true),
                     ])
                 }
@@ -633,7 +633,7 @@ final class TutorState: ObservableObject {
     }
 
     private func applyDelta(index: Int, delta: StreamDelta) {
-        guard var b = blocks[index] else { return }
+        guard let b = blocks[index] else { return }
         if b.kind == "text", delta.type == "text_delta", let t = delta.text {
             b.textBlock?.raw += t
             blocks[index] = b
@@ -820,8 +820,9 @@ final class ScratchModel: ObservableObject {
     @Published var strokes: [ScratchStroke] = []
     @Published var tool: String = "pen"    // pen | eraser
 
-    static let penWidth: CGFloat = 2.6
-    static let eraserWidth: CGFloat = 18
+    // 常量对非 MainActor 上下文（如画布光标构造）也要可读，否则 Swift 6 模式下是硬错误
+    nonisolated static let penWidth: CGFloat = 2.6
+    nonisolated static let eraserWidth: CGFloat = 18
 
     var strokeColor: (color: Color, width: CGFloat) {
         tool == "eraser" ? (Color.paperBG, Self.eraserWidth) : (Color(hex: 0x1F2937), Self.penWidth)

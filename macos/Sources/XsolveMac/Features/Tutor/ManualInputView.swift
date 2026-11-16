@@ -45,7 +45,7 @@ struct ManualInputDialog: View {
             if voice.hasRecording {
                 HStack(spacing: 10) {
                     Text("⏱️ \(voice.durationText)").font(.caption.monospacedDigit())
-                    if let url = voice.fileURL {
+                    if voice.fileURL != nil {
                         Button("▶︎ 播放") { voice.play() }
                         Button("丢弃") { voice.discard() }
                     }

@@ -17,7 +17,7 @@ enum SendProbe {
     static let state = TutorState()
     nonisolated(unsafe) static var winProbe: NSWindow?
 
-    private static let logURL = URL(fileURLWithPath: "/tmp/xsolve-uisend.log")
+    nonisolated static let logURL = URL(fileURLWithPath: "/tmp/xsolve-uisend.log")
     private static var started = Date()
 
     private static func log(_ s: String) {
@@ -68,7 +68,7 @@ enum SendProbe {
             do {
                 let u = try await APIClient.shared.login(username: "demo", password: "demo123")
                 AppModel.shared.applyLogin(u)
-                log("login ok user=\(u.username ?? u.id) created=\(RichText.createdCount)")
+                log("login ok user=\(u.username) created=\(RichText.createdCount)")
             } catch {
                 log("login FAILED: \(error.localizedDescription)")
                 exit(1)

@@ -107,7 +107,28 @@ final class APIClient: ObservableObject {
             if let err = try? decoder.decode(SimpleOK.self, from: data), let msg = err.error {
                 throw APIError.http((resp as? HTTPURLResponse)?.statusCode ?? 500, msg)
             }
-            throw APIError.decode(String(data: data.prefix(300), encoding: .utf8) ?? "\(error)")
+            let raw = String(data: data.prefix(300), encoding: .utf8) ?? ""
+            // 把 DecodingError 的 codingPath 带出来：只看 300 字 JSON 原文，
+            // 嵌套数组里究竟哪个字段对不上根本定位不到（这次就卡在这里）。
+            var detail = "\(error)"
+            if let e = error as? DecodingError {
+                switch e {
+                case .keyNotFound(let key, let ctx):
+                    detail = "缺少字段 " + (ctx.codingPath + [key]).map(\.stringValue).joined(separator: ".")
+                case .typeMismatch(let type, let ctx):
+                    detail = "字段 " + ctx.codingPath.map(\.stringValue).joined(separator: ".")
+                        + " 类型不匹配（期望 \(type)）：\(ctx.debugDescription)"
+                case .valueNotFound(let type, let ctx):
+                    detail = "字段 " + ctx.codingPath.map(\.stringValue).joined(separator: ".")
+                        + " 为 null（期望 \(type)）"
+                case .dataCorrupted(let ctx):
+                    detail = "字段 " + ctx.codingPath.map(\.stringValue).joined(separator: ".")
+                        + "：\(ctx.debugDescription)"
+                default:
+                    break
+                }
+            }
+            throw APIError.decode(detail + "\n原文：" + raw)
         }
     }
 

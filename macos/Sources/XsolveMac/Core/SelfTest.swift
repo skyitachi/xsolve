@@ -83,7 +83,7 @@ enum SelfTest {
             print("登录失败，后续检查跳过")
             return out
         }
-        print("    已登录：\(user.username)（\(user.role ?? "-")\(user.is_admin == true ? "，管理员" : "")）")
+        print("    已登录：\(user.username)（\(user.role)\(user.is_admin == true ? "，管理员" : "")）")
 
         var problems: [Problem] = []
         await step("GET  api/problems") {

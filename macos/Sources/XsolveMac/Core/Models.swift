@@ -409,6 +409,15 @@ struct ScratchUsage: Codable, Hashable {
     let accuracy_with_scratch: Double?
     let accuracy_without_scratch: Double?
 }
+/// 错因分布：后端 getErrorTypeDistribution() 返回 { error_type, count }。
+/// 之前误用了 DueSummary 的 TopicCount { topic, n }，两个必填字段都对不上，
+/// 于是整个 overview 解码失败、学习档案页静默空白（selftest 22/23 的那一项）。
+/// SQL 已过滤 `error_type IS NOT NULL AND <> ''`，所以这里是必填 String。
+struct ErrorTypeCount: Codable, Hashable, Identifiable {
+    var id: String { error_type }
+    let error_type: String
+    let count: Int
+}
 struct MemoryOverview: Codable {
     let student_id: String
     let generated_at: Double?
@@ -418,7 +427,7 @@ struct MemoryOverview: Codable {
     let attempts: [AttemptRow]
     let facts: [MemoryFact]
     let daily: [DailyAccuracyRow]
-    let error_distribution: [TopicCount]?
+    let error_distribution: [ErrorTypeCount]?
     let scratch: ScratchUsage?
 }
 struct AttemptsResp: Codable { let attempts: [AttemptRow] }
