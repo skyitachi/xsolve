@@ -31,7 +31,8 @@ struct RichText: View {
             Text(text)
                 .font(.system(size: fontSize))
                 .lineSpacing(3)
-                .foregroundStyle(Color(hex: 0x1F2937))
+                // 用语义色，不写死深色：#1F2937 在深色外观下就是黑字压黑底
+                .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
@@ -175,6 +176,8 @@ struct MarkdownWebView: NSViewRepresentable {
         <script src="\(base)/vendor/katex/katex.min.js"></script>
         <script src="\(base)/vendor/katex/contrib/auto-render.min.js"></script>
         <style>
+          /* 跟随系统外观：WKWebView 的 prefers-color-scheme 继承宿主视图的 effectiveAppearance */
+          :root{color-scheme:light dark;}
           html,body{margin:0;padding:0;background:transparent;
             font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;
             font-size:\(Int(fontSize))px;line-height:1.65;color:#1f2937;
@@ -188,6 +191,12 @@ struct MarkdownWebView: NSViewRepresentable {
           blockquote{border-left:3px solid #c7d2fe;margin:6px 0;padding:2px 10px;color:#4b5563;}
           ul,ol{padding-left:20px;margin:4px 0;}
           .katex-display{margin:6px 0;overflow-x:auto;}
+          @media (prefers-color-scheme:dark){
+            html,body{color:#e3e4e8;}
+            pre,code{background:#2b2d33;}
+            th,td{border-color:#3d4046;}
+            blockquote{color:#a3a8b3;border-left-color:#4f46e5;}
+          }
         </style></head>
         <body><div id="c"></div>
         <script>

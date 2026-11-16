@@ -121,6 +121,8 @@ struct XsolveApp: App {
         if UIProbe.active { UIProbe.autorun() }
         // 真实发送链路探针：登录 + 建会话 + 真 SSE 对话
         if SendProbe.active { SendProbe.autorun() }
+        // 富文本取色探针：深色/浅色外观下正文、表格、公式的实际颜色
+        if ColorProbe.active { ColorProbe.runAndExit() }
     }
 
     var body: some Scene {
