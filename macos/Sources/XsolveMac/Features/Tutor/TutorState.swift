@@ -240,6 +240,8 @@ final class TutorState: ObservableObject {
     @Published var entries: [ChatEntry] = []
     @Published var turnInFlight = false
     @Published var draftInput = ""
+    // 最终答案输入框：做题区隐藏时 WorkPanel 会被销毁，草稿必须留在 state 里
+    @Published var answerDraft = ""
     var pendingNewSession = false
 
     // 草稿
@@ -850,7 +852,31 @@ final class ScratchModel: ObservableObject {
         return "data:image/jpeg;base64," + data.base64EncodedString()
     }
 
-    /// 笔画重放（Canvas 尺寸变化后恢复画面）
+    /// 草稿上屏绘制（SwiftUI Canvas 专用）。
+    /// ⚠️ 不能用 render(in:)：Canvas 的绘制闭包里 NSGraphicsContext.current 是 nil，
+    /// 那条路径会静默 return —— 画布永远是一张白纸（导出能出图，屏幕上却什么都没有）。
+    func draw(in ctx: GraphicsContext) {
+        for s in strokes {
+            let isEraser = s.t == "eraser"
+            let color = isEraser ? Color.paperBG : Color(hex: 0x1F2937)
+            let w = isEraser ? Self.eraserWidth : Self.penWidth
+            if s.p.count == 1 {
+                let r = w / 2
+                let rect = CGRect(x: s.p[0].x - r, y: s.p[0].y - r, width: w, height: w)
+                ctx.fill(Path(ellipseIn: rect), with: .color(color))
+            } else {
+                var path = Path()
+                path.move(to: CGPoint(x: s.p[0].x, y: s.p[0].y))
+                for pt in s.p.dropFirst() {
+                    path.addLine(to: CGPoint(x: pt.x, y: pt.y))
+                }
+                ctx.stroke(path, with: .color(color),
+                           style: StrokeStyle(lineWidth: w, lineCap: .round, lineJoin: .round))
+            }
+        }
+    }
+
+    /// 笔画重放（导出 / 位图上下文用；必须由调用方先把 NSGraphicsContext.current 设好）
     func render(in rect: CGRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
         // 注意：SwiftUI Canvas 与 NSImage 导出坐标系都以上左为原点，笔画存的是上左原点坐标

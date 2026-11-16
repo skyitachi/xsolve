@@ -125,6 +125,8 @@ struct XsolveApp: App {
         if ColorProbe.active { ColorProbe.runAndExit() }
         // 草稿画布探针：合成鼠标事件，验证画笔/橡皮/撤销/导出
         if DrawProbe.active { DrawProbe.runAndExit() }
+        // 视觉探针：工具条/画布离屏渲染成 PNG，供人工验收
+        if SnapProbe.active { SnapProbe.runAndExit() }
     }
 
     var body: some Scene {

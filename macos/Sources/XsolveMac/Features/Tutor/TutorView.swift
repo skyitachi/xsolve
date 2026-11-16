@@ -6,15 +6,18 @@ struct TutorView: View {
     @EnvironmentObject var model: AppModel
     @StateObject private var state = TutorState()
     @State private var bootstrapped = false
+    @AppStorage("xsolve_work_panel_hidden") private var workPanelHidden = false
 
     var body: some View {
         VSplitView {
             HSplitView {
-                // 左列：题目（上） + 做题区（下）
+                // 左列：题目（上） + 做题区（下，可隐藏）
                 VStack(spacing: 0) {
                     ProblemPanel(state: state)
-                    Divider()
-                    WorkPanel(state: state)
+                    if !workPanelHidden {
+                        Divider()
+                        WorkPanel(state: state)
+                    }
                 }
                 .frame(minWidth: 380)
             }
@@ -90,6 +93,11 @@ struct TutorView: View {
                     .help("删除当前题（管理员）")
             }
             Divider()
+            Button { workPanelHidden.toggle() } label: {
+                Label(workPanelHidden ? "显示做题区" : "隐藏做题区",
+                      systemImage: workPanelHidden ? "eye" : "eye.slash")
+            }
+            .help(workPanelHidden ? "显示做题区（答案输入、工具栏与草稿板）" : "隐藏做题区，题目与 AI 对话保留")
             Button { state.showAbout = true } label: { Label("关于", systemImage: "gearshape") }
         }
     }
@@ -272,24 +280,30 @@ private struct TriangleFigure: View {
 
 private struct WorkPanel: View {
     @ObservedObject var state: TutorState
-    @State private var answer = ""
     @State private var showProblemPicker = false   // 拍题/选题入口
     @State private var showAnswerPicker = false
+
+    // 答案草稿存在 TutorState 里：做题区隐藏会销毁本视图，@State 会跟着丢
+    private func submitCurrentAnswer() async {
+        let answer = state.answerDraft
+        state.answerDraft = ""
+        await state.submitAnswer(answer)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             // 答案输入
             HStack(spacing: 8) {
                 Text("最终答案：").font(.callout)
-                TextField("在这里输入你的答案", text: $answer)
+                TextField("在这里输入你的答案", text: $state.answerDraft)
                     .textFieldStyle(.roundedBorder)
-                    .onSubmit { Task { await state.submitAnswer(answer); answer = "" } }
+                    .onSubmit { Task { await submitCurrentAnswer() } }
                 Button("提交答案") {
-                    Task { await state.submitAnswer(answer); answer = "" }
+                    Task { await submitCurrentAnswer() }
                 }
                 .controlSize(.regular)
                 .buttonStyle(.borderedProminent)
-                .disabled(answer.trimmingCharacters(in: .whitespaces).isEmpty || state.turnInFlight)
+                .disabled(state.answerDraft.trimmingCharacters(in: .whitespaces).isEmpty || state.turnInFlight)
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
 
@@ -311,8 +325,7 @@ private struct WorkPanel: View {
                     } label: { Label("🖼️ 相册选题", systemImage: "photo") }
                         .buttonStyle(.bordered)
 
-                    toolButton("✒️ 画笔", active: state.scratch.tool == "pen") { state.scratch.tool = "pen" }
-                    toolButton("🧽 橡皮", active: state.scratch.tool == "eraser") { state.scratch.tool = "eraser" }
+                    ScratchToolPicker(model: state.scratch)
                     toolButton("↩️ 撤销") { state.scratch.undo() }
                     toolButton("🗑️ 清空") { state.scratch.clear() }
                     Button("👁️ 识别草稿") { Task { await state.recognizeScratch() } }

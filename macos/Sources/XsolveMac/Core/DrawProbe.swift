@@ -136,6 +136,43 @@ enum DrawProbe {
         check("能导出草稿图", (exported?.hasPrefix("data:image/jpeg;base64,") ?? false),
               "长度 \(exported?.count ?? 0)")
 
+        // 导出图必须真的有墨迹：只判断「有没有返回」会漏掉整张白纸的情况
+        func inkCount(_ dataURL: String?) -> Int {
+            guard let dataURL,
+                  let comma = dataURL.firstIndex(of: ","),
+                  let data = Data(base64Encoded: String(dataURL[dataURL.index(after: comma)...])),
+                  let img = NSImage(data: data),
+                  let tiff = img.tiffRepresentation,
+                  let rep = NSBitmapImageRep(data: tiff) else { return -1 }
+            var n = 0
+            for y in stride(from: 0, to: rep.pixelsHigh, by: 3) {
+                for x in stride(from: 0, to: rep.pixelsWide, by: 3) {
+                    if let c = rep.colorAt(x: x, y: y), c.brightnessComponent < 0.5 { n += 1 }
+                }
+            }
+            return n
+        }
+
+        // 铺一条长笔画再导出，取样自然多，结论才不会被笔画长度左右
+        model.tool = "pen"
+        model.clear()
+        model.append(point: StrokePoint(x: 40, y: 60))
+        for i in 1...60 {
+            model.extendLast(point: StrokePoint(x: 40 + Double(i) * 8, y: 60 + Double(i) * 3))
+        }
+        let inkBefore = inkCount(model.exportImage())
+        check("导出图里真有墨迹", inkBefore > 80, "深色像素采样数 \(inkBefore)")
+
+        // 橡皮用纸色覆盖，导出后墨迹应当明显变少
+        model.tool = "eraser"
+        model.append(point: StrokePoint(x: 200, y: 120))
+        for i in 1...20 {
+            model.extendLast(point: StrokePoint(x: 200 + Double(i) * 8, y: 120 + Double(i) * 3))
+        }
+        let inkAfter = inkCount(model.exportImage())
+        check("橡皮擦掉了墨迹", inkAfter > 0 && inkAfter < inkBefore,
+              "\(inkBefore) → \(inkAfter)")
+
         // B. UI 层：合成鼠标事件（需要窗口拿到键盘焦点，后台进程通常做不到）
         guard controlOK else {
             log("-- UI 层：跳过（窗口 key=\(win.isKeyWindow)，对照组按钮也没收到点击 →")
