@@ -1,0 +1,28 @@
+macos/Sources/XsolveMac/Core/APIClient.swift
+  h_5a1c62fd74efa2 110-131
+macos/Sources/XsolveMac/Core/Models.swift
+  h_5a1c62fd74efa2 412-420,430
+macos/Sources/XsolveMac/Core/RecogProbe.swift
+  h_5a1c62fd74efa2 21
+macos/Sources/XsolveMac/Core/SelfTest.swift
+  h_5a1c62fd74efa2 86
+macos/Sources/XsolveMac/Core/SendProbe.swift
+  h_5a1c62fd74efa2 20,71
+macos/Sources/XsolveMac/Features/MemoryView.swift
+  h_5a1c62fd74efa2 175,177,179
+macos/Sources/XsolveMac/Features/Tutor/ManualInputView.swift
+  h_5a1c62fd74efa2 48
+macos/Sources/XsolveMac/Features/Tutor/TutorState.swift
+  h_5a1c62fd74efa2 310,636,823-825
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "00167e2b4f174a03bc44e51a6e99a86307d49bbd",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
