@@ -1,0 +1,24 @@
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 128-129
+macos/Sources/XsolveMac/Core/DrawProbe.swift
+  h_5a1c62fd74efa2 139-175
+macos/Sources/XsolveMac/Core/SnapProbe.swift
+  h_5a1c62fd74efa2 1-160
+macos/Sources/XsolveMac/Features/Tutor/ScratchCanvasView.swift
+  h_5a1c62fd74efa2 2,16,35-36,38,40,49-140
+macos/Sources/XsolveMac/Features/Tutor/TutorState.swift
+  h_5a1c62fd74efa2 243-244,855-879
+macos/Sources/XsolveMac/Features/Tutor/TutorView.swift
+  h_5a1c62fd74efa2 9,14,17-20,96-100,286-292,298,300,302,306,328
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6d00863ce7380b58a8cfd90de04184a11a46fd72",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
