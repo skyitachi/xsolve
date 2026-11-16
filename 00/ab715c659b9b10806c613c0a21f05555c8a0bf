@@ -1,0 +1,18 @@
+macos/Sources/XsolveMac/Features/Tutor/Dialogs.swift
+  h_5a1c62fd74efa2 98-100,114,119-126
+macos/Sources/XsolveMac/Features/Tutor/TutorView.swift
+  h_5a1c62fd74efa2 30-32
+macos/scripts/proc-diag.py
+  h_5a1c62fd74efa2 1-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "00ab715c659b9b10806c613c0a21f05555c8a0bf",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
