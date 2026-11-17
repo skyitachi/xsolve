@@ -127,6 +127,8 @@ struct XsolveApp: App {
         if DrawProbe.active { DrawProbe.runAndExit() }
         // 视觉探针：工具条/画布离屏渲染成 PNG，供人工验收
         if SnapProbe.active { SnapProbe.runAndExit() }
+        // 做题区窄栏探针：四种宽度下工具条是否还能完整显示（禁止再被裁）
+        if ToolsProbe.active { ToolsProbe.runAndExit() }
         // 「识别草稿」链路探针：真 exportImage + 真 SSE，导出图落盘供目视
         if RecogProbe.active { RecogProbe.autorun() }
         // 自动登录：给界面截图/人工验收用，跳过登录页

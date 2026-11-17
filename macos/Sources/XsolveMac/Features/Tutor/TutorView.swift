@@ -102,38 +102,44 @@ struct TutorView: View {
 
 // MARK: - 题目面板
 
-private struct ProblemPanel: View {
+struct ProblemPanel: View {
     @ObservedObject var state: TutorState
     @Binding var workPanelHidden: Bool
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Label("📘 题目", systemImage: "book.fill")
+                // 标题行只放「题目 + 题号 + 主题」，恢复按钮单独占一行：
+                // 挤在同一个 HStack 里的话，左栏收到 300pt 时它会被顶出边界（它是唯一的恢复入口）
+                HStack(spacing: 8) {
+                    Label("题目", systemImage: "book.fill")
                         .font(.headline)
-                    Spacer()
+                        .fixedSize()
+                    Spacer(minLength: 4)
                     Text("\(state.idx + 1) / \(max(state.problems.count, 1))")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
+                        .fixedSize()
                     Text(state.currentProblem?.topic ?? "—")
                         .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Color.brand.opacity(0.12))
                         .clipShape(Capsule())
                         .foregroundStyle(Color.brand)
-                    // 做题区收起后，这里是唯一的恢复入口 —— 必须有文字，不能只有图标
-                    if workPanelHidden {
-                        Button {
-                            workPanelHidden = false
-                        } label: {
-                            Label("显示做题区", systemImage: "square.split.1x2")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .help("展开答案输入、工具栏与草稿板")
+                }
+                // 做题区收起后，这里是唯一的恢复入口 —— 必须有文字、且不能被挤掉
+                if workPanelHidden {
+                    Button {
+                        workPanelHidden = false
+                    } label: {
+                        Label("显示做题区（答案输入 / 草稿板）", systemImage: "square.split.1x2")
+                            .font(.caption)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .help("展开答案输入、工具栏与草稿板")
                 }
                 if let p = state.currentProblem {
                     RichText(text: p.text)
@@ -338,41 +344,48 @@ struct WorkPanel: View {
 
             Divider()
 
-            // 工具条（对应 work-tools；单行横向滚动是移动端语义，桌面直接排开）
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    Button {
-                        showProblemPicker = true
-                    } label: { Label("📷 拍题", systemImage: "camera") }
-                        .buttonStyle(.borderedProminent)
+            // 工具条（对应 work-tools）：按宽度自动换行，窄栏下也不会把按钮推出可视区。
+            // 注意别用 ScrollView(.horizontal) —— 桌面滚轮不拨它，右边界外的按钮等于消失。
+            FlowLayout(spacing: 6, rowSpacing: 6) {
+                Button {
+                    showProblemPicker = true
+                } label: { Label("拍题", systemImage: "camera.fill") }
+                    .buttonStyle(.borderedProminent)
 
-                    Menu {
-                        Button("选择图片（作为题目识别）") { pickImage { url in ingest(url, .problem) } }
-                        Button("打开相机（Continuity Camera）") { CameraWindow.shared.show { img in
-                            if let d = ImageUtil.jpegDataURL(from: img, maxEdge: 1600) { state.ingest(image: d, target: .problem) }
-                        } }
-                    } label: { Label("🖼️ 相册选题", systemImage: "photo") }
-                        .buttonStyle(.bordered)
+                Menu {
+                    Button("选择图片（作为题目识别）") { pickImage { url in ingest(url, .problem) } }
+                    Button("打开相机（Continuity Camera）") { CameraWindow.shared.show { img in
+                        if let d = ImageUtil.jpegDataURL(from: img, maxEdge: 1600) { state.ingest(image: d, target: .problem) }
+                    } }
+                } label: { Label("相册选题", systemImage: "photo.on.rectangle") }
+                    .buttonStyle(.bordered)
 
-                    ScratchToolPicker(model: state.scratch)
-                    toolButton("↩️ 撤销") { state.scratch.undo() }
-                    toolButton("🗑️ 清空") { state.scratch.clear() }
-                    Button("👁️ 识别草稿") { Task { await state.recognizeScratch() } }
-                        .buttonStyle(.bordered)
-
-                    Menu {
-                        Button("选择图片（我的解答）") { pickImage { url in ingest(url, .answer) } }
-                        Button("打开相机（Continuity Camera）") { CameraWindow.shared.show { img in
-                            if let d = ImageUtil.jpegDataURL(from: img, maxEdge: 1280) { state.ingest(image: d, target: .answer) }
-                        } }
-                    } label: { Label("📷 拍解答", systemImage: "camera.viewfinder") }
-                        .buttonStyle(.bordered)
-
-                    Button("✏️ 输入题目") { state.showManualInput = true }
-                        .buttonStyle(.bordered)
+                Button { state.showManualInput = true } label: {
+                    Label("输入题目", systemImage: "square.and.pencil")
                 }
-                .padding(.horizontal, 12).padding(.vertical, 6)
+                .buttonStyle(.bordered)
+
+                Menu {
+                    Button("选择图片（我的解答）") { pickImage { url in ingest(url, .answer) } }
+                    Button("打开相机（Continuity Camera）") { CameraWindow.shared.show { img in
+                        if let d = ImageUtil.jpegDataURL(from: img, maxEdge: 1280) { state.ingest(image: d, target: .answer) }
+                    } }
+                } label: { Label("拍解答", systemImage: "camera.viewfinder") }
+                    .buttonStyle(.bordered)
+
+                // 草稿工具成组：画笔/橡皮 + 撤销 + 清空 + 识别
+                ScratchToolPicker(model: state.scratch)
+                toolButton("撤销", icon: "arrow.uturn.backward") { state.scratch.undo() }
+                toolButton("清空", icon: "trash") { state.scratch.clear() }
+                Button {
+                    Task { await state.recognizeScratch() }
+                } label: { Label("识别草稿", systemImage: "text.viewfinder") }
+                    .buttonStyle(.bordered)
             }
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // 小号控件：同样的按钮在 560~760pt 宽度下能挤回一行，不用第二行只挂一个按钮
+            .controlSize(.small)
 
             // 上传预览（解答图确认后发给 AI）
             if let up = state.pendingUpload {
@@ -386,12 +399,12 @@ struct WorkPanel: View {
         }
     }
 
-    private func toolButton(_ label: String, active: Bool = false, action: @escaping () -> Void) -> some View {
+    private func toolButton(_ title: String, icon: String,
+                           action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(label).padding(.horizontal, 4)
+            Label(title, systemImage: icon)
         }
         .buttonStyle(.bordered)
-        .tint(active ? Color.brand : Color.secondary)
     }
 
     private func ingest(_ url: URL, _ target: TutorState.UploadTarget) {
