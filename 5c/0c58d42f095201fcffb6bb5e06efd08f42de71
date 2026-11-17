@@ -1,0 +1,19 @@
+macos/Sources/XsolveMac/Features/Tutor/TutorState.swift
+  s_f34c93ec022441::t_b790074b23d90e 759-764,766-771,777-783
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5c0c58d42f095201fcffb6bb5e06efd08f42de71",
+  "prompts": {},
+  "sessions": {
+    "s_f34c93ec022441": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "61718e7e-9060-4ddb-8b7f-504b7cbad5e8",
+        "model": "unknown"
+      },
+      "human_author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
