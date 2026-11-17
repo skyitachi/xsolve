@@ -45,9 +45,13 @@ enum FigureProbe {
     }
 
     private static func solid(_ w: Int, _ h: Int) -> NSImage {
+        solidColor(w, h, NSColor(srgbRed: 0, green: 0, blue: 1, alpha: 1))
+    }
+
+    private static func solidColor(_ w: Int, _ h: Int, _ color: NSColor) -> NSImage {
         let img = NSImage(size: NSSize(width: w, height: h))
         img.lockFocus()
-        NSColor(srgbRed: 0, green: 0, blue: 1, alpha: 1).setFill()
+        color.setFill()
         NSRect(x: 0, y: 0, width: w, height: h).fill()
         img.unlockFocus()
         return img
@@ -61,22 +65,42 @@ enum FigureProbe {
 
         log("==> 题目原图尺寸探针（限高 220 / 不放大 / 点击看大图）")
 
-        // 名字, 图片, 栏宽, 期望高度区间, 期望宽度区间
-        let cases: [(String, NSImage, CGFloat, ClosedRange<Int>, ClosedRange<Int>)] = [
-            ("瘦高 900×1600", solid(900, 1600), 600, 210...226, 100...160),
-            ("超宽 1600×400", solid(1600, 400), 600, 130...176, 560...600),
-            ("小图 80×60", solid(80, 60), 600, 55...66, 74...86),
-            ("方图 400×400", solid(400, 400), 600, 210...226, 210...226),
+        // 名字, 图片, 栏宽, 期望高度区间, 期望宽度区间, 是否放进 ScrollView
+        //
+        // 「放进 ScrollView」这一列是关键：真实题目区是 `ScrollView { VStack { ... } }`，
+        // 竖直方向的高度提案是 nil（无限）。固定 frame 的容器里测不出来 —— 之前漏了这一维，
+        // 结果 991×929 的方图被拉成 600×220 的长条（纵向压扁）却没被发现。
+        let cases: [(String, NSImage, CGFloat, ClosedRange<Int>, ClosedRange<Int>, Bool)] = [
+            ("瘦高 900×1600", solid(900, 1600), 600, 210...226, 100...160, false),
+            ("超宽 1600×400", solid(1600, 400), 600, 130...176, 560...600, false),
+            ("小图 80×60", solid(80, 60), 600, 55...66, 74...86, false),
+            ("方图 400×400", solid(400, 400), 600, 210...226, 210...226, false),
             // 窄栏：宽高都必须跟着缩，不能被撑破
-            ("瘦高 @300 栏宽", solid(900, 1600), 300, 210...226, 100...160),
+            ("瘦高 @300 栏宽", solid(900, 1600), 300, 210...226, 100...160, false),
+            // ↓ 真实布局：ScrollView 里高度提案无限
+            ("ScrollView 方图 400×400", solid(400, 400), 560, 210...226, 210...226, true),
+            ("ScrollView 近方 991×929", solid(991, 929), 560, 210...226, 220...250, true),
+            ("ScrollView 超宽 1600×400", solid(1600, 400), 560, 135...146, 545...575, true),
+            ("ScrollView 瘦高 900×1600", solid(900, 1600), 560, 210...226, 100...160, true),
         ]
 
-        for (name, img, width, wantH, wantW) in cases {
+        for (name, img, width, wantH, wantW, inScroll) in cases {
+            let view = ProblemFigureImage(image: img)
             let host = NSHostingView(rootView: AnyView(
-                ProblemFigureImage(image: img)
-                    .frame(width: width)
-                    .background(Color.white)
-                    .environment(\.colorScheme, .light)
+                Group {
+                    if inScroll {
+                        ScrollView(.vertical) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                view.frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .frame(width: width)
+                    } else {
+                        view.frame(width: width)
+                    }
+                }
+                .background(Color.white)
+                .environment(\.colorScheme, .light)
             ))
             host.frame = NSRect(x: 0, y: 0, width: width, height: 400)
             host.appearance = NSAppearance(named: .aqua)
@@ -94,11 +118,22 @@ enum FigureProbe {
                 check(name, false, "位图里找不到蓝色图片区域"); continue
             }
             let h = box!.height, w = box!.width
-            log("  · \(name)：绘制 \(w)×\(h)pt（位图 \(rep.pixelsWide)×\(rep.pixelsHigh)）")
-            check("\(name) 高度被限制", wantH.contains(h), "h=\(h) 期望 \(wantH)")
+            // 位图可能是 1x 也可能是 2x（Backing scale 跟宿主环境有关，同一台机器上会变），
+            // 一律折算成 pt 再比，否则阈值会随倍率漂移。
+            let scale = max(1, CGFloat(rep.pixelsWide) / max(1, host.bounds.width))
+            let hpt = Int((CGFloat(h) / scale).rounded())
+            let wpt = Int((CGFloat(w) / scale).rounded())
+            log("  · \(name)：绘制 \(wpt)×\(hpt)pt（位图 \(rep.pixelsWide)×\(rep.pixelsHigh)，scale \(Int(scale))x）")
+            check("\(name) 高度被限制", wantH.contains(hpt), "h=\(hpt) 期望 \(wantH)")
 
             // 小图不放大：宽度应贴近自然宽度（80），而不是栏宽 600
-            check("\(name) 宽度合理", wantW.contains(w), "w=\(w) 期望 \(wantW)")
+            check("\(name) 宽度合理", wantW.contains(wpt), "w=\(wpt) 期望 \(wantW)")
+
+            // 最要紧的一条：绘制出来的宽高比必须等于图片本身的宽高比（不许拉伸/压扁）
+            let want = img.size.width / img.size.height
+            let got = CGFloat(wpt) / CGFloat(max(1, hpt))
+            check("\(name) 没有被拉伸", abs(got - want) / want < 0.04,
+                  String(format: "绘制 %.2f vs 原图 %.2f（%dx%d）", got, want, wpt, hpt))
 
             // 边框必须贴着图片：原来用 .frame(maxWidth:) 时框架被撑满、图片居中留白，
             // 边框就画成了一个大空框（截图里那种）。图片两侧/上方不该有描边像素。
@@ -110,6 +145,56 @@ enum FigureProbe {
             if let data = rep.representation(using: .png, properties: [:]) {
                 try? data.write(to: png)
                 log("  · 截图 → \(png.path)")
+            }
+        }
+
+        // ---- 裁剪对话框：裁剪框必须落在图片上，而不是容器上 ----
+        // 图片是等比缩放（scaledToFit）的，容器比图片「高」时四周会留边；
+        // 旧代码把归一化坐标乘在容器尺寸上 → 框比图大一圈，截出来的区域和框住的不一样。
+        log("\n-- 裁剪对话框：框与图对齐")
+        let green = solidColor(800, 400, NSColor(srgbRed: 0, green: 0.72, blue: 0, alpha: 1))
+        if let durl = ImageUtil.jpegDataURL(from: green, maxEdge: 800) {
+            let cropHost = NSHostingView(rootView: AnyView(
+                CropDialog(imageDataURL: durl, onDone: { _ in }, onCancel: {})
+                    .background(Color.white)
+                    .environment(\.colorScheme, .light)
+            ))
+            cropHost.frame = NSRect(x: 0, y: 0, width: 620, height: 560)
+            cropHost.appearance = NSAppearance(named: .aqua)
+            cropHost.layoutSubtreeIfNeeded()
+            spin(0.25)
+            cropHost.layoutSubtreeIfNeeded()
+
+            if let rep = cropHost.bitmapImageRepForCachingDisplay(in: cropHost.bounds) {
+                cropHost.cacheDisplay(in: cropHost.bounds, to: rep)
+                let scale = max(1, CGFloat(rep.pixelsWide) / max(1, cropHost.bounds.width))
+                let img2 = pixelBox(rep) { c in c.greenComponent > 0.55 && c.redComponent < 0.35 && c.blueComponent < 0.35 }
+                let frameBox = brandBox(rep)
+                if let ib = img2, let fb = frameBox {
+                    let ih = CGFloat(ib.height) / scale, iw = CGFloat(ib.width) / scale
+                    let fh = CGFloat(fb.height) / scale
+                    log("  · 图片区 \(Int(iw))×\(Int(ih))pt，裁剪框 \(Int(CGFloat(fb.width) / scale))×\(Int(fh))pt")
+                    check("裁剪框高度不超过图片区", fh <= ih + 16,
+                          String(format: "框 %.0f vs 图 %.0f（超出说明框铺在了容器上）", fh, ih))
+                    // 框应该正好是图片的 88%（默认框 0.06~0.94）＋四角拖柄各 7pt；
+                    // 若错用容器高度，这里会多出几十 pt
+                    let wantFH = ih * 0.88 + 14
+                    check("裁剪框尺寸跟着图片走", abs(fh - wantFH) <= 20,
+                          String(format: "框 %.0f vs 期望 %.0f（=图片高 88%%+拖柄）", fh, wantFH))
+                    let imgTop = CGFloat(ib.minY) / scale, imgBottom = imgTop + ih
+                    let frameTop = CGFloat(fb.minY) / scale, frameBottom = frameTop + fh
+                    check("裁剪框在图片范围内（上下）",
+                          frameTop >= imgTop - 8 && frameBottom <= imgBottom + 8,
+                          String(format: "框 %.0f~%.0f vs 图 %.0f~%.0f", frameTop, frameBottom, imgTop, imgBottom))
+                    let png = URL(fileURLWithPath: outDir).appendingPathComponent("crop-dialog.png")
+                    if let data = rep.representation(using: .png, properties: [:]) {
+                        try? data.write(to: png)
+                        log("  · 截图 → \(png.path)")
+                    }
+                } else {
+                    check("裁剪对话框渲染出图片与裁剪框", false,
+                          "green=\(img2 != nil) brand=\(frameBox != nil)")
+                }
             }
         }
 
@@ -157,11 +242,27 @@ enum FigureProbe {
     /// 蓝色像素包围盒（像素坐标）
     private static func blueBox(_ rep: NSBitmapImageRep)
         -> (minX: Int, minY: Int, width: Int, height: Int)? {
+        pixelBox(rep) { c in c.blueComponent > 0.7 && c.redComponent < 0.35 && c.greenComponent < 0.35 }
+    }
+
+    /// 品牌色（#4F46E5）描边像素的包围盒
+    private static func brandBox(_ rep: NSBitmapImageRep)
+        -> (minX: Int, minY: Int, width: Int, height: Int)? {
+        // 品牌色叠加在纯色图上会被混合，所以只认「接近纯品牌色」的描边像素
+        pixelBox(rep) { c in
+            c.blueComponent > 0.78 && c.redComponent > 0.14 && c.redComponent < 0.45
+                && c.greenComponent > 0.10 && c.greenComponent < 0.42
+        }
+    }
+
+    private static func pixelBox(_ rep: NSBitmapImageRep,
+                                 where match: (NSColor) -> Bool)
+        -> (minX: Int, minY: Int, width: Int, height: Int)? {
         var minX = Int.max, maxX = -1, minY = Int.max, maxY = -1
         for y in 0..<rep.pixelsHigh {
             for x in 0..<rep.pixelsWide {
                 guard let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
-                if c.blueComponent > 0.7 && c.redComponent < 0.35 && c.greenComponent < 0.35 {
+                if match(c) {
                     if x < minX { minX = x }
                     if x > maxX { maxX = x }
                     if y < minY { minY = y }

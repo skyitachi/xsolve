@@ -817,7 +817,12 @@ private struct PhotoDraftForm: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 if let img = ImageUtil.image(fromDataURL: imageDataURL) {
-                    Image(nsImage: img).resizable().scaledToFit().frame(maxHeight: 130).cornerRadius(8)
+                    // 同样是 ScrollView 里限高：直接 `scaledToFit + frame(maxHeight:)` 只会压
+                    // 布局框，图仍按全宽绘制 → 压到下面的「主题」输入框上。用 FitBox 算准。
+                    FitBox(natural: img.size, maxHeight: 130) {
+                        Image(nsImage: img).resizable().interpolation(.high)
+                    }
+                    .cornerRadius(8)
                 }
                 LabeledContent("主题") {
                     TextField("主题", text: $draft.topic)

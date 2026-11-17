@@ -26,22 +26,18 @@ struct ProblemFigureImage: View {
         return (s.width > 1 && s.height > 1) ? s : NSSize(width: 400, height: 300)
     }
 
-    private var ratio: CGFloat { natural.width / natural.height }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Image(nsImage: image)
-                .resizable()
-                .interpolation(.high)
-                // ① 框架先撑到可用空间（宽不超过自然宽、高不超过 220）
-                .frame(maxWidth: natural.width, maxHeight: min(maxHeight, natural.height))
-                // ② 再整体按图片比例收窄 —— 关键是这一步在 frame **之后**：
-                //    否则框架仍是满宽、图片居中留白，边框就画成了一个大空框（截图里那种）。
-                .aspectRatio(ratio, contentMode: .fit)
-                .cornerRadius(8)
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.25)))
-                .onTapGesture { ImagePeekWindow.shared.show(image) }
-                .help("点击查看大图")
+            // 尺寸由 FitBox 一次算准（见下方注释），这里只负责画和装饰
+            FitBox(natural: natural, maxHeight: maxHeight) {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+            }
+            .cornerRadius(8)
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.25)))
+            .onTapGesture { ImagePeekWindow.shared.show(image) }
+            .help("点击查看大图")
 
             if let caption {
                 HStack(spacing: 8) {
@@ -53,6 +49,49 @@ struct ProblemFigureImage: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - 等比缩放盒
+
+/// 在「可用宽度 × 高度上限」里按图片比例放下子视图，**并且自己就是图片的尺寸**。
+///
+/// 为什么不能只靠 `frame(maxWidth:maxHeight:)` + `aspectRatio(ratio, .fit)`：
+/// 题目区是 `ScrollView { VStack { … } }`，**竖直方向的高度提案是 nil**。此时
+/// `aspectRatio` 只能拿宽度算尺寸（991×929 的图 → 560×526），外层的
+/// `frame(maxHeight: 220)` 只把**布局框**压到 220 —— 图片本身仍按 560 宽绘制，
+/// 于是被横向拉长 2.55 倍（实体机截图里那种「字被拉宽、三角形压扁」）。
+///
+/// 反过来的写法（`aspectRatio` 在外层）则会撑满宽度、图片居中留白，边框画成一个大空框。
+/// 自定义 Layout 拿到的是**真实提案**，宽高一起算，返回的尺寸就是交给图片的尺寸，
+/// 从结构上不可能变形，也不需要 GeometryReader 那种「先摆一遍、量到宽度再重摆」的两趟布局。
+struct FitBox: Layout {
+    var natural: NSSize
+    var maxHeight: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let avail = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? .greatestFiniteMagnitude
+        return fitted(available: avail)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize,
+                       subviews: Subviews, cache: inout ()) {
+        for s in subviews {
+            s.place(at: bounds.origin,
+                    proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
+        }
+    }
+
+    private func fitted(available: CGFloat) -> CGSize {
+        let maxW = min(natural.width, max(1, available))
+        let maxH = min(natural.height, maxHeight)   // 小图不放大：自然尺寸也是上限
+        // 只按「真正起限制作用的那一边」缩放，另一边由比例算出 —— 这样宽高比是精确的
+        if maxH / natural.height <= maxW / natural.width {
+            return CGSize(width: max(1, (natural.width * maxH / natural.height).rounded()),
+                          height: max(1, maxH))
+        }
+        return CGSize(width: max(1, maxW),
+                      height: max(1, (natural.height * maxW / natural.width).rounded()))
     }
 }
 

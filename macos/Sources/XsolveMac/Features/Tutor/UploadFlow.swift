@@ -423,40 +423,47 @@ struct CropDialog: View {
             }
             if let img = ImageUtil.image(fromDataURL: imageDataURL) {
                 GeometryReader { geo in
-                    ZStack {
+                    // ⚠️ 图片在容器里是等比缩放（scaledToFit）的，容器比例和图片比例不一致时四周会留边。
+                    // 裁剪框必须只铺在「图片真正占的那块矩形」上，否则框看着在图里、
+                    // 截出来却是另一个位置（800×400 这种宽图在 620×560 弹窗里能偏 30pt+）。
+                    let box = Self.fittedRect(img.size, in: geo.size)
+                    ZStack(alignment: .topLeading) {
                         Image(nsImage: img)
                             .resizable()
-                            .scaledToFit()
-                            .frame(width: geo.size.width, height: geo.size.height)
-                        // 裁剪框（归一化坐标）
-                        CropOverlay(rect: rect)
-                            .fill(Color.brand.opacity(0.08))
-                            .border(Color.brand, width: 1.5)
+                            .interpolation(.high)
+                            .frame(width: box.width, height: box.height)
+                        // 裁剪框（归一化坐标，相对图片）。
+                        // ⚠️ 描边必须也是上面的 Shape：`.fill(...)` 返回的是 View，再 `.border(...)`
+                        // 画出来的是**整个视图边界**（= 整张图），框看起来就成了图片外框。
+                        CropOverlay(rect: rect).fill(Color.brand.opacity(0.10))
+                        CropOverlay(rect: rect).stroke(Color.brand, lineWidth: 1.5)
                         ForEach(Corner.allCases, id: \.self) { c in
                             Circle()
                                 .fill(Color.brand)
                                 .frame(width: 14, height: 14)
                                 .overlay(Circle().stroke(.white, lineWidth: 2))
-                                .position(cornerPos(c, in: geo.size))
+                                .position(cornerPos(c, in: box.size))
                                 .gesture(
                                     DragGesture(minimumDistance: 1).onChanged { g in
-                                        moveCorner(c, to: g.location, in: geo.size)
+                                        moveCorner(c, to: g.location, in: box.size)
                                     }
                                 )
                         }
                         // 整体拖动
                         RoundedRectangle(cornerRadius: 0)
                             .fill(Color.clear)
-                            .frame(width: geo.size.width * rect.w, height: geo.size.height * rect.h)
-                            .position(x: geo.size.width * (rect.x + rect.w / 2),
-                                      y: geo.size.height * (rect.y + rect.h / 2))
+                            .frame(width: box.width * rect.w, height: box.height * rect.h)
+                            .position(x: box.width * (rect.x + rect.w / 2),
+                                      y: box.height * (rect.y + rect.h / 2))
                             .gesture(
                                 DragGesture(minimumDistance: 1).onChanged { g in
-                                    rect.x = clamp(rect.x + Double(g.translation.width / max(geo.size.width, 1)), 0, 1 - rect.w)
-                                    rect.y = clamp(rect.y + Double(g.translation.height / max(geo.size.height, 1)), 0, 1 - rect.h)
+                                    rect.x = clamp(rect.x + Double(g.translation.width / max(box.width, 1)), 0, 1 - rect.w)
+                                    rect.y = clamp(rect.y + Double(g.translation.height / max(box.height, 1)), 0, 1 - rect.h)
                                 }
                             )
                     }
+                    .frame(width: box.width, height: box.height, alignment: .topLeading)
+                    .position(x: box.midX, y: box.midY)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -488,6 +495,22 @@ struct CropDialog: View {
     static func cropped(_ imageDataURL: String, rect: CropRect) -> String {
         guard let img = ImageUtil.image(fromDataURL: imageDataURL) else { return "" }
         return Cropper.crop(image: img, rect: rect) ?? ""
+    }
+
+    /// 图片按 `scaledToFit` 放进容器后**实际占的矩形**（居中，四周可能留边）。
+    /// 裁剪框、四角拖柄、拖动判定全部以它为坐标系 —— 归一化坐标本来就相对图片，
+    /// 一旦错用容器尺寸，框与图就会错位（截出来的区域和框住的不一样）。
+    static func fittedRect(_ natural: NSSize, in container: CGSize) -> CGRect {
+        guard natural.width > 1, natural.height > 1,
+              container.width > 1, container.height > 1 else {
+            return CGRect(origin: .zero, size: container)
+        }
+        let scale = min(container.width / natural.width, container.height / natural.height)
+        let size = CGSize(width: (natural.width * scale).rounded(.down),
+                          height: (natural.height * scale).rounded(.down))
+        return CGRect(x: ((container.width - size.width) / 2).rounded(.down),
+                      y: ((container.height - size.height) / 2).rounded(.down),
+                      width: size.width, height: size.height)
     }
 
     private func clamp(_ v: Double, _ lo: Double, _ hi: Double) -> Double { min(max(v, lo), max(hi, lo)) }
