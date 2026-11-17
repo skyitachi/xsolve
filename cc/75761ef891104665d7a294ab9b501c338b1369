@@ -1,0 +1,14 @@
+macos/Sources/XsolveMac/Core/ComposerField.swift
+  h_5a1c62fd74efa2 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cc75761ef891104665d7a294ab9b501c338b1369",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
