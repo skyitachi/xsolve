@@ -82,6 +82,10 @@ struct MarkdownWebView: NSViewRepresentable {
         context.coordinator.isUserInput = isUserInput
         if text != context.coordinator.lastText {
             context.coordinator.scheduleRender(text: text)
+        } else {
+            // 文本没变也要重测一次：宽度可能刚变（分栏拖动 / 窗口拉伸 / 做题区收起）。
+            // 页面里的 ResizeObserver 只在内容区尺寸真的变了才回调，这里是补齐路径。
+            context.coordinator.requestRemeasure()
         }
     }
 
@@ -105,8 +109,18 @@ struct MarkdownWebView: NSViewRepresentable {
         var lastRenderAt = Date.distantPast
         var fontSize: CGFloat = 14
         var isUserInput = false
+        private var lastRemeasure = Date.distantPast
 
         init(heightBox: RichTextHeightBox) { self.heightBox = heightBox }
+
+        /// 请页面重新量一次高度（内部 50ms 节流：布局期 updateNSView 会被连着调好几次）
+        func requestRemeasure() {
+            guard let wv = webView else { return }
+            let now = Date()
+            guard now.timeIntervalSince(lastRemeasure) > 0.05 else { return }
+            lastRemeasure = now
+            wv.evaluateJavaScript("reportH(true)", completionHandler: nil)
+        }
 
         func dispose() {
             renderTask?.cancel()
@@ -159,11 +173,13 @@ struct MarkdownWebView: NSViewRepresentable {
             renderNow()
         }
 
-        func userContentController(_ ucc: WKUserContentController, didReceive message: WKScriptMessage) {            if message.name == "height", let h = message.body as? NSNumber {
-                let v = CGFloat(truncating: h)
-                if abs(v - heightBox.height) > 0.5 {
-                    DispatchQueue.main.async { self.heightBox.height = v }
-                }
+        func userContentController(_ ucc: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == "height", let h = message.body as? NSNumber else { return }
+            let v = CGFloat(truncating: h)
+            // 到主线程再比一次：一次渲染会连着报好几条（50/180/500ms 兜底），
+            // 都在旧值上比较会互相覆盖，最后写进去的可能是中间那个小高度。
+            DispatchQueue.main.async {
+                if abs(v - self.heightBox.height) > 0.5 { self.heightBox.height = v }
             }
         }
     }
@@ -178,6 +194,9 @@ struct MarkdownWebView: NSViewRepresentable {
         <style>
           /* 跟随系统外观：WKWebView 的 prefers-color-scheme 继承宿主视图的 effectiveAppearance */
           :root{color-scheme:light dark;}
+          /* #c 用 flow-root 自成 BFC：否则首尾段落的 margin 会塌陷到外面，
+             getBoundingClientRect() 量不到，第一行顶部 / 最后一行底部就被裁掉一截。 */
+          #c{display:flow-root;padding:0 1px;}
           html,body{margin:0;padding:0;background:transparent;
             font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;
             font-size:\(Int(fontSize))px;line-height:1.65;color:#1f2937;
@@ -201,7 +220,35 @@ struct MarkdownWebView: NSViewRepresentable {
         <body><div id="c"></div>
         <script>
         var __raw='';
+        var __lastH=-1;
         function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+        // 量内容区真实高度。
+        // ⚠️ 不能用 document.body.scrollHeight：宿主把这个 webview 的 frame 高度固定住之后，
+        //    body 的高度会被视口夹住，内容比视口高时报出来就是视口高度 —— 越量越小，
+        //    表现是「题目最后一行只剩上半截」。#c 在 CSS 里是 flow-root，高度只由内容决定。
+        function measureH(){
+          var c=document.getElementById('c');
+          if(!c) return 28;
+          var r=c.getBoundingClientRect();
+          // 宽度还没定下来（首帧 frame 为 0）时别报：0 宽排版是「每字一行」，
+          // 会算出一个荒谬的高度，把布局撑爆。沿用上一次的值更安全。
+          if(r.width<40) return __lastH>0?__lastH:28;
+          return Math.max(12, Math.ceil(r.height)+1);
+        }
+        function reportH(force){
+          var h=measureH();
+          if(!force && Math.abs(h-__lastH)<1) return;
+          __lastH=h;
+          try{webkit.messageHandlers.height.postMessage(h);}catch(e){}
+        }
+        // 排版是多段异步的：KaTeX 字体、图片、webfont 都会在首帧之后才定型，
+        // 只量一次必然量到「字体还没到位」的中间高度，所以补两次。
+        function reportSoon(){
+          reportH(true);
+          [50,180,500].forEach(function(ms){ setTimeout(function(){ reportH(); },ms); });
+        }
+
         function renderNow(){
           var el=document.getElementById('c');
           var src=__raw;
@@ -217,13 +264,27 @@ struct MarkdownWebView: NSViewRepresentable {
               ],throwOnError:false});
             }catch(e){}
           }
-          setTimeout(function(){
-            try{webkit.messageHandlers.height.postMessage(document.body.scrollHeight);}catch(e){}
-          },30);
+          reportSoon();
         }
         function __set(pair){
           __raw = pair[1] ? esc(pair[0]) : pair[0];
           renderNow();
+        }
+
+        // ⚠️ 宽度变化必须重测。高度不是一个常量，它是「在这个宽度下排出来几行」的结果：
+        //    窗口拉伸、分栏拖动、做题区展开/收起都会改宽度，窄了行数就变多。
+        //    不重测 → 一直沿用旧宽度算出的高度 → 内容底部被裁（这次截图的现象）。
+        try{
+          if(window.ResizeObserver){
+            var ro=new ResizeObserver(function(){ reportH(); });
+            var c0=document.getElementById('c');
+            if(c0) ro.observe(c0);
+            ro.observe(document.body);
+          }
+        }catch(e){}
+        window.addEventListener('resize',function(){ reportH(); setTimeout(reportH,100); });
+        if(document.fonts && document.fonts.ready){
+          try{document.fonts.ready.then(function(){ reportH(true); });}catch(e){}
         }
         </script>
         </body></html>

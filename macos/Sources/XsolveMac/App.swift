@@ -123,6 +123,8 @@ struct XsolveApp: App {
         if SendProbe.active { SendProbe.autorun() }
         // 富文本取色探针：深色/浅色外观下正文、表格、公式的实际颜色
         if ColorProbe.active { ColorProbe.runAndExit() }
+        // 富文本高度探针：宽度变化后高度是否重测（题目最后一行被裁的根因）
+        if RichTextProbe.active { RichTextProbe.runAndExit() }
         // 草稿画布探针：合成鼠标事件，验证画笔/橡皮/撤销/导出
         if DrawProbe.active { DrawProbe.runAndExit() }
         // 视觉探针：工具条/画布离屏渲染成 PNG，供人工验收
