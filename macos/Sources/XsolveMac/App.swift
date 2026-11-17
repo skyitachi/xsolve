@@ -137,6 +137,8 @@ struct XsolveApp: App {
         if ToolsProbe.active { ToolsProbe.runAndExit() }
         // 拖拽入图探针：文件 / 图片数据 / 非图片 三条路
         if DropProbe.active { DropProbe.runAndExit() }
+        // 输入框探针：占位符与光标同基线 + Enter 发送 / Ctrl+Enter 换行
+        if ComposerProbe.active { ComposerProbe.runAndExit() }
         // 「识别草稿」链路探针：真 exportImage + 真 SSE，导出图落盘供目视
         if RecogProbe.active { RecogProbe.autorun() }
         // 自动登录：给界面截图/人工验收用，跳过登录页

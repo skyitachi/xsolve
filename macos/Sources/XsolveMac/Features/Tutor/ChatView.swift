@@ -86,20 +86,10 @@ struct ChatPanel: View {
 
             // 输入区
             HStack(alignment: .bottom, spacing: 8) {
-                TextEditor(text: input)
-                    .font(.body)
-                    .frame(height: 52)
-                    .padding(4)
-                    .background(Color.gray.opacity(0.08))
-                    .cornerRadius(8)
-                    .overlay(alignment: .topLeading) {
-                        if state.draftInput.isEmpty {
-                            Text("问我任何问题…")
-                                .foregroundColor(.secondary)
-                                .padding(10)
-                                .allowsHitTesting(false)
-                        }
-                    }
+                ComposerField(text: input,
+                              placeholder: "问我任何问题…",
+                              height: 52,
+                              onSend: { send() })
 
                 if state.turnInFlight {
                     Button {
