@@ -228,6 +228,12 @@ final class TutorState: ObservableObject {
     let api = APIClient.shared
     let status = AiStatus()
 
+    /// 仅供探针（`--uiauto --ask`）：界面上这份状态是 `@StateObject` 私有的，外部够不到。
+    /// weak 引用，不影响生命周期；正式逻辑**一律不读**它。
+    static weak var probeInstance: TutorState?
+
+    init() { Self.probeInstance = self }
+
     // 题目
     @Published var problems: [Problem] = []
     @Published var idx = 0
@@ -655,7 +661,18 @@ final class TutorState: ObservableObject {
 
     // MARK: UI 事件（后端 ui_event）
 
-    private func handleUiEvent(_ data: Data) {
+    /// ui_event 里题目对象都放在 `problem` 子字段里（Web 端就是 `ev.problem`）。
+    /// 曾经把**整包**当题目解码 → 顶层没有 `id` → 失败 → `try?` 静默丢弃，
+    /// 表现就是「AI 说出好了，在弹窗里确认一下」，可弹窗压根不出现。
+    nonisolated static func payload<T: Decodable>(_ type: T.Type,
+                                                  from event: [String: JSONValue],
+                                                  key: String) -> T? {
+        guard let sub = event[key],
+              let d = try? JSONEncoder().encode(sub) else { return nil }
+        return try? JSONDecoder().decode(T.self, from: d)
+    }
+
+    func handleUiEvent(_ data: Data) {
         guard let obj = try? JSONDecoder().decode([String: JSONValue].self, from: data),
               let type = obj["type"]?.stringValue else { return }
         switch type {
@@ -666,12 +683,17 @@ final class TutorState: ObservableObject {
                 systemMsg("AI 已为你切换到第 \(i + 1) 题")
             }
         case "problem_proposed":
-            if let p = try? JSONDecoder().decode(ProposedProblem.self, from: data) {
+            if let p = Self.payload(ProposedProblem.self, from: obj, key: "problem") {
                 proposal = p
+            } else {
+                // 绝不静默：解不出来就说明前后端字段对不上了，得让用户看见
+                systemMsg("⚠️ 收到一道新题，但弹窗数据解析失败（字段不匹配），未展示。")
             }
         case "delete_proposed":
-            if let p = try? JSONDecoder().decode(ProposedProblem.self, from: data) {
+            if let p = Self.payload(ProposedProblem.self, from: obj, key: "problem") {
                 deleteProposal = (p, true)
+            } else {
+                systemMsg("⚠️ 收到删除请求，但弹窗数据解析失败（字段不匹配），未展示。")
             }
         case "problems_changed":
             let cur = obj["current_problem_id"]?.stringValue
@@ -805,31 +827,60 @@ final class TutorState: ObservableObject {
 
     func acceptProposal() async {
         guard let p = proposal else { return }
-        _ = try? await api.requestOK("POST", "api/session/\(sessionId ?? "")/proposal", body: [
-            "action": "accept", "problem_id": p.id,
-        ])
+        // 先关窗再发请求：模态 sheet 卡住会整窗点不动（裁剪弹窗踩过一次）
         proposal = nil
+        // `try?` 吞掉失败的话，弹窗照关、题却没换 —— 用户只看到「点了没反应」
+        guard let sid = sessionId, !sid.isEmpty else {
+            errorMsg("⚠️ 换题失败：会话还没准备好，请重试。")
+            return
+        }
+        do {
+            _ = try await api.requestOK("POST", "api/session/\(sid)/proposal", body: [
+                "action": "accept", "problem_id": p.id,
+            ])
+        } catch {
+            errorMsg("⚠️ 新题保存失败：\(error.localizedDescription)")
+            return
+        }
         await refreshProblemsAfterChange(currentId: p.id, deletedId: nil)
     }
 
     func cancelProposal() async {
         guard let p = proposal else { return }
-        _ = try? await api.requestOK("POST", "api/session/\(sessionId ?? "")/proposal", body: [
-            "action": "cancel", "problem_id": p.id,
-        ])
         proposal = nil
+        guard let sid = sessionId, !sid.isEmpty else { return }
+        do {
+            _ = try await api.requestOK("POST", "api/session/\(sid)/proposal", body: [
+                "action": "cancel", "problem_id": p.id,
+            ])
+        } catch {
+            // 取消失败只影响服务端记录，不打扰用户
+            print("[proposal] cancel failed: \(error.localizedDescription)")
+        }
     }
 
     func acceptDelete() async {
         guard let (p, fromAI) = deleteProposal else { return }
-        _ = try? await api.requestOK("POST", "api/session/\(sessionId ?? "")/delete-confirm", body: [
-            "action": "accept", "problem_id": p.id,
-        ])
         deleteProposal = nil
+        if let sid = sessionId, !sid.isEmpty {
+            do {
+                _ = try await api.requestOK("POST", "api/session/\(sid)/delete-confirm", body: [
+                    "action": "accept", "problem_id": p.id,
+                ])
+            } catch {
+                errorMsg("⚠️ 删除确认失败：\(error.localizedDescription)")
+                return
+            }
+        }
         if !fromAI {
             // 手动删除：走 DELETE /api/problem/:id（管理员）或依赖 ui_event
             if AppModel.shared.user?.is_admin == true {
-                _ = try? await api.requestOK("DELETE", "api/problem/\(p.id)")
+                do {
+                    _ = try await api.requestOK("DELETE", "api/problem/\(p.id)")
+                } catch {
+                    errorMsg("⚠️ 删除题目失败：\(error.localizedDescription)")
+                    return
+                }
                 await refreshProblemsAfterChange(currentId: nil, deletedId: p.id)
             }
         }
@@ -837,10 +888,11 @@ final class TutorState: ObservableObject {
 
     func cancelDelete() async {
         guard let (p, _) = deleteProposal else { return }
-        _ = try? await api.requestOK("POST", "api/session/\(sessionId ?? "")/delete-confirm", body: [
+        deleteProposal = nil
+        guard let sid = sessionId, !sid.isEmpty else { return }
+        _ = try? await api.requestOK("POST", "api/session/\(sid)/delete-confirm", body: [
             "action": "cancel", "problem_id": p.id,
         ])
-        deleteProposal = nil
     }
 }
 

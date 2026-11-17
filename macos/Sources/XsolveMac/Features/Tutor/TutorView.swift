@@ -31,25 +31,7 @@ struct TutorView: View {
         // 截图后 Cmd+V 直接进（与 Web 端 paste 处理一致），目标按鼠标所在面板决定
         .imagePaste(state: state)
         .toolbar { toolbarContent }
-        .sheet(isPresented: $state.showManualInput) {
-            ManualInputDialog(state: state)
-        }
-        .sheet(isPresented: $state.showAbout) {
-            AboutDialog { state.showAbout = false }
-        }
-        .sheet(item: proposalBinding) { p in
-            ProposalDialog(state: state, problem: p)
-        }
-        .sheet(item: deleteBinding) { p in
-            DeleteConfirmDialog(state: state, problem: p.problem, fromAI: p.fromAI)
-        }
-        .sheet(isPresented: state.cropPresented) {
-            CropDialog(imageDataURL: state.cropSource ?? "") { cropped in
-                state.confirmCrop(cropped)
-            } onCancel: {
-                state.cropSource = nil
-            }
-        }
+        .tutorSheets(state)
         .onAppear {
             guard !bootstrapped else { return }
             bootstrapped = true
@@ -95,6 +77,63 @@ struct TutorView: View {
             Divider()
             Button { state.showAbout = true } label: { Label("关于", systemImage: "gearshape") }
         }
+    }
+}
+
+// MARK: - 弹窗链（同一处挂载，探针复用的也是这一份）
+//
+// 五个弹窗挂在一起，谁都不能少：手动输入题目 / 关于 / AI 出题确认 / 删除确认 / 裁剪。
+// 抽成 modifier 是为了让 `--uisheet` 探针验**真实挂载点**，而不是复制一份链。
+// ⚠️ 挂载顺序有意义：链尾是最后加的那个，改顺序要重跑 `--uisheet`。
+
+struct TutorSheets: ViewModifier {
+    @ObservedObject var state: TutorState
+
+    private struct DeletePayload: Identifiable {
+        let id = UUID()
+        let problem: ProposedProblem
+        let fromAI: Bool
+    }
+
+    private var proposalBinding: Binding<ProposedProblem?> {
+        Binding(get: { state.proposal }, set: { state.proposal = $0 })
+    }
+
+    private var deleteBinding: Binding<DeletePayload?> {
+        Binding(get: {
+            state.deleteProposal.map { DeletePayload(problem: $0.problem, fromAI: $0.fromAI) }
+        }, set: { v in
+            state.deleteProposal = v.map { ($0.problem, $0.fromAI) }
+        })
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(isPresented: $state.showManualInput) {
+                ManualInputDialog(state: state)
+            }
+            .sheet(isPresented: $state.showAbout) {
+                AboutDialog { state.showAbout = false }
+            }
+            .sheet(item: proposalBinding) { p in
+                ProposalDialog(state: state, problem: p)
+            }
+            .sheet(item: deleteBinding) { p in
+                DeleteConfirmDialog(state: state, problem: p.problem, fromAI: p.fromAI)
+            }
+            .sheet(isPresented: state.cropPresented) {
+                CropDialog(imageDataURL: state.cropSource ?? "") { cropped in
+                    state.confirmCrop(cropped)
+                } onCancel: {
+                    state.cropSource = nil
+                }
+            }
+    }
+}
+
+extension View {
+    func tutorSheets(_ state: TutorState) -> some View {
+        modifier(TutorSheets(state: state))
     }
 }
 

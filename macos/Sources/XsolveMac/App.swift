@@ -123,6 +123,10 @@ struct XsolveApp: App {
         if SendProbe.active { SendProbe.autorun() }
         // 富文本取色探针：深色/浅色外观下正文、表格、公式的实际颜色
         if ColorProbe.active { ColorProbe.runAndExit() }
+        // 多 sheet 挂载探针：同视图挂多个 .sheet 时到底哪个生效
+        if SheetProbe.active { SheetProbe.runAndExit() }
+        // ui_event 探针：后端 problem_proposed / delete_proposed 能否变成弹窗状态
+        if UiEventProbe.active { UiEventProbe.runAndExit() }
         // 富文本高度探针：宽度变化后高度是否重测（题目最后一行被裁的根因）
         if RichTextProbe.active { RichTextProbe.runAndExit() }
         // 草稿画布探针：合成鼠标事件，验证画笔/橡皮/撤销/导出

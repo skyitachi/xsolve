@@ -80,7 +80,11 @@ enum RichTextProbe {
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: startW, height: startH),
                           styleMask: [.borderless], backing: .buffered, defer: false)
         win.contentView = wv
-        win.orderBack(nil)
+        // ⚠️ 必须是**可见**窗口：`orderBack` 时窗口被判定为不可见，WebKit 会把
+        // requestAnimationFrame 掐掉 → `reportSoon` 里的兜底上报不跑，窄宽度那次
+        // 就永远报不出新高度，探针会假失败（还会被误当成产品 bug）。
+        win.orderFront(nil)
+        wv.autoresizingMask = [.width, .height]
 
         wv.loadHTMLString(MarkdownWebView.html(base: base.absoluteString, fontSize: 14, isUserInput: false),
                           baseURL: base)

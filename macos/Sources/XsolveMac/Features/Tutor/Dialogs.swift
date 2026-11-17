@@ -22,8 +22,13 @@ struct ProposalDialog: View {
                     .padding(10)
                     .background(Color.gray.opacity(0.06))
                     .cornerRadius(8)
+                // 与题目区同一条优先级：原图（学生上传的）优先，其次才是几何示意图
                 if let fig = problem.figureImage, let img = ImageUtil.image(fromDataURL: fig) {
-                    Image(nsImage: img).resizable().scaledToFit().frame(maxWidth: .infinity).cornerRadius(8)
+                    Image(nsImage: img).resizable().scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: 220)
+                        .cornerRadius(8)
+                } else if let fig = problem.figure, fig.type != "image" {
+                    FigureView(figure: fig)
                 }
                 if let hints = problem.hints, !hints.isEmpty {
                     DisclosureGroup(isExpanded: $showHints) {
@@ -47,7 +52,9 @@ struct ProposalDialog: View {
             }
         }
         .padding(18)
-        .frame(width: 520, height: 480)
+        // 只固定宽度、高度交给内容：原来写死 480 高，短题下面一大片空白，
+        // 看起来像内容没加载完
+        .frame(width: 520)
     }
 }
 
