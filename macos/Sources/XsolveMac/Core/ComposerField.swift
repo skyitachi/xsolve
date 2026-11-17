@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-// MARK: - 多行输入框（Enter 发送 / Ctrl(⌘)+Enter 换行 / 占位符与光标严格同基线）
+// MARK: - 多行输入框（Enter 发送 / Ctrl+Enter 换行 / 占位符与光标严格同基线）
 
 /// 为什么要自己包一层 NSTextView：
 /// 1. SwiftUI 的 `TextEditor` 在 NSTextView 内部自带 `textContainerInset`（垂直 5pt）和
