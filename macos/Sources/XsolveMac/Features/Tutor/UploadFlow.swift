@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - 图片选择（NSOpenPanel，等价「相册选题」）
 
@@ -14,6 +15,118 @@ func pickImage(_ onPick: @escaping (URL) -> Void) {
         onPick(url)
     }
 }
+
+// MARK: - 从本地图片文件进入上传流转（选择图片 / 拖拽共用）
+
+/// 读文件 → 压成 JPEG dataURL → 交给 TutorState 按目标分流
+/// （题目：进裁剪弹窗后立即识别；解答：进预览条等确认）
+@MainActor
+func ingestImageFile(_ url: URL, state: TutorState, target: TutorState.UploadTarget) {
+    guard let img = NSImage(contentsOf: url) else {
+        state.errorMsg("「\(url.lastPathComponent)」不是可识别的图片")
+        return
+    }
+    let maxEdge: CGFloat = target == .problem ? 2000 : 1280
+    guard let dataURL = ImageUtil.jpegDataURL(from: img, maxEdge: maxEdge) else {
+        state.errorMsg("图片处理失败：\(url.lastPathComponent)")
+        return
+    }
+    state.ingest(image: dataURL, target: target)
+}
+
+// MARK: - 拖拽入图（Finder 文件 / 浏览器里的图片）
+
+/// 把拖进来的东西变成 `TutorState.ingest` 的输入。
+///
+/// 分两条路走：Finder 拖文件给的是 `public.file-url`，从浏览器拖图片常常只给
+/// `public.tiff` / `public.png` 的原始数据 —— 只认其中一种的话，
+/// 「拖文件能进、拖截图不能进」这种半残体验很容易被当成坏了。
+enum ImageDropHandler {
+    static let supported: [UTType] = [.fileURL, .image, .png, .jpeg, .tiff, .heic]
+
+    /// 返回值只表示「我接下了这个拖拽」；真正的读取是异步的
+    @MainActor
+    static func accept(_ providers: [NSItemProvider],
+                       state: TutorState,
+                       target: TutorState.UploadTarget) -> Bool {
+        guard let p = providers.first else { return false }
+
+        if p.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            p.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                let url: URL? = {
+                    if let u = item as? URL { return u }
+                    if let d = item as? Data { return URL(dataRepresentation: d, relativeTo: nil) }
+                    if let s = item as? String { return URL(string: s) }
+                    return nil
+                }()
+                guard let url else { return }
+                Task { @MainActor in ingestImageFile(url, state: state, target: target) }
+            }
+            return true
+        }
+
+        for type in [UTType.png, .jpeg, .tiff, .heic, .image]
+        where p.hasItemConformingToTypeIdentifier(type.identifier) {
+            p.loadDataRepresentation(forTypeIdentifier: type.identifier) { data, _ in
+                guard let data, let img = NSImage(data: data) else { return }
+                let maxEdge: CGFloat = target == .problem ? 2000 : 1280
+                guard let dataURL = ImageUtil.jpegDataURL(from: img, maxEdge: maxEdge) else { return }
+                Task { @MainActor in state.ingest(image: dataURL, target: target) }
+            }
+            return true
+        }
+        return false
+    }
+}
+
+/// 拖拽悬停时的提示层（单独抽出来，探针才能离屏渲染验收）
+struct DropHintOverlay: View {
+    let hint: String
+
+    var body: some View {
+        ZStack {
+            Color.brand.opacity(0.06)
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(Color.brand, style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                .padding(6)
+            HStack(spacing: 8) {
+                Image(systemName: "square.and.arrow.down")
+                Text(hint).font(.callout.weight(.medium))
+            }
+            .foregroundStyle(Color.brand)
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// 给任意区域挂「把图片拖进来」。拖拽悬停时铺一层品牌色虚线框 + 文字，
+/// 否则用户不知道这块能接图（尤其题目区大片空白处）。
+struct ImageDropModifier: ViewModifier {
+    @ObservedObject var state: TutorState
+    let target: TutorState.UploadTarget
+    let hint: String
+    @State private var isTargeted = false
+
+    func body(content: Content) -> some View {
+        content
+            .onDrop(of: ImageDropHandler.supported, isTargeted: $isTargeted) { providers in
+                ImageDropHandler.accept(providers, state: state, target: target)
+            }
+            .overlay {
+                if isTargeted { DropHintOverlay(hint: hint) }
+            }
+            .animation(.easeOut(duration: 0.12), value: isTargeted)
+    }
+}
+
+extension View {
+    func imageDrop(state: TutorState, target: TutorState.UploadTarget, hint: String) -> some View {
+        modifier(ImageDropModifier(state: state, target: target, hint: hint))
+    }
+}
+
 
 // MARK: - 相机窗口（「拍题」：macOS 上以 Continuity Camera / 内置摄像头实现）
 

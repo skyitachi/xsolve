@@ -48,8 +48,27 @@ enum ToolsProbe {
              ProblemPanel(state: state, workPanelHidden: .constant(false)),
              width: 420, height: 220)
 
+        // 拖拽悬停提示层：这段只能靠看，别让它糊成一团或者文字被裁
+        snap("drophint-420",
+             ZStack {
+                 Color(nsColor: .textBackgroundColor)
+                 DropHintOverlay(hint: "松手：用这张图识别题目")
+             },
+             width: 420, height: 220)
+
+        verifyDropZone()
+
         print(failures == 0 ? "\n全部通过" : "\n\(failures) 项失败")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    /// ⚠️ 别用 registeredDraggedTypes 验 SwiftUI 的 onDrop：宿主视图只注册
+    /// 通用的 public.data / public.item，具体类型是 SwiftUI 内部自己筛的，
+    /// 断言必然假失败。所以这里只确认「拖拽提示层长什么样」（见 drophint-420），
+    /// 真正的落点行为交给 --uidrop 的 provider 级探针。
+    @MainActor
+    static func verifyDropZone() {
+        print("  （SwiftUI onDrop 不暴露具体拖拽类型，落点行为见 --uidrop）")
     }
 
     @MainActor

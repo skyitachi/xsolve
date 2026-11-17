@@ -129,6 +129,8 @@ struct XsolveApp: App {
         if SnapProbe.active { SnapProbe.runAndExit() }
         // 做题区窄栏探针：四种宽度下工具条是否还能完整显示（禁止再被裁）
         if ToolsProbe.active { ToolsProbe.runAndExit() }
+        // 拖拽入图探针：文件 / 图片数据 / 非图片 三条路
+        if DropProbe.active { DropProbe.runAndExit() }
         // 「识别草稿」链路探针：真 exportImage + 真 SSE，导出图落盘供目视
         if RecogProbe.active { RecogProbe.autorun() }
         // 自动登录：给界面截图/人工验收用，跳过登录页

@@ -156,13 +156,15 @@ struct ProblemPanel: View {
                         FigureView(figure: fig)
                     }
                 } else {
-                    Text("题库为空。可以点「输入题目」或让 AI 出一道新题。")
+                    Text("题库为空。可以点「输入题目」或让 AI 出一道新题，也可以把题目图片直接拖到这里。")
                         .foregroundStyle(.secondary)
                 }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // 整块题目区都能接图：从 Finder 拖文件、从浏览器/截图工具拖图片都行
+        .imageDrop(state: state, target: .problem, hint: "松手：用这张图识别题目")
     }
 }
 
@@ -394,8 +396,9 @@ struct WorkPanel: View {
 
             Divider()
 
-            // 草稿板
+            // 草稿板（也能接图：把纸上写的解答拍好拖进来，直接发给 AI 检查）
             ScratchCanvasView(model: state.scratch)
+                .imageDrop(state: state, target: .answer, hint: "松手：把这张图当作解答发给 AI")
         }
     }
 
@@ -408,16 +411,7 @@ struct WorkPanel: View {
     }
 
     private func ingest(_ url: URL, _ target: TutorState.UploadTarget) {
-        guard let img = NSImage(contentsOf: url) else {
-            state.errorMsg("图片读取失败：\(url.lastPathComponent)")
-            return
-        }
-        let maxEdge: CGFloat = target == .problem ? 2000 : 1280
-        guard let d = ImageUtil.jpegDataURL(from: img, maxEdge: maxEdge) else {
-            state.errorMsg("图片处理失败")
-            return
-        }
-        state.ingest(image: d, target: target)
+        ingestImageFile(url, state: state, target: target)
     }
 }
 
