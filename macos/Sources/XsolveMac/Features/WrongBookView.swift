@@ -498,7 +498,7 @@ struct WrongItemDetail: View {
                         .background(Color.gray.opacity(0.06)).cornerRadius(10)
                     if let fig = p.figure, fig.type == "image" {
                         if let d = imageData, let img = ImageUtil.image(fromDataURL: d) {
-                            Image(nsImage: img).resizable().scaledToFit().frame(maxWidth: .infinity).cornerRadius(8)
+                            ProblemFigureImage(image: img)
                         } else {
                             Button("查看题目原图") { Task { await loadImage() } }
                         }

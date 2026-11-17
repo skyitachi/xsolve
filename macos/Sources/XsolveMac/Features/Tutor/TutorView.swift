@@ -181,14 +181,8 @@ struct ProblemPanel: View {
                 if let p = state.currentProblem {
                     RichText(text: p.text)
                     if let fig = p.figureImage, let img = ImageUtil.image(fromDataURL: fig) {
-                        VStack(spacing: 4) {
-                            Image(nsImage: img)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxWidth: .infinity)
-                                .cornerRadius(8)
-                            Text("🖼️ 题目原图").font(.caption).foregroundStyle(.secondary)
-                        }
+                        // 原图按 Web 端规则限高 220pt，点击可看大图（见 FigureImage.swift）
+                        ProblemFigureImage(image: img)
                     } else if let fig = p.figure {
                         FigureView(figure: fig)
                     }

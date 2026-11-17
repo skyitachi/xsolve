@@ -24,9 +24,7 @@ struct ProposalDialog: View {
                     .cornerRadius(8)
                 // 与题目区同一条优先级：原图（学生上传的）优先，其次才是几何示意图
                 if let fig = problem.figureImage, let img = ImageUtil.image(fromDataURL: fig) {
-                    Image(nsImage: img).resizable().scaledToFit()
-                        .frame(maxWidth: .infinity, maxHeight: 220)
-                        .cornerRadius(8)
+                    ProblemFigureImage(image: img, caption: nil)
                 } else if let fig = problem.figure, fig.type != "image" {
                     FigureView(figure: fig)
                 }
