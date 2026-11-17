@@ -756,11 +756,29 @@ final class TutorState: ObservableObject {
         }
     }
 
+    /// 确认裁剪 / 用全图 → **先关弹窗**，再发识别请求。
+    ///
+    /// ⚠️ `cropSource` 必须在这里自己清掉：sheet 的 `isPresented` 就绑在
+    /// `cropSource != nil` 上。只发请求不清标记 → 模态弹窗一直盖在最上层，
+    /// 整个窗口都点不动，表现出来就是「点了确认裁剪没反应」。
+    /// 「取消」路径本来就清了（`onCancel`），别只修一半。
     func confirmCrop(_ cropped: String) {
-        guard let parts = ImageUtil.parseDataURL(cropped) else { return }
+        cropSource = nil
+        cropTarget = .problem
+        guard let parts = ImageUtil.parseDataURL(cropped) else {
+            errorMsg("裁剪结果无效，请重新框选一次。")
+            return
+        }
         userMsg("（上传题目图片，请识别为新题）", image: cropped)
         let img = PendingImage(dataURL: cropped, mediaType: parts.mediaType, base64: parts.base64)
         Task { await runTurn(Self.problemRecognizePrompt, image: img) }
+    }
+
+    /// 裁剪弹窗的开关。放在 state 上而不是 View 里私有：探针要能验
+    /// 「确认裁剪后弹窗真的消失」，而弹窗显隐完全由这行绑定决定。
+    var cropPresented: Binding<Bool> {
+        Binding(get: { [weak self] in self?.cropSource != nil },
+                set: { [weak self] v in if !v { self?.cropSource = nil } })
     }
 
     /// 附言 → 真正发给 AI 的 prompt（纯函数，方便探针直接断言）

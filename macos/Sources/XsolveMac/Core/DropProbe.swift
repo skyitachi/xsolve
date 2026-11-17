@@ -135,6 +135,72 @@ enum DropProbe {
               typed.prompt == "这步为什么要配方？" && typed.caption == typed.prompt,
               "prompt =「\(typed.prompt)」")
 
+        // 7) 确认裁剪后弹窗必须关掉。
+        //    sheet 的 isPresented 绑的是 `cropSource != nil`，只发识别请求不清标记的话，
+        //    模态弹窗会一直盖在窗口上 —— 整个窗口都点不动，看起来就是「点了没反应」。
+        let s4 = TutorState()
+        let croppedURL = ImageUtil.jpegDataURL(from: img, maxEdge: 400) ?? ""
+        s4.cropSource = croppedURL
+        check("确认裁剪前处于弹窗态", s4.cropSource != nil, "cropSource 有值")
+        s4.confirmCrop(croppedURL)
+        check("确认裁剪后弹窗关闭（cropSource 清空）", s4.cropSource == nil,
+              "cropSource = \(s4.cropSource == nil ? "nil" : "有值")")
+        let uploadMsg = s4.entries.first { e -> Bool in
+            if case .user(let t, let img) = e.kind { return t.contains("上传题目图片") && img != nil }
+            return false
+        }
+        // 日志里只打长度：base64 全文会把日志刷成几万字符
+        let firstEntry: String = {
+            guard let e = s4.entries.first else { return "无" }
+            if case .user(let t, let img) = e.kind {
+                return "user「\(t)」image=\(img?.count ?? 0) 字符"
+            }
+            return "非 user"
+        }()
+        check("确认裁剪后对话里出现带图的上传消息", uploadMsg != nil,
+              "entries = \(s4.entries.count) 条，首条 = \(firstEntry)")
+
+        // 裁剪结果解析失败时也必须关窗：否则用户被永久卡在模态弹窗里
+        let s5 = TutorState()
+        s5.cropSource = croppedURL
+        s5.confirmCrop("不是合法 dataURL")
+        check("裁剪结果异常时仍关窗", s5.cropSource == nil,
+              "cropSource = \(s5.cropSource == nil ? "nil" : "有值")")
+
+        // 8) 端到端：真的把 sheet 弹出来再关。上面几条只看状态标记，
+        //    这条看 SwiftUI 真正挂没挂 sheet（显隐完全由 cropPresented 决定）。
+        let s6 = TutorState()
+        s6.cropSource = croppedURL
+        // ⚠️ 必须用 @ObservedObject 的宿主：`.sheet(isPresented:)` 只有宿主重算 body
+        //    才会重读绑定值。真实 TutorView 就是 @ObservedObject，直接拿
+        //    state.cropPresented 当 rootView 测会测出一个不存在的 bug。
+        let host = NSHostingView(rootView: AnyView(SheetHost(state: s6)))
+        let sheetWin = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 300),
+                                styleMask: [.titled], backing: .buffered, defer: false)
+        sheetWin.contentView = host
+        sheetWin.orderFront(nil)
+        spin(1.4)
+        let opened = sheetWin.attachedSheet != nil
+        s6.confirmCrop(croppedURL)
+        spin(1.4)
+        let closed = sheetWin.attachedSheet == nil
+        check("裁剪弹窗会随 cropSource 弹出", opened,
+              "attachedSheet = \(opened ? "有" : "无，离屏窗口可能不呈现 sheet")")
+        check("确认裁剪后弹窗真的消失", closed,
+              "attachedSheet = \(closed ? "无" : "仍然挂着")")
+        sheetWin.close()
+
+        // 9) 按钮本身：点「确认裁剪 / 用全图」一定产出值（裁不出来传空串，
+        //    confirmCrop 也会关窗提示，不会把用户留在弹窗里）
+        let full = CropDialog.cropped(croppedURL, rect: CropRect(x: 0, y: 0, w: 1, h: 1))
+        let part = CropDialog.cropped(croppedURL, rect: CropRect(x: 0.2, y: 0.2, w: 0.6, h: 0.6))
+        check("确认裁剪有输出", part.hasPrefix("data:image/jpeg;base64,") && part.count > 200,
+              "\(part.count) 字符")
+        check("用全图输出比裁剪大", full.count > part.count,
+              "全图 \(full.count) vs 裁剪 \(part.count)")
+        check("坏图不返回半截 dataURL", CropDialog.cropped("坏图", rect: CropRect()) == "",
+              "返回空串（交给 confirmCrop 关窗 + 提示）")
+
         log(failures == 0 ? "\n全部通过" : "\n\(failures) 项失败")
         log("日志：\(logURL.path)")
         exit(failures == 0 ? 0 : 1)
@@ -144,5 +210,15 @@ enum DropProbe {
     private static func spin(_ seconds: TimeInterval) {
         let until = Date().addingTimeInterval(seconds)
         while Date() < until { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+    }
+}
+
+/// 裁剪弹窗宿主：只为探针复现真实 View 的观察条件（不放这里就得在 View 里暴露更多内部）
+private struct SheetHost: View {
+    @ObservedObject var state: TutorState
+    var body: some View {
+        Color.clear
+            .frame(width: 420, height: 300)
+            .sheet(isPresented: state.cropPresented) { Text("crop") }
     }
 }

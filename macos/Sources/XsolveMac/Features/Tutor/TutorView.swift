@@ -43,7 +43,7 @@ struct TutorView: View {
         .sheet(item: deleteBinding) { p in
             DeleteConfirmDialog(state: state, problem: p.problem, fromAI: p.fromAI)
         }
-        .sheet(isPresented: cropBinding) {
+        .sheet(isPresented: state.cropPresented) {
             CropDialog(imageDataURL: state.cropSource ?? "") { cropped in
                 state.confirmCrop(cropped)
             } onCancel: {
@@ -72,10 +72,6 @@ struct TutorView: View {
         }, set: { v in
             state.deleteProposal = v.map { ($0.problem, $0.fromAI) }
         })
-    }
-
-    private var cropBinding: Binding<Bool> {
-        Binding(get: { state.cropSource != nil }, set: { if !$0 { state.cropSource = nil } })
     }
 
     @ToolbarContentBuilder

@@ -466,19 +466,13 @@ struct CropDialog: View {
             HStack {
                 Button("取消") { onCancel() }
                 Spacer()
-                // 与 Web 端一致：整页就用全图，不必手动拉到边
+                // 裁不出来也要回调（传空串）：静默不响应 = 模态弹窗关不掉 = 整窗点不动。
+                // confirmCrop 收到空串会关窗 + 给一句可照做的提示。
                 Button("用全图") {
-                    if let img = ImageUtil.image(fromDataURL: imageDataURL),
-                       let out = Cropper.crop(image: img,
-                                              rect: CropRect(x: 0, y: 0, w: 1, h: 1)) {
-                        onDone(out)
-                    }
+                    onDone(Self.cropped(imageDataURL, rect: CropRect(x: 0, y: 0, w: 1, h: 1)))
                 }
                 Button("确认裁剪") {
-                    if let img = ImageUtil.image(fromDataURL: imageDataURL),
-                       let out = Cropper.crop(image: img, rect: rect) {
-                        onDone(out)
-                    }
+                    onDone(Self.cropped(imageDataURL, rect: rect))
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
@@ -486,6 +480,14 @@ struct CropDialog: View {
         }
         .padding(16)
         .frame(width: 620, height: 560)
+    }
+
+    /// 裁剪输出（「确认裁剪」与「用全图」共用）。
+    /// 抽成静态函数是为了让探针能直接断言「按钮点下去一定有值」——
+    /// 模拟点击在这台机器上要辅助功能授权，靠不住。
+    static func cropped(_ imageDataURL: String, rect: CropRect) -> String {
+        guard let img = ImageUtil.image(fromDataURL: imageDataURL) else { return "" }
+        return Cropper.crop(image: img, rect: rect) ?? ""
     }
 
     private func clamp(_ v: Double, _ lo: Double, _ hi: Double) -> Double { min(max(v, lo), max(hi, lo)) }
