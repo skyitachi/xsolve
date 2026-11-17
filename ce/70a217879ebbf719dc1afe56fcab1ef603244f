@@ -1,0 +1,18 @@
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 132-133
+macos/Sources/XsolveMac/Core/AutoProbe.swift
+  h_5a1c62fd74efa2 1-72
+macos/Sources/XsolveMac/Features/Tutor/TutorView.swift
+  h_5a1c62fd74efa2 12-19,22-26,28,107,125-136,293-294,307-323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ce70a217879ebbf719dc1afe56fcab1ef603244f",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
