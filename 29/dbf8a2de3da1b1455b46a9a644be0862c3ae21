@@ -1,0 +1,18 @@
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 126-127
+macos/Sources/XsolveMac/Core/RichText.swift
+  h_5a1c62fd74efa2 85-88,112,116-124,176-182,197-199,223,225-251,267,273-288
+macos/Sources/XsolveMac/Core/RichTextProbe.swift
+  h_5a1c62fd74efa2 1-161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "29dbf8a2de3da1b1455b46a9a644be0862c3ae21",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
