@@ -1,0 +1,20 @@
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 140-141
+macos/Sources/XsolveMac/Core/ComposerField.swift
+  h_5a1c62fd74efa2 1-243
+macos/Sources/XsolveMac/Core/ComposerProbe.swift
+  h_5a1c62fd74efa2 1-299
+macos/Sources/XsolveMac/Features/Tutor/ChatView.swift
+  h_5a1c62fd74efa2 89-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b1f251210431a1f97efde239a367048d53233162",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
