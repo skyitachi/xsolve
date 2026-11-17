@@ -239,7 +239,7 @@ final class TutorState: ObservableObject {
     // 聊天
     @Published var entries: [ChatEntry] = []
     @Published var turnInFlight = false
-    @Published var draftInput = ""
+    @Published var draftInput = ""   // 输入框正文：既是聊天输入，也是解答图的附言（Web 端同一个 textarea）
     // 最终答案输入框：做题区隐藏时 WorkPanel 会被销毁，草稿必须留在 state 里
     @Published var answerDraft = ""
     var pendingNewSession = false
@@ -741,6 +741,9 @@ final class TutorState: ObservableObject {
 
     static let problemRecognizePrompt = "这是一道题目的图片。请仔细识别图片里的题面（有公式就用 LaTeX $...$ 表示），判断主题类型，然后调用 propose_problem 工具向我提议这道新题。注意：你只需识别题目并出题，不要在对话里解答题目或给出答案/解题步骤；答案和提示作为 propose_problem 的参数提交即可（不会在对话里展示）。你不必自己切换题目；propose_problem 会弹窗让我确认是否替换当前题。如果原图含有题目相关图形，务必设 figure: {type:\"image\"}。"
 
+    /// 附言留空时用的默认话术（与 Web 端 upload.js 完全一致）
+    static let answerDefaultPrompt = "这是我写在纸上的做题过程 / 答案，请帮我看看对不对、有没有需要改进的地方。"
+
     /// 原始图片进入：题目 → 裁剪后立即识别；解答 → 缩放进预览等确认
     func ingest(image dataURL: String, target: UploadTarget) {
         switch target {
@@ -760,13 +763,23 @@ final class TutorState: ObservableObject {
         Task { await runTurn(Self.problemRecognizePrompt, image: img) }
     }
 
-    func sendPendingUpload(caption: String) async {
+    /// 附言 → 真正发给 AI 的 prompt（纯函数，方便探针直接断言）
+    static func pendingUploadPrompt(draft: String) -> (caption: String, prompt: String) {
+        let caption = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (caption, caption.isEmpty ? answerDefaultPrompt : caption)
+    }
+
+    /// 发送待发的解答图。附言取**输入框正文**（与 Web 端 upload.js 的
+    /// `elChatInput.value.trim()` 一致）：输入框里已经打的问题直接当附言用，
+    /// 发完清空 —— 否则用户打完字再点「发给 AI 检查」，那段文字要么丢掉、
+    /// 要么被当成下一条独立提问，都是错的。
+    func sendPendingUpload() async {
         guard let up = pendingUpload else { return }
-        let prompt = caption.isEmpty
-            ? "这是我写在纸上的做题过程 / 答案，请帮我看看对不对、有没有需要改进的地方。"
-            : caption
+        let (caption, prompt) = Self.pendingUploadPrompt(draft: draftInput)
+        // Web 端是 addUserMsg(caption || prompt, ...)：没附言就把默认话术显示出来
         userMsg(caption.isEmpty ? prompt : caption, image: up.dataURL)
         pendingUpload = nil
+        draftInput = ""
         await runTurn(prompt, image: up)
     }
 

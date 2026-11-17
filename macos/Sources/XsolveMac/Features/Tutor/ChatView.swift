@@ -5,7 +5,8 @@ import SwiftUI
 struct ChatPanel: View {
     @ObservedObject var state: TutorState
     @EnvironmentObject var model: AppModel
-    @State private var input = ""
+    /// 输入正文存在 state 里（与 Web 端同一个 textarea：既是聊天输入，也是解答图的附言）
+    private var input: Binding<String> { $state.draftInput }
 
     private let quickPrompts: [(String, String)] = [
         ("要提示", "给我一个提示，但不要直接告诉我答案"),
@@ -85,14 +86,14 @@ struct ChatPanel: View {
 
             // 输入区
             HStack(alignment: .bottom, spacing: 8) {
-                TextEditor(text: $input)
+                TextEditor(text: input)
                     .font(.body)
                     .frame(height: 52)
                     .padding(4)
                     .background(Color.gray.opacity(0.08))
                     .cornerRadius(8)
                     .overlay(alignment: .topLeading) {
-                        if input.isEmpty {
+                        if state.draftInput.isEmpty {
                             Text("问我任何问题…")
                                 .foregroundColor(.secondary)
                                 .padding(10)
@@ -115,18 +116,20 @@ struct ChatPanel: View {
                     }
                     .controlSize(.large)
                     .buttonStyle(.borderedProminent)
-                    .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(state.draftInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
             .padding(12)
         }
         .background(Color(nsColor: .controlBackgroundColor))
+        // 与 Web 端 .panel-ai 一致：AI 区也能接图，默认按「解答」处理
+        .imageDrop(state: state, target: .answer)
     }
 
     private func send() {
-        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = state.draftInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        input = ""
+        state.draftInput = ""
         state.userMsg(text)
         Task { await state.runTurn(text) }
     }

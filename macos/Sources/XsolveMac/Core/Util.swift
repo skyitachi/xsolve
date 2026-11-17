@@ -80,7 +80,8 @@ enum ImageUtil {
 // MARK: - 裁剪
 
 struct CropRect: Equatable {
-    var x: CGFloat = 0.15, y: CGFloat = 0.15, w: CGFloat = 0.7, h: CGFloat = 0.7  // 归一化 0~1
+    // Web 端（crop.js）首次进入默认框住中间 88%，留出可见边距提示「可以拖」
+    var x: CGFloat = 0.06, y: CGFloat = 0.06, w: CGFloat = 0.88, h: CGFloat = 0.88  // 归一化 0~1
 }
 
 /// 按归一化裁剪框裁剪图片，输出 JPEG dataURL

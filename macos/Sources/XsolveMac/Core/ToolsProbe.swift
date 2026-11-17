@@ -27,6 +27,18 @@ enum ToolsProbe {
 
     private static var failures = 0
 
+    /// 预览条缩略图用的小图（白底 + 黑框，能看出方向）
+    private static var previewThumb: String {
+        let img = NSImage(size: NSSize(width: 200, height: 140))
+        img.lockFocus()
+        NSColor.white.setFill()
+        NSRect(x: 0, y: 0, width: 200, height: 140).fill()
+        NSColor.black.setFill()
+        NSRect(x: 20, y: 70, width: 90, height: 40).fill()
+        img.unlockFocus()
+        return ImageUtil.jpegDataURL(from: img, maxEdge: 400) ?? ""
+    }
+
     @MainActor
     static func runAndExit() -> Never {
         let app = NSApplication.shared
@@ -48,13 +60,23 @@ enum ToolsProbe {
              ProblemPanel(state: state, workPanelHidden: .constant(false)),
              width: 420, height: 220)
 
-        // 拖拽悬停提示层：这段只能靠看，别让它糊成一团或者文字被裁
+        // 解答图预览条：缩略图 + 附言框 + 「发给 AI 检查」+「取消」。
+        // 320pt 也要求右侧按钮不被裁（窄栏是常态，左栏收起后更窄）。
+        for w in [320.0, 420.0, 560.0] {
+            snap("preview-\(Int(w))",
+                 UploadPreviewBar(state: state, dataURL: previewThumb),
+                 width: w, height: 84)
+        }
+
+        // 拖拽悬停提示层：这段只能靠看，别让它糊成一团或者文字被裁。
+        // 注意遮罩是**整块铺满**（与 Web 端 .drop-overlay 的 inset:0 一致），
+        // 所以不能套「右边界留白」那条断言 —— 它本来就该压到边上。
         snap("drophint-420",
              ZStack {
                  Color(nsColor: .textBackgroundColor)
-                 DropHintOverlay(hint: "松手：用这张图识别题目")
+                 DropHintOverlay(hint: "松开鼠标：作为「题目图片（按住 Shift 改为解答）」上传")
              },
-             width: 420, height: 220)
+             width: 420, height: 220, fullBleed: true)
 
         verifyDropZone()
 
@@ -72,7 +94,8 @@ enum ToolsProbe {
     }
 
     @MainActor
-    private static func snap(_ name: String, _ view: some View, width: Double, height: Double) {
+    private static func snap(_ name: String, _ view: some View, width: Double, height: Double,
+                             fullBleed: Bool = false) {
         let host = NSHostingView(rootView: AnyView(
             view
                 .frame(width: width, height: height)
@@ -96,6 +119,10 @@ enum ToolsProbe {
         try? png.write(to: url)
 
         let clipped = hasContentNearRightEdge(rep)
+        if fullBleed {
+            print("  ·（整块铺满，不做右边界断言）  \(name) → \(url.path)")
+            return
+        }
         if clipped { failures += 1 }
         print("  \(clipped ? "✗ 右边界仍有内容（被裁）" : "✓ 右边界留白")  \(name) → \(url.path)")
     }

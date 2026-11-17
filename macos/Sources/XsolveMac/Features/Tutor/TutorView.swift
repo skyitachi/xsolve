@@ -28,6 +28,8 @@ struct TutorView: View {
                 .frame(minWidth: 380)
         }
         .frame(minWidth: 900, minHeight: 520)
+        // 截图后 Cmd+V 直接进（与 Web 端 paste 处理一致），目标按鼠标所在面板决定
+        .imagePaste(state: state)
         .toolbar { toolbarContent }
         .sheet(isPresented: $state.showManualInput) {
             ManualInputDialog(state: state)
@@ -163,8 +165,8 @@ struct ProblemPanel: View {
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        // 整块题目区都能接图：从 Finder 拖文件、从浏览器/截图工具拖图片都行
-        .imageDrop(state: state, target: .problem, hint: "松手：用这张图识别题目")
+        // 整块题目区都能接图（与 Web 端 .panel-problem 一致：从 Finder 拖文件、从浏览器拖图片都行）
+        .imageDrop(state: state, target: .problem)
     }
 }
 
@@ -396,10 +398,11 @@ struct WorkPanel: View {
 
             Divider()
 
-            // 草稿板（也能接图：把纸上写的解答拍好拖进来，直接发给 AI 检查）
+            // 草稿板
             ScratchCanvasView(model: state.scratch)
-                .imageDrop(state: state, target: .answer, hint: "松手：把这张图当作解答发给 AI")
         }
+        // 与 Web 端 .panel-work 一致：整块做题区都能接图，默认按「解答」处理
+        .imageDrop(state: state, target: .answer)
     }
 
     private func toolButton(_ title: String, icon: String,
@@ -417,27 +420,34 @@ struct WorkPanel: View {
 
 // MARK: - 上传预览条
 
-private struct UploadPreviewBar: View {
+struct UploadPreviewBar: View {
     @ObservedObject var state: TutorState
     let dataURL: String
-    @State private var caption = ""
 
     var body: some View {
         HStack(spacing: 10) {
             if let img = ImageUtil.image(fromDataURL: dataURL) {
                 Image(nsImage: img)
                     .resizable()
-                    .scaledToFit()
-                    .frame(height: 60)
+                    .scaledToFill()
+                    // 固定方框：横图不能把整条挤爆
+                    .frame(width: 72, height: 56)
+                    .clipped()
                     .cornerRadius(6)
             }
-            TextField("附言（可选）", text: $caption)
+            // 附言与右侧输入框是同一个正文：Web 端就是拿 textarea 的值当 caption
+            TextField("附言（可选）", text: $state.draftInput)
                 .textFieldStyle(.roundedBorder)
+                .lineLimit(1)
+                .frame(minWidth: 40)
+            // 按钮不许被挤压（窄栏下曾把「发给 AI 检查」压成「发给 AI…」）
             Button("发给 AI 检查") {
-                Task { await state.sendPendingUpload(caption: caption) }
+                Task { await state.sendPendingUpload() }
             }
             .buttonStyle(.borderedProminent)
+            .fixedSize()
             Button("取消") { state.pendingUpload = nil }
+                .fixedSize()
         }
         .padding(.horizontal, 12).padding(.vertical, 6)
         .background(Color.brand.opacity(0.05))
