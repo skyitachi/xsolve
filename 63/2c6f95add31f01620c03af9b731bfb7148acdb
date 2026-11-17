@@ -1,0 +1,22 @@
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 132-133
+macos/Sources/XsolveMac/Core/DropProbe.swift
+  h_5a1c62fd74efa2 1-121
+macos/Sources/XsolveMac/Core/ToolsProbe.swift
+  h_5a1c62fd74efa2 51-60,65-73
+macos/Sources/XsolveMac/Features/Tutor/TutorView.swift
+  h_5a1c62fd74efa2 159,166-167,399,401,414
+macos/Sources/XsolveMac/Features/Tutor/UploadFlow.swift
+  h_5a1c62fd74efa2 4,19-130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "632c6f95add31f01620c03af9b731bfb7148acdb",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
