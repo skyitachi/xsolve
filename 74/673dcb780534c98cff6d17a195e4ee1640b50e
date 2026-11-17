@@ -1,0 +1,20 @@
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 130-131
+macos/Sources/XsolveMac/Core/FlowLayout.swift
+  h_5a1c62fd74efa2 1-60
+macos/Sources/XsolveMac/Core/ToolsProbe.swift
+  h_5a1c62fd74efa2 1-106
+macos/Sources/XsolveMac/Features/Tutor/TutorView.swift
+  h_5a1c62fd74efa2 105,112-115,117-118,122,125-126,131-138,140-142,347-364,366-383,385-388,402-403,405
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "74673dcb780534c98cff6d17a195e4ee1640b50e",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
