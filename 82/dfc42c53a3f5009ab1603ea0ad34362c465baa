@@ -1,0 +1,24 @@
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 142-143
+macos/Sources/XsolveMac/Core/FigureImage.swift
+  h_5a1c62fd74efa2 1-103
+macos/Sources/XsolveMac/Core/FigureProbe.swift
+  h_5a1c62fd74efa2 1-195
+macos/Sources/XsolveMac/Features/Tutor/Dialogs.swift
+  h_5a1c62fd74efa2 27
+macos/Sources/XsolveMac/Features/Tutor/TutorView.swift
+  h_5a1c62fd74efa2 184-185
+macos/Sources/XsolveMac/Features/WrongBookView.swift
+  h_5a1c62fd74efa2 501
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "82dfc42c53a3f5009ab1603ea0ad34362c465baa",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
