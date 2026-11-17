@@ -9,21 +9,23 @@ struct TutorView: View {
     @AppStorage("xsolve_work_panel_hidden") private var workPanelHidden = false
 
     var body: some View {
-        VSplitView {
-            HSplitView {
-                // 左列：题目（上） + 做题区（下，可隐藏）
-                VStack(spacing: 0) {
-                    ProblemPanel(state: state)
-                    if !workPanelHidden {
-                        Divider()
-                        WorkPanel(state: state)
-                    }
+        // 恒定左右两栏：左 = 题目（+ 可收起的做题区），右 = AI 助教。
+        // 收起做题区后左栏只剩题目，自然成为「题目 | 对话」两栏；聊天视图不重建。
+        HSplitView {
+            VStack(spacing: 0) {
+                ProblemPanel(state: state, workPanelHidden: $workPanelHidden)
+                if !workPanelHidden {
+                    Divider()
+                    WorkPanel(state: state, onHide: { workPanelHidden = true })
                 }
-                .frame(minWidth: 380)
             }
-            // 右列：AI 助教
+            // 收起做题区后左栏只剩题目，收窄把宽度让给对话（否则题目下方一大片空白）
+            .frame(minWidth: workPanelHidden ? 300 : 360,
+                   idealWidth: workPanelHidden ? 420 : 560,
+                   maxWidth: workPanelHidden ? 520 : .infinity)
+
             ChatPanel(state: state)
-                .frame(minWidth: 360)
+                .frame(minWidth: 380)
         }
         .frame(minWidth: 900, minHeight: 520)
         .toolbar { toolbarContent }
@@ -93,11 +95,6 @@ struct TutorView: View {
                     .help("删除当前题（管理员）")
             }
             Divider()
-            Button { workPanelHidden.toggle() } label: {
-                Label(workPanelHidden ? "显示做题区" : "隐藏做题区",
-                      systemImage: workPanelHidden ? "eye" : "eye.slash")
-            }
-            .help(workPanelHidden ? "显示做题区（答案输入、工具栏与草稿板）" : "隐藏做题区，题目与 AI 对话保留")
             Button { state.showAbout = true } label: { Label("关于", systemImage: "gearshape") }
         }
     }
@@ -107,6 +104,7 @@ struct TutorView: View {
 
 private struct ProblemPanel: View {
     @ObservedObject var state: TutorState
+    @Binding var workPanelHidden: Bool
 
     var body: some View {
         ScrollView {
@@ -124,6 +122,18 @@ private struct ProblemPanel: View {
                         .background(Color.brand.opacity(0.12))
                         .clipShape(Capsule())
                         .foregroundStyle(Color.brand)
+                    // 做题区收起后，这里是唯一的恢复入口 —— 必须有文字，不能只有图标
+                    if workPanelHidden {
+                        Button {
+                            workPanelHidden = false
+                        } label: {
+                            Label("显示做题区", systemImage: "square.split.1x2")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .help("展开答案输入、工具栏与草稿板")
+                    }
                 }
                 if let p = state.currentProblem {
                     RichText(text: p.text)
@@ -280,6 +290,8 @@ private struct TriangleFigure: View {
 
 struct WorkPanel: View {
     @ObservedObject var state: TutorState
+    /// 收起做题区（由 TutorView 传，直接翻 AppStorage 状态位）
+    var onHide: () -> Void = {}
     @State private var showProblemPicker = false   // 拍题/选题入口
     @State private var showAnswerPicker = false
 
@@ -292,6 +304,23 @@ struct WorkPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // 标题行：做题区自己的折叠开关就放在这里（用户在做题区里，不用去标题栏找）
+            HStack(spacing: 6) {
+                Label("做题区", systemImage: "pencil.and.scribble")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Button(action: onHide) {
+                    Label("隐藏", systemImage: "chevron.down")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("隐藏做题区，题目与 AI 对话保留")
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 6)
+            .padding(.bottom, 2)
+
             // 答案输入
             HStack(spacing: 8) {
                 Text("最终答案：").font(.callout)

@@ -129,6 +129,8 @@ struct XsolveApp: App {
         if SnapProbe.active { SnapProbe.runAndExit() }
         // 「识别草稿」链路探针：真 exportImage + 真 SSE，导出图落盘供目视
         if RecogProbe.active { RecogProbe.autorun() }
+        // 自动登录：给界面截图/人工验收用，跳过登录页
+        if AutoProbe.active { AutoProbe.autorun() }
     }
 
     var body: some Scene {
