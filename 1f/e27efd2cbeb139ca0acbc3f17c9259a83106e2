@@ -1,0 +1,26 @@
+macos/Sources/XsolveMac/Core/DropProbe.swift
+  h_5a1c62fd74efa2 93-95,102-103,105-107,114-137
+macos/Sources/XsolveMac/Core/ToolsProbe.swift
+  h_5a1c62fd74efa2 30-41,63-73,77,79,97-98,122-125
+macos/Sources/XsolveMac/Core/Util.swift
+  h_5a1c62fd74efa2 83-84
+macos/Sources/XsolveMac/Features/Tutor/ChatView.swift
+  h_5a1c62fd74efa2 8-9,89,96,119,125-126,130,132
+macos/Sources/XsolveMac/Features/Tutor/TutorState.swift
+  h_5a1c62fd74efa2 242,744-746,766-776,778-779,782
+macos/Sources/XsolveMac/Features/Tutor/TutorView.swift
+  h_5a1c62fd74efa2 31-32,168-169,401,404-405,423,432-435,438-439,441-443,445,448,450
+macos/Sources/XsolveMac/Features/Tutor/UploadFlow.swift
+  h_5a1c62fd74efa2 23-26,30,33,35,41-77,79-86,118-127,136,142-143,145-150,163-167,171-175,178-180,187-236,417-423,469-477
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1fe27efd2cbeb139ca0acbc3f17c9259a83106e2",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
