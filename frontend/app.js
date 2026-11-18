@@ -250,7 +250,11 @@ function initApp() {
       workToggleBtn.setAttribute("aria-label", label);
       var icon = workToggleBtn.querySelector(".work-toggle-icon");
       var text = workToggleBtn.querySelector(".work-toggle-label");
-      if (icon) icon.textContent = hidden ? "👁️" : "✏️";
+      // 图标是 <svg><use>，切 href 而不是写 emoji
+      if (icon) {
+        var use = icon.querySelector("use");
+        if (use) use.setAttribute("href", hidden ? "#i-eye" : "#i-pencil-ruler");
+      }
       if (text) text.textContent = hidden ? "显示做题区" : "做题区";
     }
   }

@@ -9,8 +9,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>小学AI做题助手</title>
   <meta name="description" content="面向小学生的 AI 做题助手：题目展示、手写草稿与 AI 助教三合一。" />
-  <meta name="theme-color" content="#4f46e5" />
-  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)" />
+  <meta name="color-scheme" content="light dark" />
   <meta name="format-detection" content="telephone=no" />
 
   <!-- PWA -->
@@ -38,22 +39,70 @@
   </script>
 </head>
 <body>
+  <!-- 图标雪碧图：全站单色线性图标（stroke 1.6，currentColor），替代散落的 emoji -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+      <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v5M14 11v5"/></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3.05V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+      <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol>
+      <symbol id="i-brain" viewBox="0 0 24 24"><path d="M9.5 3A2.5 2.5 0 0 0 7 5.5c-1.7.5-3 2-3 3.9 0 .8.2 1.5.6 2.1A3.5 3.5 0 0 0 6 18h.5A2.5 2.5 0 0 0 9 20.5c.6 0 1.1-.2 1.5-.5V4a2.5 2.5 0 0 0-1-1z"/><path d="M14.5 3A2.5 2.5 0 0 1 17 5.5c1.7.5 3 2 3 3.9 0 .8-.2 1.5-.6 2.1A3.5 3.5 0 0 1 18 18h-.5a2.5 2.5 0 0 1-2.5 2.5c-.6 0-1.1-.2-1.5-.5V4a2.5 2.5 0 0 1 1-1z"/></symbol>
+      <symbol id="i-chart" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></symbol>
+      <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></symbol>
+      <symbol id="i-key" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L19 4m-3 0l3 3"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+      <symbol id="i-camera" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
+      <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></symbol>
+      <symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></symbol>
+      <symbol id="i-eraser" viewBox="0 0 24 24"><path d="M20 20H7L3 16a2 2 0 0 1 0-2.8l9.6-9.6a2 2 0 0 1 2.8 0l4 4a2 2 0 0 1 0 2.8L11 20"/><path d="M8 8l8 8"/></symbol>
+      <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.4 2.6L3 13"/></symbol>
+      <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></symbol>
+      <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/></symbol>
+      <symbol id="i-broom" viewBox="0 0 24 24"><path d="M3 21l6-6M14 4l6 6-8 8H6l-2-2z"/><path d="M9 11l4 4"/></symbol>
+      <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+      <symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/></symbol>
+      <symbol id="i-pencil-ruler" viewBox="0 0 24 24"><path d="M15 5l4 4-9 9H6v-4z"/><path d="M3 21h6"/><path d="M17 3l4 4"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></symbol>
+    </defs>
+  </svg>
+
   <header class="topbar">
-    <div class="brand">小学AI做题助手</div>
+    <div class="brand">
+      <span class="brand-mark">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-sparkle"/></svg>
+      </span>
+      <span class="brand-name">小学AI做题助手</span>
+    </div>
     <div class="topbar-actions">
-      <button id="install-app-btn" title="安装到主屏" hidden>📲</button>
-      <button id="toggle-work-panel" class="work-toggle" type="button" title="隐藏做题区" aria-label="隐藏做题区" aria-pressed="true"><span class="work-toggle-icon">✏️</span><span class="work-toggle-label">做题区</span></button>
-      <button id="prev-problem" title="上一题">‹</button>
-      <button id="next-problem" title="下一题">›</button>
-      <button id="delete-problem" title="删除当前题">🗑️</button>
-      <button id="settings-btn" title="设置">⚙️</button>
-      <a class="topbar-parent" href="/my-children.html" title="我的孩子" style="font-size:16px;margin-left:4px;" hidden>👨‍👩‍👧</a>
-      <a class="topbar-admin" href="/wrong-book.html" title="错题本" style="font-size:16px;">📕</a>
-      <a class="topbar-admin" href="/student-memory.html" title="学习档案" style="font-size:16px;">🧠</a>
-      <a class="topbar-admin" href="/eval.html" title="评估面板" style="font-size:16px;">📊</a>
-      <a class="topbar-admin" href="/prompts.html" title="Prompt 管理" style="font-size:16px;">📝</a>
-      <a class="topbar-admin" href="/accounts.html" title="账号管理" style="font-size:16px;">🗂</a>
-      <a class="topbar-admin" href="/settings.html" title="模型配置" style="font-size:16px;">🔑</a>
+      <button id="install-app-btn" class="icon-btn" title="安装到主屏" aria-label="安装到主屏" hidden>
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-download"/></svg>
+      </button>
+      <button id="toggle-work-panel" class="work-toggle" type="button" title="隐藏做题区" aria-label="隐藏做题区" aria-pressed="true">
+        <svg class="ic work-toggle-icon" viewBox="0 0 24 24"><use href="#i-pencil-ruler"/></svg>
+        <span class="work-toggle-label">做题区</span>
+      </button>
+      <span class="topbar-group">
+        <button id="prev-problem" class="icon-btn" title="上一题" aria-label="上一题"><svg class="ic" viewBox="0 0 24 24"><use href="#i-chevron-left"/></svg></button>
+        <button id="next-problem" class="icon-btn" title="下一题" aria-label="下一题"><svg class="ic" viewBox="0 0 24 24"><use href="#i-chevron-right"/></svg></button>
+      </span>
+      <button id="delete-problem" class="icon-btn" title="删除当前题" aria-label="删除当前题"><svg class="ic" viewBox="0 0 24 24"><use href="#i-trash"/></svg></button>
+      <a class="topbar-parent icon-btn" href="/my-children.html" title="我的孩子" aria-label="我的孩子" hidden><svg class="ic" viewBox="0 0 24 24"><use href="#i-users"/></svg></a>
+      <span class="topbar-divider" aria-hidden="true"></span>
+      <a class="topbar-admin icon-btn" href="/wrong-book.html" title="错题本" aria-label="错题本"><svg class="ic" viewBox="0 0 24 24"><use href="#i-book"/></svg></a>
+      <a class="topbar-admin icon-btn" href="/student-memory.html" title="学习档案" aria-label="学习档案"><svg class="ic" viewBox="0 0 24 24"><use href="#i-brain"/></svg></a>
+      <a class="topbar-admin icon-btn" href="/eval.html" title="评估面板" aria-label="评估面板"><svg class="ic" viewBox="0 0 24 24"><use href="#i-chart"/></svg></a>
+      <a class="topbar-admin icon-btn" href="/prompts.html" title="Prompt 管理" aria-label="Prompt 管理"><svg class="ic" viewBox="0 0 24 24"><use href="#i-doc"/></svg></a>
+      <a class="topbar-admin icon-btn" href="/accounts.html" title="账号管理" aria-label="账号管理"><svg class="ic" viewBox="0 0 24 24"><use href="#i-folder"/></svg></a>
+      <a class="topbar-admin icon-btn" href="/settings.html" title="模型配置" aria-label="模型配置"><svg class="ic" viewBox="0 0 24 24"><use href="#i-key"/></svg></a>
+      <button id="settings-btn" class="icon-btn" title="设置" aria-label="设置"><svg class="ic" viewBox="0 0 24 24"><use href="#i-settings"/></svg></button>
     </div>
   </header>
 
@@ -61,13 +110,19 @@
     <!-- 题目展示区域 -->
     <section class="panel panel-problem" data-tab-panel="problem">
       <div class="panel-title">
-        📘 题目
+        <span class="panel-heading">
+          <span class="panel-icon"><svg class="ic" viewBox="0 0 24 24"><use href="#i-book"/></svg></span>
+          题目
+        </span>
         <span class="panel-title-actions">
-          <button id="prev-problem-mobile" class="title-nav-btn" title="上一题">‹</button>
-          <button id="next-problem-mobile" class="title-nav-btn" title="下一题">›</button>
+          <button id="prev-problem-mobile" class="title-nav-btn" title="上一题" aria-label="上一题"><svg class="ic" viewBox="0 0 24 24"><use href="#i-chevron-left"/></svg></button>
+          <button id="next-problem-mobile" class="title-nav-btn" title="下一题" aria-label="下一题"><svg class="ic" viewBox="0 0 24 24"><use href="#i-chevron-right"/></svg></button>
         </span>
       </div>
-      <button id="show-work-panel" class="work-restore-bar" type="button" title="显示做题区">✏️ 做题区已隐藏 · 点此显示</button>
+      <button id="show-work-panel" class="work-restore-bar" type="button" title="显示做题区">
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-pen"/></svg>
+        做题区已隐藏 · 点此显示
+      </button>
       <div class="problem-meta">
         <span id="problem-index">1 / 1</span>
         <span class="tag" id="problem-topic">算术</span>
@@ -79,8 +134,13 @@
     <!-- 做题区域 -->
     <section class="panel panel-work" data-tab-panel="work">
       <div class="panel-title">
-        <span>✏️ 做题区</span>
-        <button id="collapse-work-panel" class="panel-collapse-btn" type="button" title="隐藏做题区">收起 ⌃</button>
+        <span class="panel-heading">
+          <span class="panel-icon"><svg class="ic" viewBox="0 0 24 24"><use href="#i-pen"/></svg></span>
+          做题区
+        </span>
+        <button id="collapse-work-panel" class="panel-collapse-btn" type="button" title="隐藏做题区" aria-label="隐藏做题区">
+          <svg class="ic" viewBox="0 0 24 24"><use href="#i-chevron-down"/></svg>
+        </button>
       </div>
       <div class="work-answer">
         <label>最终答案：</label>
@@ -92,27 +152,27 @@
              注意「拍照」与「相册」必须是两个 input —— 带 capture 的在手机上会
              直接开相机，不给你选已有照片的机会。 -->
         <label class="tool tool-primary" title="用相机拍下这道题，拍完可以裁剪再交给 AI 识别">
-          📷 拍题
+          <svg class="ic" viewBox="0 0 24 24"><use href="#i-camera"/></svg>拍题
           <input id="upload-problem-camera" type="file" accept="image/*" capture="environment" hidden />
         </label>
         <label class="tool" title="从相册选一张题目图片（老师发的截图、之前拍好的照片）">
-          🖼️ 相册选题
+          <svg class="ic" viewBox="0 0 24 24"><use href="#i-image"/></svg>相册选题
           <input id="upload-problem-album" type="file" accept="image/*" hidden />
         </label>
-        <button data-tool="pen" class="tool active" title="画笔">✒️ 画笔</button>
-        <button data-tool="eraser" class="tool" title="橡皮">🧽 橡皮</button>
-        <button data-tool="undo" class="tool" title="撤销上一笔">↩️ 撤销</button>
-        <button data-tool="clear" class="tool" title="清空草稿">🗑️ 清空</button>
-        <button class="tool" id="recognize-scratch" title="识别草稿板上的手写内容，让AI看到你的演算过程">👁️ 识别草稿</button>
+        <button data-tool="pen" class="tool active" title="画笔"><svg class="ic" viewBox="0 0 24 24"><use href="#i-pen"/></svg>画笔</button>
+        <button data-tool="eraser" class="tool" title="橡皮"><svg class="ic" viewBox="0 0 24 24"><use href="#i-eraser"/></svg>橡皮</button>
+        <button data-tool="undo" class="tool" title="撤销上一笔"><svg class="ic" viewBox="0 0 24 24"><use href="#i-undo"/></svg>撤销</button>
+        <button data-tool="clear" class="tool" title="清空草稿"><svg class="ic" viewBox="0 0 24 24"><use href="#i-trash"/></svg>清空</button>
+        <button class="tool" id="recognize-scratch" title="识别草稿板上的手写内容，让AI看到你的演算过程"><svg class="ic" viewBox="0 0 24 24"><use href="#i-scan"/></svg>识别草稿</button>
         <label class="tool" title="拍下你写在纸上的做题过程或答案，让 AI 检查">
-          📷 拍解答
+          <svg class="ic" viewBox="0 0 24 24"><use href="#i-camera"/></svg>拍解答
           <input id="upload-answer-camera" type="file" accept="image/*" capture="environment" hidden />
         </label>
         <label class="tool" title="从相册选一张纸面解答的图片">
-          🖼️ 相册选解答
+          <svg class="ic" viewBox="0 0 24 24"><use href="#i-image"/></svg>相册选解答
           <input id="upload-answer-album" type="file" accept="image/*" hidden />
         </label>
-        <button class="tool" id="manual-input-btn" title="手动输入题目文本，让 AI 处理">✏️ 输入题目</button>
+        <button class="tool" id="manual-input-btn" title="手动输入题目文本，让 AI 处理"><svg class="ic" viewBox="0 0 24 24"><use href="#i-edit"/></svg>输入题目</button>
         <span class="hint">在下方草稿区写过程；或上传/输入题目</span>
       </div>
       <div id="upload-preview" class="upload-preview" hidden>
@@ -128,19 +188,22 @@
     <!-- AI 交互区域 -->
     <section class="panel panel-ai" data-tab-panel="ai">
       <div class="panel-title">
-        🤖 AI 助教
+        <span class="panel-heading">
+          <span class="panel-icon"><svg class="ic" viewBox="0 0 24 24"><use href="#i-message"/></svg></span>
+          AI 助教
+          <span id="ai-status" class="ai-status status-idle">
+            <span class="dot"></span>
+            <span class="status-text">待命</span>
+            <span class="status-timer" hidden></span>
+          </span>
+        </span>
         <span class="chat-actions-top">
-          <button id="btn-clear-history" class="chat-action-btn" title="清空当前对话历史（保留会话）">🧹</button>
-          <button id="btn-new-chat" class="chat-action-btn" title="新建对话（覆盖当前会话）">✨</button>
-        </span>
-        <span class="mode-switch">
-          <button id="mode-student" class="mode-btn active" data-mode="student">学生版</button>
-          <button id="mode-parent" class="mode-btn" data-mode="parent">家长版</button>
-        </span>
-        <span id="ai-status" class="ai-status status-idle">
-          <span class="dot"></span>
-          <span class="status-text">待命</span>
-          <span class="status-timer" hidden></span>
+          <button id="btn-new-chat" class="chat-action-btn" title="新建对话（覆盖当前会话）" aria-label="新建对话"><svg class="ic" viewBox="0 0 24 24"><use href="#i-sparkle"/></svg></button>
+          <button id="btn-clear-history" class="chat-action-btn" title="清空当前对话历史（保留会话）" aria-label="清空对话"><svg class="ic" viewBox="0 0 24 24"><use href="#i-broom"/></svg></button>
+          <span class="mode-switch">
+            <button id="mode-student" class="mode-btn active" data-mode="student">学生</button>
+            <button id="mode-parent" class="mode-btn" data-mode="parent">家长</button>
+          </span>
         </span>
       </div>
       <div id="chat-log" class="chat-log"></div>
@@ -150,9 +213,15 @@
         <button class="quick" data-prompt="请评估我的解题水平，并指出我哪里需要加强">水平测评</button>
       </div>
       <div class="chat-input">
-        <textarea id="chat-input" rows="2" placeholder="问我任何问题..."></textarea>
-        <button id="chat-send">发送</button>
-        <button id="chat-cancel" style="display:none;">停止</button>
+        <div class="composer">
+          <textarea id="chat-input" rows="2" placeholder="问我任何问题…"></textarea>
+          <button id="chat-send" class="send-btn" type="button" title="发送" aria-label="发送">
+            <svg class="ic" viewBox="0 0 24 24"><use href="#i-send"/></svg>
+          </button>
+          <button id="chat-cancel" class="send-btn stop-btn" type="button" title="停止生成" style="display:none;">
+            <svg class="ic" viewBox="0 0 24 24"><use href="#i-stop"/></svg>
+          </button>
+        </div>
       </div>
     </section>
 
@@ -163,15 +232,15 @@
     <!-- 移动端底部 Tab 栏（仅小屏显示） -->
     <nav class="mobile-tabbar" id="mobile-tabbar">
       <button class="mobile-tab active" data-tab="problem">
-        <span class="tab-icon">📘</span>
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-book"/></svg>
         <span class="tab-label">题目</span>
       </button>
       <button class="mobile-tab" data-tab="work">
-        <span class="tab-icon">✏️</span>
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-pen"/></svg>
         <span class="tab-label">做题</span>
       </button>
       <button class="mobile-tab" data-tab="ai">
-        <span class="tab-icon">🤖</span>
+        <svg class="ic" viewBox="0 0 24 24"><use href="#i-message"/></svg>
         <span class="tab-label">AI</span>
         <span class="tab-badge" id="ai-tab-badge" hidden></span>
       </button>
@@ -185,15 +254,15 @@
       <p>AI 助教由本地 Claude Code (claude-agent-sdk) 驱动。每打开一次页面会创建一个 Claude Code session。</p>
       <p>认证沿用你本地 <code>claude</code> 命令的登录态，或环境变量 <code>ANTHROPIC_API_KEY</code>。</p>
       <p>有问题可直接在右侧聊天里告诉 AI 助教。</p>
-      <button type="button" id="install-app-mobile" class="dialog-install" hidden>📲 安装到主屏</button>
+      <button type="button" id="install-app-mobile" class="dialog-install" hidden>安装到主屏</button>
       <nav class="dialog-admin-nav">
-        <a class="topbar-parent" href="/my-children.html" hidden>👨‍👩‍👧 我的孩子</a>
-        <a href="/wrong-book.html">📕 错题本</a>
-        <a href="/student-memory.html">🧠 学习档案</a>
-        <a href="/eval.html">📊 评估面板</a>
-        <a href="/prompts.html">📝 Prompt 管理</a>
-        <a href="/accounts.html">🗂 账号管理</a>
-        <a href="/settings.html">🔑 模型配置</a>
+        <a class="topbar-parent" href="/my-children.html" hidden>我的孩子</a>
+        <a href="/wrong-book.html">错题本</a>
+        <a href="/student-memory.html">学习档案</a>
+        <a href="/eval.html">评估面板</a>
+        <a href="/prompts.html">Prompt 管理</a>
+        <a href="/accounts.html">账号管理</a>
+        <a href="/settings.html">模型配置</a>
       </nav>
       <menu>
         <button value="ok">好</button>
@@ -203,7 +272,7 @@
 
   <!-- AI 出题确认弹窗 -->
   <dialog id="proposal-dialog">
-    <h3>🎯 AI 助教出了一道新题</h3>
+    <h3>AI 助教出了一道新题</h3>
     <p class="muted">是否替换当前题目并开始挑战？</p>
     <div class="proposal-card">
       <div><span class="tag" id="proposal-topic"></span></div>
@@ -222,7 +291,7 @@
 
   <!-- 删除确认弹窗（统一用于手动删除和AI请求删除） -->
   <dialog id="delete-dialog">
-    <h3>🗑️ 确认删除题目？</h3>
+    <h3>确认删除这道题？</h3>
     <p class="muted" id="delete-msg">删除后无法恢复，确定要删除这道题吗？</p>
     <div class="proposal-card">
       <div><span class="tag" id="delete-topic" style="background:#fee2e2;color:#991b1b;"></span></div>
@@ -236,7 +305,7 @@
 
   <!-- 手动输入题目对话框 -->
   <dialog id="manual-input-dialog">
-    <h3>✏️ 手动输入题目</h3>
+    <h3>手动输入题目</h3>
     <p class="muted">输入题目文本（公式可用 $...$ 包裹 LaTeX），或点击🎤语音输入（同时保存录音），AI 会自动判断题型、生成答案和提示。</p>
     <div style="margin: 12px 0; position: relative;">
       <textarea id="manual-input-text" rows="6" style="width: 100%; resize: vertical; padding-right: 60px;" placeholder="例如：笼子里有若干只鸡和兔，共有头 30 个，脚 84 只。鸡和兔各有多少只？"></textarea>

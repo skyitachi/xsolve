@@ -23,7 +23,7 @@ struct MemoryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text("🧠 学习档案").font(.title2.bold())
+                    Label("学习档案", systemImage: "brain").font(.title2.weight(.semibold))
                     Spacer()
                     Picker("范围", selection: $days) {
                         Text("30 天").tag(30)

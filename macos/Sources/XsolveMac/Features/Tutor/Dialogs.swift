@@ -9,7 +9,7 @@ struct ProposalDialog: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("🎯 AI 助教出了一道新题").font(.headline)
+            Label("AI 助教出了一道新题", systemImage: "target").font(.headline)
             Text("是否替换当前题目并开始挑战？").font(.footnote).foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 8) {

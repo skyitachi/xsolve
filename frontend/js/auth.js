@@ -348,18 +348,18 @@
 
         // 账户菜单里的页面入口
         var nav = dlg.querySelector("#account-nav");
-        var links = ['<a href="/student-memory.html">🧠 学习档案</a>'];
+        var links = ['<a href="/student-memory.html">学习档案</a>'];
         if (u.is_guest) {
-          links.unshift('<a href="/login.html">📝 注册正式账号（保留长期记录）</a>');
+          links.unshift('<a href="/login.html">注册正式账号（保留长期记录）</a>');
         }
         if (u.role === "parent") {
-          links.unshift('<a href="/my-children.html">👨‍👩‍👧 我的孩子</a>');
+          links.unshift('<a href="/my-children.html">我的孩子</a>');
         }
         if (u.is_admin) {
-          links.push('<a href="/accounts.html">🗂 账号管理</a>');
-          links.push('<a href="/eval.html">📊 评估面板</a>');
-          links.push('<a href="/prompts.html">📝 Prompt 管理</a>');
-          links.push('<a href="/settings.html">🔑 模型配置</a>');
+          links.push('<a href="/accounts.html">账号管理</a>');
+          links.push('<a href="/eval.html">评估面板</a>');
+          links.push('<a href="/prompts.html">Prompt 管理</a>');
+          links.push('<a href="/settings.html">模型配置</a>');
         }
         nav.innerHTML = links.join("");
 
@@ -370,8 +370,17 @@
         else dlg.setAttribute("open", "");
       });
     }
-    btn.textContent = "👤 " + labelOf(user);
-    btn.style.fontSize = "13px";
+    // 头像是「姓名首字」圆形色块 + 名字，比 emoji 更像现代 app 的账号入口
+    var who = labelOf(user);
+    btn.textContent = "";
+    var av = document.createElement("span");
+    av.className = "avatar";
+    av.textContent = (who || "我").trim().charAt(0).toUpperCase();
+    var nm = document.createElement("span");
+    nm.className = "acct-name";
+    nm.textContent = who;
+    btn.appendChild(av);
+    btn.appendChild(nm);
   }
 
   // ---------- 对外暴露 ----------

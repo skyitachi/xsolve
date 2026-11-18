@@ -14,7 +14,7 @@ struct AccountDialog: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("👤 我的账户").font(.headline)
+            Label("我的账户", systemImage: "person.crop.circle").font(.headline)
 
             if let u = model.user {
                 Text("\(u.label)（\(u.roleText)\(u.username.isEmpty ? "" : " · \(u.username)")）")
@@ -82,10 +82,10 @@ struct AccountDialog: View {
                     navLink("👨‍👩‍👧 我的孩子", .myChildren)
                 }
                 if model.user?.is_admin == true {
-                    navLink("📊 评估面板", .eval)
-                    navLink("📝 Prompt 管理", .prompts)
+                    navLink("评估面板", .eval)
+                    navLink("Prompt 管理", .prompts)
                     navLink("🔑 模型配置", .modelSettings)
-                    navLink("🗂 账号管理", .accounts)
+                    navLink("账号管理", .accounts)
                 }
             }
 

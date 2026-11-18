@@ -36,7 +36,7 @@ function addErrorMsg(text) {
   div.className = "msg msg-error";
   const icon = document.createElement("div");
   icon.className = "error-icon";
-  icon.textContent = "\u26A0\uFE0F";
+  icon.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-alert"/></svg>';
   const body = document.createElement("div");
   body.className = "error-body";
   const title = document.createElement("div");
@@ -718,8 +718,10 @@ function showDiagramCard(url, title) {
 
   const head = document.createElement("div");
   head.className = "diagram-head";
+  // 图标走雪碧图（与顶栏同一套线性图标），不再用 emoji
   const icon = document.createElement("span");
-  icon.textContent = "📐 ";
+  icon.className = "diagram-icon";
+  icon.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><use href="#i-pencil-ruler"/></svg>';
   const titleEl = document.createElement("span");
   titleEl.className = "diagram-title";
   titleEl.textContent = title || "分步作图";

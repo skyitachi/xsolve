@@ -15,7 +15,7 @@ struct MyChildrenView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("👨‍👩‍👧 我的孩子").font(.title2.bold())
+                Label("我的孩子", systemImage: "person.2").font(.title2.weight(.semibold))
 
                 if let e = errorText { Text(e).foregroundStyle(.red) }
 

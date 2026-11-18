@@ -26,7 +26,7 @@ struct ModelSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("🔑 模型配置").font(.title2.bold())
+                Label("模型配置", systemImage: "key").font(.title2.weight(.semibold))
                 Text("留空的字段回退到 .env；保存后立即生效（无需重启）。")
                     .font(.footnote).foregroundStyle(.secondary)
 

@@ -144,55 +144,58 @@ struct ProblemPanel: View {
     @Binding var workPanelHidden: Bool
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                // 标题行只放「题目 + 题号 + 主题」，恢复按钮单独占一行：
-                // 挤在同一个 HStack 里的话，左栏收到 300pt 时它会被顶出边界（它是唯一的恢复入口）
-                HStack(spacing: 8) {
-                    Label("题目", systemImage: "book.fill")
-                        .font(.headline)
-                        .fixedSize()
-                    Spacer(minLength: 4)
-                    Text("\(state.idx + 1) / \(max(state.problems.count, 1))")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .fixedSize()
-                    Text(state.currentProblem?.topic ?? "—")
-                        .font(.caption)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Color.brand.opacity(0.12))
-                        .clipShape(Capsule())
-                        .foregroundStyle(Color.brand)
+        VStack(spacing: 0) {
+            PanelHeader(title: "题目", icon: "book.closed",
+                        subtitle: "\(state.idx + 1) / \(max(state.problems.count, 1))") {
+                if let topic = state.currentProblem?.topic, !topic.isEmpty {
+                    SoftTag(text: topic)
                 }
-                // 做题区收起后，这里是唯一的恢复入口 —— 必须有文字、且不能被挤掉
-                if workPanelHidden {
+            }
+
+            // 做题区收起后这里是唯一的恢复入口 —— 必须有文字、单独占一行，不能被标题栏挤掉
+            if workPanelHidden {
+                HStack {
                     Button {
                         workPanelHidden = false
                     } label: {
                         Label("显示做题区（答案输入 / 草稿板）", systemImage: "square.split.1x2")
                             .font(.caption)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .help("展开答案输入、工具栏与草稿板")
+                    Spacer()
                 }
-                if let p = state.currentProblem {
-                    RichText(text: p.text)
-                    if let fig = p.figureImage, let img = ImageUtil.image(fromDataURL: fig) {
-                        // 原图按 Web 端规则限高 220pt，点击可看大图（见 FigureImage.swift）
-                        ProblemFigureImage(image: img)
-                    } else if let fig = p.figure {
-                        FigureView(figure: fig)
-                    }
-                } else {
-                    Text("题库为空。可以点「输入题目」或让 AI 出一道新题，也可以把题目图片直接拖到这里。")
-                        .foregroundStyle(.secondary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color.brand.opacity(0.06))
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(Color.primary.opacity(0.07)).frame(height: 1)
                 }
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if let p = state.currentProblem {
+                        RichText(text: p.text)
+                        if let fig = p.figureImage, let img = ImageUtil.image(fromDataURL: fig) {
+                            // 原图按 Web 端规则限高 220pt，点击可看大图（见 FigureImage.swift）
+                            ProblemFigureImage(image: img)
+                        } else if let fig = p.figure {
+                            FigureView(figure: fig)
+                        }
+                    } else {
+                        EmptyHint(icon: "tray",
+                                  title: "题库为空",
+                                  detail: "可以点「输入题目」或让 AI 出一道新题，也可以把题目图片直接拖到这里。")
+                            .frame(minHeight: 220)
+                    }
+                }
+                .padding(.horizontal, 22)
+                .padding(.vertical, 20)
+                .frame(maxWidth: 720, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(Color.contentBackground)
         }
         // 整块题目区都能接图（与 Web 端 .panel-problem 一致：从 Finder 拖文件、从浏览器拖图片都行）
         .imageDrop(state: state, target: .problem)
@@ -344,10 +347,7 @@ struct WorkPanel: View {
     var body: some View {
         VStack(spacing: 0) {
             // 标题行：做题区自己的折叠开关就放在这里（用户在做题区里，不用去标题栏找）
-            HStack(spacing: 6) {
-                Label("做题区", systemImage: "pencil.and.scribble")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
+            PanelHeader(title: "做题区", icon: "square.and.pencil") {
                 Button(action: onHide) {
                     Label("隐藏", systemImage: "chevron.down")
                         .font(.caption)
@@ -356,13 +356,12 @@ struct WorkPanel: View {
                 .controlSize(.small)
                 .help("隐藏做题区，题目与 AI 对话保留")
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 6)
-            .padding(.bottom, 2)
 
             // 答案输入
-            HStack(spacing: 8) {
-                Text("最终答案：").font(.callout)
+            HStack(spacing: 10) {
+                Text("最终答案")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
                 TextField("在这里输入你的答案", text: $state.answerDraft)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit { Task { await submitCurrentAnswer() } }
@@ -373,7 +372,7 @@ struct WorkPanel: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(state.answerDraft.trimmingCharacters(in: .whitespaces).isEmpty || state.turnInFlight)
             }
-            .padding(.horizontal, 12).padding(.vertical, 8)
+            .padding(.horizontal, 14).padding(.vertical, 10)
 
             Divider()
 
@@ -415,7 +414,7 @@ struct WorkPanel: View {
                 } label: { Label("识别草稿", systemImage: "text.viewfinder") }
                     .buttonStyle(.bordered)
             }
-            .padding(.horizontal, 12).padding(.vertical, 6)
+            .padding(.horizontal, 14).padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
             // 小号控件：同样的按钮在 560~760pt 宽度下能挤回一行，不用第二行只挂一个按钮
             .controlSize(.small)

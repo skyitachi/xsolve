@@ -17,50 +17,54 @@ struct ChatPanel: View {
     var body: some View {
         VStack(spacing: 0) {
             // 标题栏：模式切换 + 状态 + 清空/新建
-            HStack(spacing: 8) {
-                Label("🤖 AI 助教", systemImage: "bubble.left.and.bubble.right.fill")
-                    .font(.headline)
-
+            PanelHeader(title: "AI 助教", icon: "bubble.left.and.bubble.right") {
                 // 学生账号锁学生模式；家长锁家长模式；管理员可切换（与 Web 端 applyRoleUI 一致）
                 if model.user?.role == "admin" {
                     Picker("", selection: Binding(
                         get: { state.mode },
                         set: { newValue in Task { await state.switchMode(newValue) } })) {
-                        Text("学生版").tag("student")
-                        Text("家长版").tag("parent")
+                        Text("学生").tag("student")
+                        Text("家长").tag("parent")
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 150)
+                    .controlSize(.small)
+                    .labelsHidden()
+                    .frame(width: 120)
                 }
-
-                Spacer()
 
                 AiStatusBadge(status: state.status)
 
-                Button { Task { await state.clearHistory() } } label: {
-                    Image(systemName: "paintbrush")
-                }
-                .help("清空当前对话历史（保留会话）")
-
                 Button { Task { await state.newChatOverride() } } label: {
-                    Image(systemName: "sparkles")
+                    Image(systemName: "square.and.pencil")
                 }
+                .buttonStyle(.borderless)
                 .help("新建对话（覆盖当前会话）")
+
+                Button { Task { await state.clearHistory() } } label: {
+                    Image(systemName: "eraser")
+                }
+                .buttonStyle(.borderless)
+                .help("清空当前对话历史（保留会话）")
             }
-            .padding(.horizontal, 12).padding(.vertical, 8)
 
-            Divider()
-
-            // 聊天记录（底色对应 Web 端 .chat-log：衬托白色气泡）
+            // 聊天记录（底色对应 Web 端 .chat-log）
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 10) {
-                        ForEach(state.entries) { entry in
-                            ChatEntryView(entry: entry)
-                                .id(entry.id)
+                    if state.entries.isEmpty {
+                        EmptyHint(icon: "bubble.left.and.text.bubble.right",
+                                  title: "有问题随时问我",
+                                  detail: "也可以先在草稿区写下过程，再让我检查。")
+                            .frame(minHeight: 260)
+                    } else {
+                        LazyVStack(alignment: .leading, spacing: 12) {
+                            ForEach(state.entries) { entry in
+                                ChatEntryView(entry: entry)
+                                    .id(entry.id)
+                            }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
                     }
-                    .padding(12)
                 }
                 .background(Color.chatLogBackground)
                 .onChange(of: state.entries.count) { _ in
@@ -79,40 +83,45 @@ struct ChatPanel: View {
                         state.userMsg(prompt)
                         Task { await state.runTurn(prompt) }
                     }
-                    .controlSize(.small)
                     .buttonStyle(.capsuleChip)
                 }
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 12).padding(.top, 6)
+            .padding(.horizontal, 14).padding(.top, 8)
 
-            // 输入区
+            // 输入区：输入框 + 圆形发送键（HIG：主操作靠近输入位置）
             HStack(alignment: .bottom, spacing: 8) {
                 ComposerField(text: input,
                               placeholder: "问我任何问题…",
-                              height: 52,
+                              height: 56,
                               onSend: { send() })
 
                 if state.turnInFlight {
                     Button {
                         state.cancelTurn()
                     } label: {
-                        Label("停止", systemImage: "stop.fill")
+                        CircleIconLabel(icon: "stop.fill", size: 12,
+                                        tint: .red, enabled: true)
                     }
-                    .controlSize(.large)
+                    .buttonStyle(.plain)
+                    .help("停止生成")
                 } else {
+                    // macOS 13 没有 buttonBorderShape(.circle)，用圆形底自绘（HIG：主操作圆形图标键）
                     Button {
                         send()
                     } label: {
-                        Label("发送", systemImage: "paperplane.fill")
+                        CircleIconLabel(icon: "arrow.up", size: 13, tint: .brand,
+                                        enabled: !state.draftInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .controlSize(.large)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.plain)
                     .disabled(state.draftInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .help("发送（Enter）")
                 }
             }
-            .padding(12)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(.bar)
         }
-        .background(Color(nsColor: .controlBackgroundColor))
         // 与 Web 端 .panel-ai 一致：AI 区也能接图，默认按「解答」处理
         .imageDrop(state: state, target: .answer)
     }
@@ -218,8 +227,7 @@ private struct AiMessageView: View {
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
                 RichText(text: block.raw)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .chatBubble(isUser: false)
+                    .frame(maxWidth: 720, alignment: .leading)
                     .overlay(alignment: .bottomTrailing) {
                         if block.streaming {
                             Text("▍").foregroundStyle(Color.brand)
@@ -229,11 +237,12 @@ private struct AiMessageView: View {
                     Button {
                         copyToPasteboard(block.raw)
                     } label: {
-                        Label("复制", systemImage: "doc.on.doc")
-                            .font(.caption2)
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 11))
                     }
-                    .buttonStyle(.link)
-                    .foregroundStyle(.secondary)
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.tertiary)
+                    .help("复制这条回答")
                 }
             }
             Spacer()
@@ -299,7 +308,8 @@ private struct DiagramCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("📐 \(title)").font(.callout.bold())
+                Label(title, systemImage: "ruler")
+                    .font(.callout.weight(.semibold))
                 Spacer()
                 if let u = fullURL {
                     Button("在新窗口打开 ↗") { openInBrowser(u) }
@@ -321,5 +331,25 @@ private struct DiagramCard: View {
         .padding(10)
         .background(Color.brand.opacity(0.05))
         .cornerRadius(10)
+    }
+}
+
+
+// MARK: - 圆形图标按钮（发送 / 停止）
+
+struct CircleIconLabel: View {
+    let icon: String
+    var size: CGFloat = 13
+    var tint: Color = .brand
+    var enabled: Bool = true
+
+    var body: some View {
+        Image(systemName: icon)
+            .font(.system(size: size, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 34, height: 34)
+            .background(Circle().fill(enabled ? tint : Color.gray.opacity(0.35)))
+            .opacity(enabled ? 1 : 0.8)
+            .contentShape(Circle())
     }
 }

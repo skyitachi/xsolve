@@ -174,6 +174,8 @@ struct XsolveApp: App {
             }
         }
         .windowStyle(.automatic)
+        // HIG：统一工具栏（标题与工具按钮同一行），内容不再被独立标题栏压一行
+        .windowToolbarStyle(.unified)
     }
 }
 
@@ -235,7 +237,28 @@ struct MainTabView: View {
                 }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 160, ideal: 180)
+            // 侧栏顶部品牌行（HIG：侧栏第一屏给出「这是哪个 app」）
+            .safeAreaInset(edge: .top, spacing: 0) {
+                HStack(spacing: 8) {
+                    Image(systemName: "pencil.and.ruler.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 24, height: 24)
+                        .background(
+                            LinearGradient(colors: [Color.brand, Color(hex: 0x7C3AED)],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing),
+                            in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        )
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("小学AI做题助手").font(.system(size: 12.5, weight: .semibold))
+                        Text("题目 · 草稿 · 助教").font(.system(size: 10)).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+            }
+            .navigationSplitViewColumnWidth(min: 196, ideal: 216, max: 280)
         } detail: {
             switch model.page {
             case .tutor: TutorView()
@@ -248,6 +271,7 @@ struct MainTabView: View {
             case .accounts: AccountsView()
             }
         }
+        .navigationSplitViewStyle(.balanced)
         .navigationTitle(model.page.rawValue)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -257,6 +281,7 @@ struct MainTabView: View {
                 } label: {
                     Label(model.user?.label ?? "账户", systemImage: "person.crop.circle")
                 }
+                .help("账户与家长设置")
             }
         }
         .sheet(isPresented: $showAccount) {
@@ -276,7 +301,7 @@ private struct GuestBadge: View {
             let h = Int(ms) / 3600
             return h > 0 ? "剩余约 \(h) 小时" : "剩余约 \(Int(ms) / 60) 分钟"
         }()
-        Text("🧪 游客试用中\(remaining.isEmpty ? "" : "（\(remaining)）")")
+        Label("游客试用中\(remaining.isEmpty ? "" : "（\(remaining)）")", systemImage: "person.crop.circle.badge.clock")
             .font(.caption)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)

@@ -32,8 +32,8 @@ struct RichText: View {
                 .font(.system(size: fontSize))
                 .lineSpacing(3)
                 // 用语义色，不写死深色：#1F2937 在深色外观下就是黑字压黑底。
-                // 用户气泡是品牌紫底（Web 端同款），文字恒为白。
-                .foregroundStyle(isUserInput ? Color.white : Color.primary)
+                // 用户气泡现在是品牌淡底（与 Web 端一致），正文色不变，深浅外观都成立。
+                .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
@@ -186,15 +186,8 @@ struct MarkdownWebView: NSViewRepresentable {
     }
 
     static func html(base: String, fontSize: CGFloat, isUserInput: Bool) -> String {
-        // 用户气泡：品牌紫底 + 白字（与 Web 端 .msg-user.md-content 覆盖规则对齐）。
-        // ColorProbe 只测 isUserInput:false 路径，此分支不影响深浅色断言。
-        let userStyle = isUserInput ? """
-          html,body{color:#fff;}
-          pre,code{background:rgba(255,255,255,.18);color:#fff;}
-          td,th{border-color:rgba(255,255,255,.30);}
-          blockquote{color:#e0e7ff;border-left-color:rgba(255,255,255,.40);}
-          a{color:#e0e7ff;}
-        """ : ""
+        // 用户气泡是浅色品牌淡底，正文沿用主题色即可（与 Web 端 .msg-user 一致），
+        // 不再为 isUserInput 注入独立配色 —— ColorProbe 的深浅色断言因此仍然成立。
         return """
         <!doctype html><html><head><meta charset="utf-8">
         <link rel="stylesheet" href="\(base)/vendor/katex/katex.min.css">
@@ -226,8 +219,6 @@ struct MarkdownWebView: NSViewRepresentable {
             th,td{border-color:#3d4046;}
             blockquote{color:#a3a8b3;border-left-color:#4f46e5;}
           }
-          /* 用户气泡样式放最后：品牌紫底白字不随外观变 */
-          \(userStyle)
         </style></head>
         <body><div id="c"></div>
         <script>
