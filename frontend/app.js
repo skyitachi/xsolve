@@ -200,6 +200,10 @@ function initApp() {
 
   function switchTab(tabName) {
     if (!isMobile()) return;
+    // 做题区隐藏时「做题」Tab 也被收起，别把用户送进一个空白面板
+    if (tabName === "work" && document.documentElement.classList.contains("work-hidden")) {
+      tabName = "problem";
+    }
     currentTab = tabName;
     mobileTabs.forEach(function (t) {
       t.classList.toggle("active", t.dataset.tab === tabName);
@@ -223,6 +227,56 @@ function initApp() {
       switchTab(tab.dataset.tab);
     });
   });
+
+  // ========== 做题区显隐 ==========
+  // 三个入口共用一套状态：顶栏开关（常驻）、做题区标题栏「收起」、
+  // 隐藏后题目面板上的恢复条。首屏状态由 <head> 内联脚本提前应用，
+  // 这里只负责同步按钮文案、持久化，以及恢复时重放草稿笔画。
+  var WORK_HIDDEN_KEY = "xsolve_work_panel_hidden";
+  var workToggleBtn = document.querySelector("#toggle-work-panel");
+  var workRestoreBar = document.querySelector("#show-work-panel");
+
+  function isWorkPanelHidden() {
+    return document.documentElement.classList.contains("work-hidden");
+  }
+
+  function syncWorkPanelUI(hidden) {
+    document.documentElement.classList.toggle("work-hidden", hidden);
+    if (workToggleBtn) {
+      workToggleBtn.classList.toggle("is-hidden", hidden);
+      workToggleBtn.setAttribute("aria-pressed", String(!hidden));
+      var label = hidden ? "显示做题区" : "隐藏做题区";
+      workToggleBtn.title = label;
+      workToggleBtn.setAttribute("aria-label", label);
+      var icon = workToggleBtn.querySelector(".work-toggle-icon");
+      var text = workToggleBtn.querySelector(".work-toggle-label");
+      if (icon) icon.textContent = hidden ? "👁️" : "✏️";
+      if (text) text.textContent = hidden ? "显示做题区" : "做题区";
+    }
+  }
+
+  function setWorkPanelHidden(hidden) {
+    var changed = isWorkPanelHidden() !== hidden;
+    syncWorkPanelUI(hidden);
+    try { localStorage.setItem(WORK_HIDDEN_KEY, hidden ? "1" : "0"); } catch {}
+    if (!changed) return;
+    if (hidden && isMobile() && currentTab === "work") {
+      switchTab("problem");   // 该 Tab 会被 CSS 收起，别留在空白面板
+    }
+    if (!hidden) {
+      // display:none → 显示后画布容器高度变了，按 state.scratchStrokes 重放位图
+      setTimeout(function () { if (typeof resizeCanvas === "function") resizeCanvas(); }, 60);
+      if (isMobile()) setTimeout(function () { switchTab("work"); }, 0);
+    }
+  }
+
+  syncWorkPanelUI(isWorkPanelHidden());
+  if (workToggleBtn) workToggleBtn.addEventListener("click", function () {
+    setWorkPanelHidden(!isWorkPanelHidden());
+  });
+  var collapseWorkBtn = document.querySelector("#collapse-work-panel");
+  if (collapseWorkBtn) collapseWorkBtn.addEventListener("click", function () { setWorkPanelHidden(true); });
+  if (workRestoreBar) workRestoreBar.addEventListener("click", function () { setWorkPanelHidden(false); });
 
   // 题目面板的上下题导航按钮（移动端专用）
   var prevBtnMobile = document.querySelector("#prev-problem-mobile");

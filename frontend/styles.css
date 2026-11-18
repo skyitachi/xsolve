@@ -36,6 +36,37 @@ html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, Bl
 .panel-work    { grid-column: 1; grid-row: 3; }
 .panel-ai      { grid-column: 3; grid-row: 1 / span 3; }
 
+/* ===== 做题区可隐藏 =====
+   状态挂在 <html> 上，由 <head> 内联脚本在首屏前应用，避免刷新闪现。
+   隐藏后题目面板跨满左列三行、横向分割条收起，AI 区保持不变。 */
+.work-toggle { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.work-toggle-label { font-size: 12px; }
+.work-toggle.is-hidden { background: rgba(255,255,255,.36); border-color: rgba(255,255,255,.65); }
+.panel-collapse-btn {
+  border: 1px solid #d1d5db; background: white; cursor: pointer;
+  font-size: 11px; padding: 3px 8px; border-radius: 6px; color: #6b7280;
+  white-space: nowrap;
+}
+.panel-collapse-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
+.work-restore-bar {
+  display: none;
+  align-items: center; gap: 6px;
+  width: 100%;
+  border: 0; border-bottom: 1px dashed #c7d2fe;
+  background: #eef2ff; color: #4338ca;
+  font-size: 12px; font-weight: 600;
+  padding: 8px 14px; cursor: pointer; text-align: left;
+}
+.work-restore-bar:hover { background: #e0e7ff; }
+html.work-hidden .panel-work { display: none !important; }
+html.work-hidden .panel-problem { grid-row: 1 / span 3; }
+html.work-hidden #resizer-rows { display: none !important; }
+html.work-hidden .work-restore-bar { display: flex; }
+@media (max-width: 768px) {
+  .work-toggle-label { display: none; }
+  html.work-hidden .mobile-tab[data-tab="work"] { display: none !important; }
+}
+
 /* 面板分割条 */
 .panel-resizer {
   position: relative;

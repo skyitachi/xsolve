@@ -27,12 +27,22 @@
   <script defer src="/vendor/katex/contrib/auto-render.min.js"></script>
   <script defer src="/vendor/marked/marked.min.js"></script>
   <link rel="stylesheet" href="styles.css" />
+  <script>
+    // 做题区显隐是布局级状态：必须在 CSS 生效前落到 <html> 上，
+    // 否则刷新时做题区会先出现再消失（闪一下）。
+    try {
+      if (localStorage.getItem('xsolve_work_panel_hidden') === '1') {
+        document.documentElement.classList.add('work-hidden');
+      }
+    } catch {}
+  </script>
 </head>
 <body>
   <header class="topbar">
     <div class="brand">小学AI做题助手</div>
     <div class="topbar-actions">
       <button id="install-app-btn" title="安装到主屏" hidden>📲</button>
+      <button id="toggle-work-panel" class="work-toggle" type="button" title="隐藏做题区" aria-label="隐藏做题区" aria-pressed="true"><span class="work-toggle-icon">✏️</span><span class="work-toggle-label">做题区</span></button>
       <button id="prev-problem" title="上一题">‹</button>
       <button id="next-problem" title="下一题">›</button>
       <button id="delete-problem" title="删除当前题">🗑️</button>
@@ -57,6 +67,7 @@
           <button id="next-problem-mobile" class="title-nav-btn" title="下一题">›</button>
         </span>
       </div>
+      <button id="show-work-panel" class="work-restore-bar" type="button" title="显示做题区">✏️ 做题区已隐藏 · 点此显示</button>
       <div class="problem-meta">
         <span id="problem-index">1 / 1</span>
         <span class="tag" id="problem-topic">算术</span>
@@ -68,7 +79,8 @@
     <!-- 做题区域 -->
     <section class="panel panel-work" data-tab-panel="work">
       <div class="panel-title">
-        ✏️ 做题区
+        <span>✏️ 做题区</span>
+        <button id="collapse-work-panel" class="panel-collapse-btn" type="button" title="隐藏做题区">收起 ⌃</button>
       </div>
       <div class="work-answer">
         <label>最终答案：</label>
