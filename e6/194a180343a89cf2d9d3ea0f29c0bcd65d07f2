@@ -1,0 +1,20 @@
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 144-145
+macos/Sources/XsolveMac/Core/SplitPane.swift
+  h_5a1c62fd74efa2 1-154
+macos/Sources/XsolveMac/Core/SplitProbe.swift
+  h_5a1c62fd74efa2 1-226
+macos/Sources/XsolveMac/Features/Tutor/TutorView.swift
+  h_5a1c62fd74efa2 10-23,28-31,39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e6194a180343a89cf2d9d3ea0f29c0bcd65d07f2",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
