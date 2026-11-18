@@ -51,7 +51,7 @@ struct ChatPanel: View {
 
             Divider()
 
-            // 聊天记录
+            // 聊天记录（底色对应 Web 端 .chat-log：衬托白色气泡）
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 10) {
@@ -62,6 +62,7 @@ struct ChatPanel: View {
                     }
                     .padding(12)
                 }
+                .background(Color.chatLogBackground)
                 .onChange(of: state.entries.count) { _ in
                     if let last = state.entries.last {
                         proxy.scrollTo(last.id, anchor: .bottom)
@@ -71,7 +72,7 @@ struct ChatPanel: View {
 
             Divider()
 
-            // 快捷语
+            // 快捷语（胶囊小按钮，对应 Web 端 .chat-actions .quick）
             HStack(spacing: 6) {
                 ForEach(quickPrompts, id: \.0) { label, prompt in
                     Button(label) {
@@ -79,7 +80,7 @@ struct ChatPanel: View {
                         Task { await state.runTurn(prompt) }
                     }
                     .controlSize(.small)
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.capsuleChip)
                 }
             }
             .padding(.horizontal, 12).padding(.top, 6)
@@ -169,16 +170,16 @@ struct ChatEntryView: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     if !text.isEmpty {
                         RichText(text: text, isUserInput: true)
-                            .padding(10)
-                            .background(Color.brand.opacity(0.12))
-                            .cornerRadius(12)
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .chatBubble(isUser: true)
                     }
                     if let d = imageData, let img = ImageUtil.image(fromDataURL: d) {
                         Image(nsImage: img)
                             .resizable()
                             .scaledToFit()
                             .frame(maxWidth: 220)
-                            .cornerRadius(8)
+                            .cornerRadius(10)
+                            .shadow(color: .black.opacity(0.10), radius: 3, y: 1)
                     }
                 }
             }
@@ -217,9 +218,8 @@ private struct AiMessageView: View {
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
                 RichText(text: block.raw)
-                    .padding(10)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .cornerRadius(12)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .chatBubble(isUser: false)
                     .overlay(alignment: .bottomTrailing) {
                         if block.streaming {
                             Text("▍").foregroundStyle(Color.brand)

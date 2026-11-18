@@ -162,6 +162,9 @@ struct XsolveApp: App {
             } else {
                 RootView()
                     .environmentObject(model)
+                    // 全局品牌色 tint：所有 prominent 按钮 / 分段控件 / 链接统一品牌紫，
+                    // 不再混用系统蓝（与 Web 端设计令牌 --brand 对齐）
+                    .tint(Color.brand)
                     .frame(minWidth: 1080, minHeight: 680)
                     .onAppear {
                         if !model.bootstrapped {
