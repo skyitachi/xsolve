@@ -138,6 +138,9 @@ struct XsolveApp: App {
         // 拖拽入图探针：文件 / 图片数据 / 非图片 三条路
         if DropProbe.active { DropProbe.runAndExit() }
         // 输入框探针：占位符与光标同基线 + Enter 发送 / Ctrl+Enter 换行
+        // 侧栏拉动探针：真拖动 NavigationSplitView 分隔条并逐帧存图
+        if BarProbe.active { BarProbe.runAndExit() }
+
         if ComposerProbe.active { ComposerProbe.runAndExit() }
         // 题目原图尺寸探针：限高 220、小图不放大（扫蓝色位图包围盒）
         if FigureProbe.active { FigureProbe.runAndExit() }
@@ -217,28 +220,25 @@ struct MainTabView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $model.page) {
-                Section("学习") {
-                    ForEach(visiblePages.filter { !$0.isAdminOnly && !$0.isParentOnly }) { p in
-                        NavigationLink(value: p) { Label(p.rawValue, systemImage: p.icon) }
+            // ⚠️ 侧栏内容自绘，不用系统 List(.sidebar)：
+            // macOS 27 上拖动分隔条会把系统侧栏 List 切进「紧凑呈现」——行首图标和
+            // 分组标题被整体藏掉、选中高亮贴死左缘，松手也不恢复（用户截图即此状态）。
+            // 自绘后布局只由我们控制，拖动只改列宽，不再有呈现切换。
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    sidebarSection("学习", pages: visiblePages.filter { !$0.isAdminOnly && !$0.isParentOnly })
+                    let parentPages = visiblePages.filter(\.isParentOnly)
+                    if !parentPages.isEmpty {
+                        sidebarSection("家庭", pages: parentPages)
+                    }
+                    if model.user?.is_admin == true {
+                        sidebarSection("管理", pages: visiblePages.filter(\.isAdminOnly))
                     }
                 }
-                if !visiblePages.filter(\.isParentOnly).isEmpty {
-                    Section("家庭") {
-                        ForEach(visiblePages.filter(\.isParentOnly)) { p in
-                            NavigationLink(value: p) { Label(p.rawValue, systemImage: p.icon) }
-                        }
-                    }
-                }
-                if model.user?.is_admin == true {
-                    Section("管理") {
-                        ForEach(visiblePages.filter(\.isAdminOnly)) { p in
-                            NavigationLink(value: p) { Label(p.rawValue, systemImage: p.icon) }
-                        }
-                    }
-                }
+                .padding(.horizontal, 10)
+                .padding(.top, 4)
+                .padding(.bottom, 14)
             }
-            .listStyle(.sidebar)
             // 侧栏顶部品牌行（HIG：侧栏第一屏给出「这是哪个 app」）
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack(spacing: 8) {
@@ -290,6 +290,53 @@ struct MainTabView: View {
             AccountDialog()
                 .environmentObject(model)
         }
+    }
+
+    // MARK: 自绘侧栏组件
+
+    private func sidebarSection(_ title: String, pages: [AppModel.Page]) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 2)
+            ForEach(pages) { p in
+                SidebarRow(page: p, selected: model.page == p) {
+                    model.page = p
+                }
+            }
+        }
+    }
+}
+
+/// 侧栏导航行：图标 + 文案，选中用品牌色圆角块（对齐系统侧栏的选中态）
+private struct SidebarRow: View {
+    let page: AppModel.Page
+    let selected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 8) {
+                Image(systemName: page.icon)
+                    .font(.system(size: 13))
+                    .frame(width: 18)
+                Text(page.rawValue)
+                    .font(.system(size: 13))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .foregroundStyle(selected ? Color.white : Color.primary)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(selected ? Color.brand : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

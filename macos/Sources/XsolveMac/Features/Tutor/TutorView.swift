@@ -39,7 +39,11 @@ struct TutorView: View {
         } right: {
             ChatPanel(state: state)
         }
-        .frame(minWidth: 900, minHeight: 520)
+        // ⚠️ minWidth 不能高于 760：窗口 minWidth 1080 − 侧栏(196..280) 后，
+        // 详情区最多剩 884；写 900 时「1080 − 216 + 900 = 1116 > 1080」约束无解，
+        // 拖动侧栏分隔条强迫重排会把 NavigationSplitView 逼进坏的呈现态
+        // （侧栏图标/分组头消失、内容贴左裁切）。
+        .frame(minWidth: 760, minHeight: 520)
         // 截图后 Cmd+V 直接进（与 Web 端 paste 处理一致），目标按鼠标所在面板决定
         .imagePaste(state: state)
         .toolbar { toolbarContent }
