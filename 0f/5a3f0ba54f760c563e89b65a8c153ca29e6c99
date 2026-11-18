@@ -1,0 +1,20 @@
+frontend/app.js
+  h_5a1c62fd74efa2 203-206,231-280
+frontend/index.html
+  h_5a1c62fd74efa2 30-38,45,70,82-83
+frontend/styles.css
+  h_5a1c62fd74efa2 39-69
+frontend/sw.js
+  h_5a1c62fd74efa2 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0f5a3f0ba54f760c563e89b65a8c153ca29e6c99",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
