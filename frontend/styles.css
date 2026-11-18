@@ -198,13 +198,6 @@ select:focus-visible, a:focus-visible, label.tool:focus-within {
 .topbar button:active { transform: scale(.96); }
 .icon-btn .ic { width: 17px; height: 17px; }
 
-/* 做题区显示/隐藏：轻量 toggle */
-.work-toggle { padding: 0 10px !important; border-color: var(--line) !important; color: var(--text-2); }
-.work-toggle .ic { color: var(--text-3); }
-.work-toggle.is-hidden { background: var(--accent-soft); color: var(--accent); border-color: transparent !important; }
-.work-toggle.is-hidden .ic { color: var(--accent); }
-.work-toggle-label { font-size: 12.5px; }
-
 /* 账户按钮（auth.js 注入） */
 #account-btn {
   display: inline-flex; align-items: center; gap: 6px;
@@ -284,34 +277,42 @@ select:focus-visible, a:focus-visible, label.tool:focus-within {
 .resizer-v:hover::after, .resizer-v.dragging::after { background: var(--accent); width: 2px; }
 
 /* ---------- 6. 做题区显隐 ---------- */
-.work-toggle { white-space: nowrap; }
 html.work-hidden .panel-work { display: none !important; }
 html.work-hidden .panel-problem { grid-row: 1 / span 3; }
 html.work-hidden #resizer-rows { display: none !important; }
-html.work-hidden .work-restore-bar { display: inline-flex; }
 
-.work-restore-bar {
-  display: none; align-items: center; gap: 6px;
-  width: calc(100% - 28px);
-  margin: 10px 14px 0;
-  border: 1px dashed var(--line-strong); border-radius: var(--r-md);
+/* 入口跟着被隐藏的区域走：「隐藏」在做题区标题栏（.panel-collapse-btn），
+   消失后「显示」才出现在题目区标题栏，不用去顶栏找。 */
+.work-restore-btn {
+  display: none; align-items: center; gap: 5px;
+  height: 28px; padding: 0 11px;
+  border: 1px solid transparent; border-radius: 999px;
   background: var(--accent-soft); color: var(--accent);
-  font-size: 12.5px; font-weight: 600;
-  padding: 8px 12px; cursor: pointer; text-align: left;
-  transition: background .15s var(--ease), border-color .15s var(--ease);
+  font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s var(--ease), color .15s var(--ease);
 }
-.work-restore-bar:hover { background: var(--accent-soft); border-color: var(--accent); }
-.work-restore-bar .ic { width: 14px; height: 14px; }
+.work-restore-btn:hover { background: var(--accent); color: #fff; }
+.work-restore-btn .ic { width: 14px; height: 14px; }
+html.work-hidden .work-restore-btn { display: inline-flex; }
+
+/* 桌面端 .panel-title-actions 只服务移动端（后面统一 display:none），
+   做题区隐藏时它要承载「显示做题区」，这里单独放开 */
+html.work-hidden .panel-problem .panel-title-actions {
+  display: inline-flex; align-items: center; gap: 6px; margin-left: auto;
+}
 
 .panel-collapse-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px;
-  border: 1px solid transparent; background: transparent; cursor: pointer;
-  border-radius: 7px; color: var(--text-3);
-  transition: background .15s var(--ease), color .15s var(--ease);
+  gap: 3px;
+  height: 28px; padding: 0 9px 0 10px;
+  border: 1px solid var(--line); background: transparent; cursor: pointer;
+  border-radius: 999px; color: var(--text-3);
+  font-size: 12px; font-weight: 600;
+  transition: background .15s var(--ease), color .15s var(--ease), border-color .15s var(--ease);
 }
-.panel-collapse-btn:hover { background: var(--surface-3); color: var(--text); }
-.panel-collapse-btn .ic { width: 16px; height: 16px; }
+.panel-collapse-btn:hover { background: var(--surface-3); color: var(--text); border-color: var(--line-strong); }
+.panel-collapse-btn .ic { width: 14px; height: 14px; }
 
 /* ---------- 7. 题目区 ---------- */
 .problem-meta {
@@ -1011,8 +1012,6 @@ button, .tool, .mobile-tab, .chat-action-btn, .mode-btn, label.tool { -webkit-us
   .topbar-actions { gap: 2px; }
   .topbar button, .topbar a.icon-btn { min-width: 34px; height: 34px; padding: 0 6px; }
   .topbar-divider { margin: 0 2px; }
-  .work-toggle-label { display: none; }
-  .work-toggle { padding: 0 !important; min-width: 34px; }
 
   /* 布局：Tab 切换 */
   .layout {
@@ -1165,7 +1164,8 @@ button, .tool, .mobile-tab, .chat-action-btn, .mode-btn, label.tool { -webkit-us
 
   /* 做题区被隐藏时，「做题」Tab 没有内容可显示 —— 一并收起，避免点出空白页 */
   html.work-hidden .mobile-tab[data-tab="work"] { display: none !important; }
-  html.work-hidden .work-restore-bar { width: calc(100% - 20px); margin: 8px 10px 0; }
+  /* 窄屏标题栏只剩 42px 高，恢复按钮收窄一点，别把「题目」挤掉 */
+  .work-restore-btn { height: 26px; padding: 0 9px; gap: 4px; font-size: 12px; }
 
   /* AI 状态在窄屏只留圆点，避免标题栏被长文案顶爆 */
   .panel-ai .panel-title .ai-status { padding: 0 4px; }

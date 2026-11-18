@@ -229,12 +229,11 @@ function initApp() {
   });
 
   // ========== 做题区显隐 ==========
-  // 三个入口共用一套状态：顶栏开关（常驻）、做题区标题栏「收起」、
-  // 隐藏后题目面板上的恢复条。首屏状态由 <head> 内联脚本提前应用，
-  // 这里只负责同步按钮文案、持久化，以及恢复时重放草稿笔画。
+  // 两个入口各管一头：「隐藏」在做题区标题栏，「显示」在做题区消失后才出现在
+  // 题目区标题栏。首屏状态由 <head> 内联脚本提前应用，这里只负责持久化，
+  // 以及恢复时重放草稿笔画（display:none 会清掉画布位图）。
   var WORK_HIDDEN_KEY = "xsolve_work_panel_hidden";
-  var workToggleBtn = document.querySelector("#toggle-work-panel");
-  var workRestoreBar = document.querySelector("#show-work-panel");
+  var workRestoreBtn = document.querySelector("#show-work-panel");
 
   function isWorkPanelHidden() {
     return document.documentElement.classList.contains("work-hidden");
@@ -242,21 +241,6 @@ function initApp() {
 
   function syncWorkPanelUI(hidden) {
     document.documentElement.classList.toggle("work-hidden", hidden);
-    if (workToggleBtn) {
-      workToggleBtn.classList.toggle("is-hidden", hidden);
-      workToggleBtn.setAttribute("aria-pressed", String(!hidden));
-      var label = hidden ? "显示做题区" : "隐藏做题区";
-      workToggleBtn.title = label;
-      workToggleBtn.setAttribute("aria-label", label);
-      var icon = workToggleBtn.querySelector(".work-toggle-icon");
-      var text = workToggleBtn.querySelector(".work-toggle-label");
-      // 图标是 <svg><use>，切 href 而不是写 emoji
-      if (icon) {
-        var use = icon.querySelector("use");
-        if (use) use.setAttribute("href", hidden ? "#i-eye" : "#i-pencil-ruler");
-      }
-      if (text) text.textContent = hidden ? "显示做题区" : "做题区";
-    }
   }
 
   function setWorkPanelHidden(hidden) {
@@ -275,12 +259,9 @@ function initApp() {
   }
 
   syncWorkPanelUI(isWorkPanelHidden());
-  if (workToggleBtn) workToggleBtn.addEventListener("click", function () {
-    setWorkPanelHidden(!isWorkPanelHidden());
-  });
   var collapseWorkBtn = document.querySelector("#collapse-work-panel");
   if (collapseWorkBtn) collapseWorkBtn.addEventListener("click", function () { setWorkPanelHidden(true); });
-  if (workRestoreBar) workRestoreBar.addEventListener("click", function () { setWorkPanelHidden(false); });
+  if (workRestoreBtn) workRestoreBtn.addEventListener("click", function () { setWorkPanelHidden(false); });
 
   // 题目面板的上下题导航按钮（移动端专用）
   var prevBtnMobile = document.querySelector("#prev-problem-mobile");

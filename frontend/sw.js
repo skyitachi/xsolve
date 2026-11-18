@@ -5,7 +5,7 @@
 //   POST 等非 GET 请求                  → 直接放行（SSE 流式对话走这里）
 //   导航请求                            → network-first，离线回退到缓存的 index.html
 // v3：UI 重写（styles.css 全量替换 + SVG 图标系统 + 深色模式），必须换 key 才能让老客户端拿到新样式
-const CACHE = 'xsolve-shell-v3';
+const CACHE = 'xsolve-shell-v4';
 
 const SHELL = [
   '/',

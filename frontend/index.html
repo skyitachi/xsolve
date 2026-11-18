@@ -85,10 +85,6 @@
       <button id="install-app-btn" class="icon-btn" title="安装到主屏" aria-label="安装到主屏" hidden>
         <svg class="ic" viewBox="0 0 24 24"><use href="#i-download"/></svg>
       </button>
-      <button id="toggle-work-panel" class="work-toggle" type="button" title="隐藏做题区" aria-label="隐藏做题区" aria-pressed="true">
-        <svg class="ic work-toggle-icon" viewBox="0 0 24 24"><use href="#i-pencil-ruler"/></svg>
-        <span class="work-toggle-label">做题区</span>
-      </button>
       <span class="topbar-group">
         <button id="prev-problem" class="icon-btn" title="上一题" aria-label="上一题"><svg class="ic" viewBox="0 0 24 24"><use href="#i-chevron-left"/></svg></button>
         <button id="next-problem" class="icon-btn" title="下一题" aria-label="下一题"><svg class="ic" viewBox="0 0 24 24"><use href="#i-chevron-right"/></svg></button>
@@ -115,14 +111,14 @@
           题目
         </span>
         <span class="panel-title-actions">
+          <button id="show-work-panel" class="work-restore-btn" type="button" title="显示做题区" aria-label="显示做题区">
+            <svg class="ic" viewBox="0 0 24 24"><use href="#i-eye"/></svg>
+            显示做题区
+          </button>
           <button id="prev-problem-mobile" class="title-nav-btn" title="上一题" aria-label="上一题"><svg class="ic" viewBox="0 0 24 24"><use href="#i-chevron-left"/></svg></button>
           <button id="next-problem-mobile" class="title-nav-btn" title="下一题" aria-label="下一题"><svg class="ic" viewBox="0 0 24 24"><use href="#i-chevron-right"/></svg></button>
         </span>
       </div>
-      <button id="show-work-panel" class="work-restore-bar" type="button" title="显示做题区">
-        <svg class="ic" viewBox="0 0 24 24"><use href="#i-pen"/></svg>
-        做题区已隐藏 · 点此显示
-      </button>
       <div class="problem-meta">
         <span id="problem-index">1 / 1</span>
         <span class="tag" id="problem-topic">算术</span>
@@ -139,6 +135,7 @@
           做题区
         </span>
         <button id="collapse-work-panel" class="panel-collapse-btn" type="button" title="隐藏做题区" aria-label="隐藏做题区">
+          <span class="collapse-label">收起</span>
           <svg class="ic" viewBox="0 0 24 24"><use href="#i-chevron-down"/></svg>
         </button>
       </div>
