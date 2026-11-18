@@ -1,0 +1,18 @@
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 141-143,223-232,234-235,238-240,294-340
+macos/Sources/XsolveMac/Core/BarProbe.swift
+  h_5a1c62fd74efa2 1-245
+macos/Sources/XsolveMac/Features/Tutor/TutorView.swift
+  h_5a1c62fd74efa2 42-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "608434feee0251f6ab312f1d61aec74f7cdeb355",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
