@@ -7,11 +7,28 @@ struct TutorView: View {
     @StateObject private var state = TutorState()
     @State private var bootstrapped = false
     @AppStorage("xsolve_work_panel_hidden") private var workPanelHidden = false
+    // 两栏宽度：自己存（HSplitView 记不住，拖动还会被 idealWidth 覆盖 → 「拖不动」）
+    @AppStorage("xsolve_left_panel_width") private var leftWidthStored: Double = 560
+
+    private var minLeft: CGFloat { workPanelHidden ? 300 : 360 }
+    private var defaultLeft: CGFloat { workPanelHidden ? 420 : 560 }
+
+    /// @AppStorage 存 Double，SplitPane 要 CGFloat；转换单独放一个计算属性，
+    /// 免得写进 body 里加重类型推断
+    private var leftWidth: Binding<CGFloat> {
+        Binding<CGFloat>(
+            get: { CGFloat(leftWidthStored) },
+            set: { leftWidthStored = Double($0) }
+        )
+    }
 
     var body: some View {
         // 恒定左右两栏：左 = 题目（+ 可收起的做题区），右 = AI 助教。
         // 收起做题区后左栏只剩题目，自然成为「题目 | 对话」两栏；聊天视图不重建。
-        HSplitView {
+        SplitPane(leftWidth: leftWidth,
+                  minLeft: minLeft,
+                  minRight: 380,
+                  defaultWidth: defaultLeft) {
             VStack(spacing: 0) {
                 ProblemPanel(state: state, workPanelHidden: $workPanelHidden)
                 if !workPanelHidden {
@@ -19,13 +36,8 @@ struct TutorView: View {
                     WorkPanel(state: state, onHide: { workPanelHidden = true })
                 }
             }
-            // 收起做题区后左栏只剩题目，收窄把宽度让给对话（否则题目下方一大片空白）
-            .frame(minWidth: workPanelHidden ? 300 : 360,
-                   idealWidth: workPanelHidden ? 420 : 560,
-                   maxWidth: workPanelHidden ? 520 : .infinity)
-
+        } right: {
             ChatPanel(state: state)
-                .frame(minWidth: 380)
         }
         .frame(minWidth: 900, minHeight: 520)
         // 截图后 Cmd+V 直接进（与 Web 端 paste 处理一致），目标按鼠标所在面板决定

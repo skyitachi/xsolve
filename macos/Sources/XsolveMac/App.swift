@@ -141,6 +141,8 @@ struct XsolveApp: App {
         if ComposerProbe.active { ComposerProbe.runAndExit() }
         // 题目原图尺寸探针：限高 220、小图不放大（扫蓝色位图包围盒）
         if FigureProbe.active { FigureProbe.runAndExit() }
+        // 两栏分隔条探针：真窗口 + 真鼠标事件，验拖动/夹紧/双击复位
+        if SplitProbe.active { SplitProbe.runAndExit() }
         // 「识别草稿」链路探针：真 exportImage + 真 SSE，导出图落盘供目视
         if RecogProbe.active { RecogProbe.autorun() }
         // 自动登录：给界面截图/人工验收用，跳过登录页
