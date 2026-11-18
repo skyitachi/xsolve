@@ -1,0 +1,24 @@
+frontend/styles.css
+  h_5a1c62fd74efa2 1-22,24-43,51,53-55,57,60,62,67,69-73,168-171,181-182,188,276-284,287-288,291-292,294-295,303-305,307-309,365-374,377-385,440,448-449,489-497,501-506,1227-1243
+macos/Sources/XsolveMac/App.swift
+  h_5a1c62fd74efa2 165-167
+macos/Sources/XsolveMac/Core/RichText.swift
+  h_5a1c62fd74efa2 34-36,189-198,229-230
+macos/Sources/XsolveMac/Core/Theme.swift
+  h_5a1c62fd74efa2 1-106
+macos/Sources/XsolveMac/Features/Tutor/ChatView.swift
+  h_5a1c62fd74efa2 54,65,75,83,173-174,181-182,221-222
+scripts/check-ui-style.mjs
+  h_5a1c62fd74efa2 1-252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c30a2a79dcec095fbff450ae91af0d786fc4c641",
+  "prompts": {},
+  "humans": {
+    "h_5a1c62fd74efa2": {
+      "author": "skyitachi <skbysp@gmail.com>"
+    }
+  }
+}
