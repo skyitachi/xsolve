@@ -89,6 +89,7 @@ enum SelfTest {
         await step("GET  api/problems") {
             problems = try await api.request("GET", "api/problems", body: nil as [String: String]?)
         }
+        print("    题库题目数：\(problems.count)")
 
         var session: SessionInfo?
         await step("POST api/session") {

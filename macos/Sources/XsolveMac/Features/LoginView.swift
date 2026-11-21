@@ -198,6 +198,10 @@ struct LoginView: View {
         busy = true
         defer { busy = false }
         do {
+            // 登录前先把「服务器设置」里的地址同步进 APIClient，否则改了地址
+            // 不点「保存并测试连接」就直接登录，请求仍会打到旧的 baseURL。
+            APIClient.shared.baseURL = serverURL.trimmingCharacters(in: .whitespaces)
+            APIClient.shared.allowSelfSigned = allowSelfSigned
             let u: User
             if mode == .login {
                 u = try await model.api.login(username: username, password: password)
@@ -218,6 +222,8 @@ struct LoginView: View {
         busy = true
         defer { busy = false }
         do {
+            APIClient.shared.baseURL = serverURL.trimmingCharacters(in: .whitespaces)
+            APIClient.shared.allowSelfSigned = allowSelfSigned
             let u = try await model.api.guestLogin()
             model.applyLogin(u)
         } catch {
